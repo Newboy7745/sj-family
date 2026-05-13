@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="apple-mobile-web-app-title" content="SJ Family"/>
+<meta name="theme-color" content="#0D4F7C"/>
+<title>SJ Family</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800;900&display=swap');
+:root{--p:#0D4F7C;--pl:#1B6CA8;--g:#C9A84C;--gl2:#E2C97E;--co:#E8735A;--cl:#F08070;--sa:#6BAF92;--sd:#3D8A62;--lv:#9B8EC4;--ld:#6B5FA0;--bg:#F8F9FF;--cd:#FFFFFF;--dk:#1A2332;--gr:#6B7280;--gl:#E5E7EB;--gu:#F3F4F6;--pa:#E8735A;--pb:#1B6CA8;--r:18px;--sh:0 2px 14px rgba(0,0,0,0.07)}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Nunito',sans-serif;background:#1A2332;display:flex;align-items:center;justify-content:center}
+#app{width:100%;max-width:430px;height:100vh;height:100dvh;background:var(--bg);display:flex;flex-direction:column;position:relative;overflow:hidden;box-shadow:0 0 80px rgba(0,0,0,0.4)}
+
+/* SPLASH */
+#splash{position:absolute;inset:0;background:linear-gradient(160deg,#F8F9FF 0%,#EEF2FF 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;transition:opacity .6s ease}
+#splash.hide{opacity:0;pointer-events:none}
+.spc{width:150px;height:150px;border-radius:50%;border:2px solid var(--g);display:flex;align-items:center;justify-content:center;animation:sin .8s ease both}
+@keyframes sin{from{opacity:0;transform:scale(.7) translateY(20px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.spf{font-family:'Cormorant Garamond',serif;font-size:48px;font-weight:600;color:var(--p);letter-spacing:4px}
+.spt{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--p);letter-spacing:6px;margin-top:20px;animation:sin .8s ease .2s both}
+.sps{font-size:10px;font-weight:700;color:var(--gr);letter-spacing:3px;text-transform:uppercase;margin-top:5px;animation:sin .8s ease .4s both}
+
+/* AUTH */
+#auth{flex:1;overflow-y:auto;padding:32px 22px;display:none;flex-direction:column}
+#auth.show{display:flex}
+.al{text-align:center;margin-bottom:24px}
+.ac{width:70px;height:70px;border-radius:50%;border:1.5px solid var(--g);display:flex;align-items:center;justify-content:center;margin:0 auto 9px}
+.af{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:600;color:var(--p);letter-spacing:2px}
+.an{font-family:'Cormorant Garamond',serif;font-size:19px;color:var(--p);letter-spacing:4px;font-weight:600}
+.as{font-size:10px;color:var(--gr);letter-spacing:2px;text-transform:uppercase;margin-top:3px}
+
+/* MAIN */
+#main{flex:1;display:none;flex-direction:column;overflow:hidden}
+#main.show{display:flex}
+.tb{background:var(--p);padding:13px 15px 11px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tbl{display:flex;align-items:center;gap:7px}
+.tbc{width:28px;height:28px;border-radius:50%;border:1px solid var(--g);display:flex;align-items:center;justify-content:center}
+.tbf{font-family:'Cormorant Garamond',serif;font-size:11px;font-weight:600;color:white;letter-spacing:1px}
+.tbn{font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:600;color:white;letter-spacing:2px}
+.tba{display:flex;gap:6px}
+.ib{width:31px;height:31px;background:rgba(255,255,255,.15);border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:white;font-size:13px;position:relative;transition:background .2s}
+.ib:hover{background:rgba(255,255,255,.25)}
+.nb{position:absolute;top:0;right:0;width:13px;height:13px;border-radius:7px;background:var(--co);font-size:8px;font-weight:900;color:white;display:flex;align-items:center;justify-content:center}
+.sct{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:600;color:white;letter-spacing:1px}
+.ct{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:80px}
+.ct::-webkit-scrollbar{display:none}
+
+/* BOTTOM NAV */
+.bn{position:absolute;bottom:0;left:0;right:0;background:white;border-top:1px solid var(--gl);display:flex;padding:6px 0 max(10px,env(safe-area-inset-bottom));z-index:50;box-shadow:0 -4px 20px rgba(0,0,0,0.08)}
+.ni{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:3px 0;border:none;background:none}
+.nw{padding:3px 9px;border-radius:9px}
+.ni.active .nw{background:rgba(13,79,124,.1)}
+.nico{font-size:18px;line-height:1}
+.nlb{font-size:10px;font-weight:700;color:var(--gr);font-family:'Nunito',sans-serif}
+.ni.active .nlb{color:var(--p)}
+.ncb{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;border:none;background:none;cursor:pointer}
+.ncc{width:42px;height:42px;background:linear-gradient(135deg,var(--co),var(--g));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:19px;margin-top:-13px;box-shadow:0 4px 14px rgba(232,115,90,.4)}
+
+/* FORMS */
+.fg{margin-bottom:13px}
+.fl{font-size:11px;font-weight:800;color:var(--dk);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.5px}
+.fi,.fs,.fta{width:100%;padding:11px 13px;border-radius:12px;border:2px solid var(--gl);font-family:'Nunito',sans-serif;font-size:14px;color:var(--dk);background:var(--gu);outline:none;transition:border .2s;-webkit-appearance:none}
+.fi:focus,.fs:focus,.fta:focus{border-color:var(--pl);background:white}
+.fta{resize:none;height:72px}
+
+/* BUTTONS */
+.bp{background:linear-gradient(135deg,var(--p),var(--pl));color:white;border:none;border-radius:12px;padding:13px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;width:100%;box-shadow:0 4px 14px rgba(13,79,124,.28);transition:opacity .2s,transform .15s}
+.bp:hover{opacity:.92;transform:translateY(-1px)}
+.bp:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.bc{background:linear-gradient(135deg,var(--co),var(--cl));color:white;border:none;border-radius:12px;padding:11px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:800;cursor:pointer;width:100%}
+.bo{background:transparent;color:var(--p);border:2px solid var(--p);border-radius:12px;padding:10px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:all .2s;width:100%}
+.bsm{padding:7px 12px;font-size:12px;border-radius:9px;width:auto}
+
+/* CARDS */
+.card{background:white;border-radius:var(--r);padding:15px;box-shadow:var(--sh);margin-bottom:11px}
+.ctt{font-family:'Cormorant Garamond',serif;font-size:15px;font-weight:700;color:var(--dk);margin-bottom:11px;display:flex;align-items:center;gap:6px}
+
+/* BADGES */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.bco{background:rgba(232,115,90,.15);color:var(--co)}
+.bpe{background:rgba(27,108,168,.15);color:var(--pl)}
+.bgo{background:rgba(201,168,76,.15);color:#8B6914}
+.bsa{background:rgba(107,175,146,.15);color:var(--sd)}
+.bgr{background:rgba(16,185,129,.15);color:#059669}
+.bre{background:rgba(239,68,68,.15);color:#DC2626}
+.bgr2{background:var(--gu);color:var(--gr)}
+.blv{background:rgba(155,142,196,.15);color:var(--ld)}
+
+/* TABS */
+.tabs{display:flex;border-bottom:2px solid var(--gl);margin-bottom:13px}
+.tab{flex:1;padding:10px 4px;text-align:center;font-size:11px;font-weight:800;color:var(--gr);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s;font-family:'Nunito',sans-serif}
+.tab.active{color:var(--p);border-bottom-color:var(--p)}
+
+/* LIST */
+.li{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gu);cursor:pointer}
+.li:last-child{border-bottom:none}
+.lii{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.lic{flex:1;min-width:0}
+.lit{font-size:13px;font-weight:700;color:var(--dk)}
+.lis{font-size:11px;color:var(--gr);margin-top:1px}
+
+/* CALENDAR */
+.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.caldn{text-align:center;font-size:10px;font-weight:800;color:var(--gr);padding:4px 0;text-transform:uppercase;letter-spacing:.3px}
+.cald{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;border:none;background:transparent;transition:all .15s;position:relative}
+.cald.om{color:rgba(107,114,128,.25)}
+.cald.tod{background:var(--p);color:white}
+.cald.dpa{background:rgba(232,115,90,.22);color:var(--co)}
+.cald.dpb{background:rgba(27,108,168,.22);color:var(--pl)}
+.cald.dtr{background:rgba(201,168,76,.28);color:#8B6914;border:2px solid var(--g)}
+.cald.dpnd{border:2px dashed var(--lv)}
+.cald.dhol{color:var(--sd);font-weight:900}
+.cald.dev::after{content:'';position:absolute;bottom:1px;width:4px;height:4px;border-radius:50%;background:var(--co)}
+
+/* EXCHANGE CARD */
+.exc{background:white;border-radius:14px;padding:13px;margin-bottom:10px;box-shadow:var(--sh);border-left:4px solid var(--g)}
+.exc.accepted{border-left-color:var(--sa)}.exc.refused{border-left-color:var(--co)}.exc.pending{border-left-color:var(--lv)}
+
+/* TASK */
+.tck{width:20px;height:20px;border-radius:7px;border:2px solid var(--gl);cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}
+.tck.done{background:var(--sa);border-color:var(--sa);color:white}
+
+/* MODAL */
+.mov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:flex;align-items:flex-end;justify-content:center}
+.msh{background:white;width:100%;max-width:430px;border-radius:24px 24px 0 0;padding:6px 18px 28px;max-height:88vh;overflow-y:auto;animation:su .3s ease}
+.msh::-webkit-scrollbar{display:none}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.mhd{width:36px;height:4px;background:var(--gl);border-radius:2px;margin:10px auto 15px}
+.mtt{font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;margin-bottom:15px;color:var(--dk)}
+
+/* TOAST */
+.toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:var(--dk);color:white;padding:10px 17px;border-radius:12px;font-size:13px;font-weight:700;z-index:500;animation:ti .3s ease,to .3s ease 2.2s forwards;white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.3);display:flex;align-items:center;gap:6px}
+@keyframes ti{from{opacity:0;top:56px}to{opacity:1;top:70px}}@keyframes to{to{opacity:0}}
+
+/* MISC */
+.sec{padding:16px 18px 9px;font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;color:var(--dk)}
+.info{background:rgba(13,79,124,.07);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--p);font-weight:600;margin-bottom:12px;border-left:3px solid var(--p)}
+.warn{background:rgba(201,168,76,.1);border-radius:12px;padding:10px 12px;font-size:12px;color:#8B6914;font-weight:600;margin-bottom:12px;border-left:3px solid var(--g)}
+.emsg{color:#DC2626;font-size:12px;font-weight:700;text-align:center;margin-top:7px;padding:8px;background:#FEF2F2;border-radius:9px}
+.av{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:900;color:white;flex-shrink:0}
+.hg{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 18px}
+.ht{background:white;border-radius:var(--r);padding:15px 12px;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:var(--sh);display:flex;flex-direction:column;gap:7px}
+.ht:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.11)}
+.hti{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px}
+.htl{font-size:13px;font-weight:800;color:var(--dk);line-height:1.2}
+.hts{font-size:11px;color:var(--gr)}
+.row{display:flex;align-items:center}
+.rowb{display:flex;align-items:center;justify-content:space-between}
+.g8{gap:8px}.g10{gap:10px}.g12{gap:12px}.f1{flex:1}
+.sx{overflow-x:auto;white-space:nowrap;display:flex;gap:6px;padding-bottom:3px}
+.sx::-webkit-scrollbar{display:none}
+.tgl{width:42px;height:23px;border-radius:12px;position:relative;cursor:pointer;border:none;flex-shrink:0;transition:background .2s}
+.tgl.on{background:var(--p)}.tgl.off{background:var(--gl)}
+.tgl::after{content:'';position:absolute;top:2px;width:17px;height:17px;border-radius:50%;background:white;transition:left .2s;box-shadow:0 1px 4px rgba(0,0,0,.2)}
+.tgl.on::after{left:22px}.tgl.off::after{left:3px}
+.cm{display:flex;align-items:center;gap:9px;padding:10px;background:var(--gu);border-radius:12px;margin-bottom:9px}
+.sto{flex:1;min-width:66px;padding:9px 5px;border-radius:12px;border:2px solid var(--gl);background:var(--gu);text-align:center;cursor:pointer;font-family:'Nunito',sans-serif;font-size:11px;font-weight:700;color:var(--gr);transition:all .2s}
+.sto.sel{border-color:var(--p);background:rgba(13,79,124,.08);color:var(--p)}
+.pw{display:flex;gap:3px}
+.pd{flex:1;border-radius:8px;padding:7px 2px;text-align:center;font-size:10px;font-weight:800}
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mc{border-radius:14px;overflow:hidden;position:relative;aspect-ratio:1;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.1)}
+.mo{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.6));padding:8px 8px 7px;color:white}
+.ni2{display:flex;align-items:flex-start;gap:9px;padding:12px;background:white;border-radius:14px;margin-bottom:9px;box-shadow:0 1px 6px rgba(0,0,0,.05);position:relative}
+.nd{position:absolute;top:14px;left:8px;width:6px;height:6px;border-radius:50%;background:var(--co)}
+.sr{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--gu)}
+.sr:last-child{border-bottom:none}
+.di{display:flex;align-items:center;gap:10px;padding:10px;background:white;border-radius:12px;margin-bottom:8px;box-shadow:0 1px 6px rgba(0,0,0,.06);cursor:pointer}
+.cc2{background:white;border-radius:14px;padding:12px;margin-bottom:8px;box-shadow:var(--sh);display:flex;align-items:center;gap:10px}
+.er{display:flex;align-items:center;gap:9px;padding:10px;background:var(--gu);border-radius:12px;margin-bottom:8px}
+</style>
+</head>
+<body>
+<div id="app">
+<div id="splash">
+  <div class="spc"><div class="spf">SJF</div></div>
+  <div class="spt">SJ FAMILY</div>
+  <div class="sps">Votre assistant personnel familial</div>
+</div>
+<div id="auth">
+  <div class="al">
+    <div class="ac"><div class="af">SJF</div></div>
+    <div class="an">SJ FAMILY</div>
+    <div class="as">Votre assistant personnel familial</div>
+  </div>
+  <div style="display:flex;background:var(--gu);border-radius:12px;padding:3px;gap:2px;margin-bottom:18px">
+    <button class="tab active" style="flex:1;border-radius:9px" onclick="swAT('login',this)">Connexion</button>
+    <button class="tab" style="flex:1;border-radius:9px" onclick="swAT('register',this)">Créer un compte</button>
+  </div>
+  <div id="lf">
+    <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="le" placeholder="votre@email.com" autocomplete="email"/></div>
+    <div class="fg">
+      <label class="fl">Mot de passe</label>
+      <input class="fi" type="password" id="lp" placeholder="••••••••" autocomplete="current-password"/>
+      <div style="text-align:right;margin-top:6px">
+        <button onclick="showReset()" style="background:none;border:none;cursor:pointer;font-size:12px;font-weight:700;color:var(--p);font-family:'Nunito',sans-serif;text-decoration:underline">🔑 Mot de passe oublié ?</button>
+      </div>
+    </div>
+    <button class="bp" onclick="doLogin()" id="lbtn">Se connecter</button>
+    <div id="lerr"></div>
+  </div>
+  <!-- RESET PASSWORD -->
+  <div id="resetf" style="display:none">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:32px;margin-bottom:8px">🔑</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:17px;font-weight:700;color:var(--p)">Réinitialiser le mot de passe</div>
+      <div style="font-size:12px;color:var(--gr);margin-top:4px">Un email vous sera envoyé avec un lien de réinitialisation</div>
+    </div>
+    <div class="fg"><label class="fl">Votre adresse email</label><input class="fi" type="email" id="resete" placeholder="votre@email.com"/></div>
+    <button class="bp" onclick="doReset()" id="resetbtn">Envoyer le lien</button>
+    <div id="reseterr"></div>
+    <button onclick="showLogin()" style="background:none;border:none;cursor:pointer;font-size:13px;font-weight:700;color:var(--gr);font-family:'Nunito',sans-serif;width:100%;text-align:center;margin-top:12px">← Retour à la connexion</button>
+  </div>
+  <div id="rf" style="display:none">
+    <div class="info">👋 Créez votre compte. Vous inviterez ensuite l'autre parent.</div>
+    <div class="fg"><label class="fl">Prénom</label><input class="fi" type="text" id="rn" placeholder="Ex: Khalid"/></div>
+    <div class="fg"><label class="fl">Email</label><input class="fi" type="email" id="re" placeholder="votre@email.com" autocomplete="email"/></div>
+    <div class="fg"><label class="fl">Mot de passe (min. 6 caractères)</label><input class="fi" type="password" id="rp" placeholder="••••••••" autocomplete="new-password"/></div>
+    <div class="fg"><label class="fl">Rôle</label><select class="fs" id="rr"><option value="parent">👤 Parent</option><option value="proche">👥 Proche</option></select></div>
+    <button class="bp" onclick="doRegister()" id="rbtn">Créer mon compte</button>
+    <div id="rerr"></div>
+  </div>
+</div>
+<div id="main">
+  <div class="tb" id="tb">
+    <div id="tbl">
+      <div class="tbl"><div class="tbc"><div class="tbf">SJF</div></div><div class="tbn">SJ Family</div></div>
+    </div>
+    <div class="tba">
+      <button class="ib" onclick="go('notifs')">🔔<div class="nb" id="nb" style="display:none">0</div></button>
+      <button class="ib" onclick="go('profile')">👤</button>
+    </div>
+  </div>
+  <div class="ct" id="content"></div>
+  <div class="bn">
+    <button class="ni active" id="nh" onclick="go('home')"><div class="nw"><div class="nico">🏠</div></div><div class="nlb">Accueil</div></button>
+    <button class="ni" id="na" onclick="go('agenda')"><div class="nw"><div class="nico">📅</div></div><div class="nlb">Agenda</div></button>
+    <button class="ncb" onclick="go('exchange')"><div class="ncc">🔄</div><div class="nlb" style="margin-top:2px">Échange</div></button>
+    <button class="ni" id="npr" onclick="go('profile')"><div class="nw"><div class="nico">🫂</div></div><div class="nlb">Cercle</div></button>
+    <button class="ni" id="nno" onclick="go('notifs')"><div class="nw"><div class="nico">🔔</div></div><div class="nlb">Notifs</div></button>
+  </div>
+</div>
+</div>
+<div id="tc"></div><div id="mc"></div>
+
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import{getAuth,createUserWithEmailAndPassword,signInWithEmailAndPassword,onAuthStateChanged,signOut,updateProfile,sendPasswordResetEmail}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import{getFirestore,doc,setDoc,getDoc,collection,addDoc,updateDoc,deleteDoc,onSnapshot,query,orderBy,serverTimestamp,getDocs}from"https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const FB={apiKey:"AIzaSyDlyQZ-O5Xuko-jtIvhJSzlncg1eL9Icdg",authDomain:"sj-family-dd337.firebaseapp.com",projectId:"sj-family-dd337",storageBucket:"sj-family-dd337.firebasestorage.app",messagingSenderId:"738819968953",appId:"1:738819968953:web:0f33908b97092bee20b068"};
+const fba=initializeApp(FB);
+const auth=getAuth(fba);
+const db=getFirestore(fba);
+
+const S={user:null,prof:null,cid:null,cd:null,screen:'home',cy:new Date().getFullYear(),cm:new Date().getMonth(),uns:[],
+  d:{exchanges:[],expenses:[],tasks:[],shopping:[],docs:[],contacts:[],memories:[],notifs:[],members:[],events:[]}};
+const MN=["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const DN=["L","M","M","J","V","S","D"];
+const FH={"2026-01-01":"Jour de l'an","2026-04-06":"Lundi de Pâques","2026-05-01":"Fête du Travail","2026-05-08":"Victoire 1945","2026-05-14":"Ascension","2026-05-25":"Pentecôte","2026-07-14":"Fête Nationale","2026-08-15":"Assomption","2026-11-01":"Toussaint","2026-11-11":"Armistice","2026-12-25":"Noël"};
+
+Object.assign(window,{S,auth,db,doc,setDoc,getDoc,collection,addDoc,updateDoc,deleteDoc,onSnapshot,query,orderBy,serverTimestamp,getDocs,signOut,MN,DN,FH});
+
+// AUTH STATE
+onAuthStateChanged(auth,async u=>{
+  const sp=document.getElementById('splash');sp.classList.add('hide');setTimeout(()=>sp.style.display='none',700);
+  if(u){S.user=u;await loadProf(u.uid);showMain();}
+  else{S.user=null;S.prof=null;S.cid=null;showAuth();}
+});
+
+async function loadProf(uid){
+  const sn=await getDoc(doc(db,'users',uid));
+  if(sn.exists()){S.prof=sn.data();S.cid=S.prof.circleId||null;}
+  if(S.cid){const cs=await getDoc(doc(db,'circles',S.cid));if(cs.exists())S.cd=cs.data();startL();}
+}
+window.loadProf=loadProf;
+
+function showMain(){document.getElementById('auth').classList.remove('show');document.getElementById('main').classList.add('show');go('home');}
+function showAuth(){document.getElementById('main').classList.remove('show');document.getElementById('auth').classList.add('show');}
+
+// LISTENERS
+function startL(){
+  if(!S.cid)return;S.uns.forEach(u=>u());S.uns=[];
+  ['exchanges','expenses','tasks','shopping','docs','contacts','memories','notifs','members','events'].forEach(col=>{
+    try{
+      const q=query(collection(db,'circles',S.cid,col),orderBy('createdAt','desc'));
+      const u=onSnapshot(q,sn=>{S.d[col]=sn.docs.map(d=>({id:d.id,...d.data()}));renderS(S.screen);updNB();},
+      ()=>{const u2=onSnapshot(collection(db,'circles',S.cid,col),sn=>{S.d[col]=sn.docs.map(d=>({id:d.id,...d.data()}));renderS(S.screen);updNB();});S.uns.push(u2);});
+      S.uns.push(u);
+    }catch(e){}
+  });
+}
+window.startL=startL;
+
+function updNB(){const n=S.d.notifs.filter(x=>!x.read).length;const el=document.getElementById('nb');if(el){el.textContent=n;el.style.display=n>0?'flex':'none';}}
+
+// DB HELPERS
+async function add(col,data){if(!S.cid)return;await addDoc(collection(db,'circles',S.cid,col),{...data,createdBy:S.user.uid,createdByName:S.prof?.name||'',createdAt:serverTimestamp()});}
+async function upd(col,id,data){if(!S.cid)return;await updateDoc(doc(db,'circles',S.cid,col,id),{...data,updatedAt:serverTimestamp()});}
+async function del(col,id){if(!S.cid)return;await deleteDoc(doc(db,'circles',S.cid,col,id));}
+async function notif(text,icon='🔔'){if(!S.cid)return;await add('notifs',{text,icon,read:false});}
+window.add=add;window.upd=upd;window.del=del;window.notif=notif;
+
+// AUTH
+window.swAT=function(tab,btn){
+  btn.closest('div').querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='register')));
+  document.getElementById('lf').style.display=tab==='login'?'block':'none';
+  document.getElementById('rf').style.display=tab==='register'?'block':'none';
+};
+window.doLogin=async function(){
+  const e=document.getElementById('le').value.trim(),p=document.getElementById('lp').value;
+  const er=document.getElementById('lerr'),btn=document.getElementById('lbtn');
+  er.innerHTML='';btn.disabled=true;btn.textContent='Connexion...';
+  try{await signInWithEmailAndPassword(auth,e,p);}
+  catch{er.innerHTML='<div class="emsg">Email ou mot de passe incorrect</div>';btn.disabled=false;btn.textContent='Se connecter';}
+};
+window.doRegister=async function(){
+  const name=document.getElementById('rn').value.trim(),email=document.getElementById('re').value.trim(),
+    pwd=document.getElementById('rp').value,role=document.getElementById('rr').value;
+  const er=document.getElementById('rerr'),btn=document.getElementById('rbtn');
+  if(!name||!email||!pwd){er.innerHTML='<div class="emsg">Remplissez tous les champs</div>';return;}
+  er.innerHTML='';btn.disabled=true;btn.textContent='Création...';
+  try{
+    const c=await createUserWithEmailAndPassword(auth,email,pwd);
+    await updateProfile(c.user,{displayName:name});
+    await setDoc(doc(db,'users',c.user.uid),{name,email,role,circleId:null,createdAt:serverTimestamp()});
+    S.prof={name,email,role,circleId:null};showMain();toast('✅ Compte créé !');go('profile');
+  }catch(e2){er.innerHTML=`<div class="emsg">${e2.message}</div>`;btn.disabled=false;btn.textContent='Créer mon compte';}
+};
+window.doLogout=async function(){S.uns.forEach(u=>u());S.uns=[];await signOut(auth);};
+
+window.showReset=function(){
+  document.getElementById('lf').style.display='none';
+  document.getElementById('rf').style.display='none';
+  document.getElementById('resetf').style.display='block';
+  document.querySelectorAll('#auth .tab').forEach(t=>t.style.opacity='0.3');
+};
+window.showLogin=function(){
+  document.getElementById('resetf').style.display='none';
+  document.getElementById('lf').style.display='block';
+  document.getElementById('rf').style.display='none';
+  document.querySelectorAll('#auth .tab').forEach(t=>t.style.opacity='1');
+  document.querySelectorAll('#auth .tab').forEach((t,i)=>t.classList.toggle('active',i===0));
+};
+window.doReset=async function(){
+  const email=document.getElementById('resete')?.value?.trim();
+  const err=document.getElementById('reseterr');const btn=document.getElementById('resetbtn');
+  if(!email){err.innerHTML='<div class="emsg">Entrez votre adresse email</div>';return;}
+  err.innerHTML='';btn.disabled=true;btn.textContent='Envoi en cours...';
+  try{
+    await sendPasswordResetEmail(auth,email);
+    err.innerHTML='<div style="color:#059669;font-size:12px;font-weight:700;text-align:center;margin-top:8px;padding:10px;background:#ECFDF5;border-radius:9px">✅ Email envoyé ! Vérifiez votre boîte mail (et vos spams).</div>';
+    btn.textContent='Email envoyé ✓';
+    setTimeout(()=>showLogin(),3000);
+  }catch(e){
+    err.innerHTML='<div class="emsg">Adresse email introuvable ou invalide</div>';
+    btn.disabled=false;btn.textContent='Envoyer le lien';
+  }
+};
+
+// HELPERS
+function isP(){return S.prof?.role==='parent';}
+function isPA(){return S.cd?.parentA===S.user?.uid;}
+function mc(){return isPA()?'var(--pa)':'var(--pb)';}
+function mi(){return(S.prof?.name||'U')[0].toUpperCase();}
+function paN(){return S.cd?.parentAName||'Parent A';}
+function pbN(){return S.cd?.parentBName||'Parent B';}
+function chn(){return S.cd?.childName||'votre enfant';}
+function stLbl(s){return s==='marie'?'💑 Mariés':s==='separe'?'🔶 Séparés':'📋 Divorcés';}
+function stCol(s){return s==='marie'?'var(--sa)':s==='separe'?'var(--g)':'var(--co)';}
+window.isP=isP;window.isPA=isPA;window.paN=paN;window.pbN=pbN;window.chn=chn;
+
+// GUARDIAN LOGIC
+function getG(k){
+  const plan=S.cd?.planning;
+  if(plan?.type&&plan?.startDate&&plan?.startParent)return computeG(k,plan);
+  const d=new Date(k+'T00:00:00');const wd=d.getDay();
+  const wn=Math.floor((d-new Date(2026,0,1))/(7*24*3600*1000));
+  if(wd===5)return'T';
+  return wn%2===0?'A':'B';
+}
+function computeG(k,plan){
+  const d=new Date(k+'T00:00:00');const s=new Date(plan.startDate+'T00:00:00');
+  const diff=Math.round((d-s)/(24*3600*1000));if(diff<0)return'?';
+  const sp=plan.startParent;const op=sp==='A'?'B':'A';const wd=d.getDay();
+  let g;
+  if(plan.type==='1s2'){const wk=Math.floor(diff/7);g=wk%2===0?sp:op;}
+  else if(plan.type==='223'){const wk=Math.floor(diff/7);const ep=wk%2===0?sp:op;const op2=ep==='A'?'B':'A';
+    if(wd===5)return'T';if(wd===1||wd===2)g=ep;else if(wd===3||wd===4)g=op2;else g=ep;}
+  else if(plan.type==='2253'){const pos=diff%14;
+    if(wd===5&&(pos===4||pos===9))return'T';
+    if(pos<2)g=sp;else if(pos<4)g=op;else if(pos<9)g=sp;else g=op;}
+  else if(plan.type==='1we2'){const wk=Math.floor(diff/7);
+    if(wd===5)return'T';if(wd===0||wd===6)g=wk%2===0?sp:op;else g=sp;}
+  else{const wk=Math.floor(diff/7);g=wk%2===0?sp:op;}
+  return g||'A';
+}
+window.getG=getG;
+
+// ROUTER
+window.go=function(screen){
+  S.screen=screen;
+  document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
+  const nm={home:'nh',agenda:'na',profile:'npr',notifs:'nno'};
+  if(nm[screen])document.getElementById(nm[screen])?.classList.add('active');
+  const tl={home:null,agenda:'Agenda',exchange:'Échange de garde',budget:'Budget partagé',tasks:'Tâches',
+    shopping:'Courses',docs:'Documents',directory:'Répertoire',memories:'Souvenirs',
+    notifs:'Notifications',profile:'Mon Cercle',settings:'Paramètres',planning:'Planning de garde'};
+  const tbl=document.getElementById('tbl');
+  if(screen==='home'){tbl.innerHTML=`<div class="tbl"><div class="tbc"><div class="tbf">SJF</div></div><div class="tbn">SJ Family</div></div>`;}
+  else{tbl.innerHTML=`<div style="display:flex;align-items:center;gap:8px"><button class="ib" onclick="go('home')">←</button><div class="sct">${tl[screen]||screen}</div></div>`;}
+  renderS(screen);
+};
+
+function renderS(s){
+  const c=document.getElementById('content');if(!c)return;
+  const fn={home:rH,agenda:rA,exchange:rE,budget:rB,tasks:rT,shopping:rSH,docs:rD,directory:rDI,memories:rM,notifs:rN,profile:rPR,settings:rST,planning:rPL};
+  if(fn[s])c.innerHTML=fn[s]();
+}
+
+// TOAST/MODAL
+window.toast=function(msg){const t=document.createElement('div');t.className='toast';t.textContent=msg;document.getElementById('tc').appendChild(t);setTimeout(()=>t.remove(),2700);};
+window.openModal=function(html){closeModal();const ov=document.createElement('div');ov.className='mov';ov.id='am';ov.innerHTML=`<div class="msh"><div class="mhd"></div>${html}</div>`;ov.addEventListener('click',e=>{if(e.target===ov)closeModal();});document.getElementById('mc').appendChild(ov);};
+window.closeModal=function(){document.getElementById('am')?.remove();};
+
+function noC(){if(S.cid)return'';return`<div style="margin:13px 18px"><div class="card" style="border-left:4px solid var(--g);text-align:center;padding:20px"><div style="font-size:36px;margin-bottom:9px">🫂</div><div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:var(--p);margin-bottom:6px">Configurez votre cercle</div><div style="font-size:12px;color:var(--gr);margin-bottom:13px">Créez ou rejoignez un cercle familial</div><button class="bp" onclick="go('profile')">Configurer</button></div></div>`;}
+
+// ════ HOME ════
+function rH(){
+  const today=new Date();
+  const tk=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const g=S.cid?getG(tk):'?';const isT=g==='T';
+  const gn=isT?'Transition':g==='A'?paN():g==='B'?pbN():'—';
+  const gc=isT?'var(--g)':g==='A'?'var(--pa)':g==='B'?'var(--pb)':'var(--gr)';
+  const status=S.cd?.status||'divorce';
+  const ts=today.toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  const pe=S.d.exchanges.filter(e=>e.status==='pending').length;
+  const pt=S.d.tasks.filter(t=>!t.done).length;
+  const tiles=[
+    {i:'📅',l:'Planning',s:'Agenda partagé',c:'var(--pl)',bg:'rgba(27,108,168,.1)',sc:'agenda'},
+    {i:'💰',l:'Budget',s:'Dépenses & solde',c:'var(--g)',bg:'rgba(201,168,76,.1)',sc:'budget'},
+    {i:'✅',l:'Tâches',s:'À faire ensemble',c:'var(--sa)',bg:'rgba(107,175,146,.1)',sc:'tasks'},
+    {i:'🛒',l:'Courses',s:'Liste commune',c:'var(--lv)',bg:'rgba(155,142,196,.1)',sc:'shopping'},
+    {i:'📁',l:'Documents',s:'Coffre numérique',c:'var(--p)',bg:'rgba(13,79,124,.1)',sc:'docs'},
+    {i:'📞',l:'Répertoire',s:'Contacts enfants',c:'var(--co)',bg:'rgba(232,115,90,.1)',sc:'directory'},
+    {i:'📸',l:'Souvenirs',s:'Moments partagés',c:'var(--g)',bg:'rgba(201,168,76,.1)',sc:'memories'},
+    {i:'⚙️',l:'Paramètres',s:'Cercle & compte',c:'var(--gr)',bg:'var(--gu)',sc:'settings'},
+  ];
+  return`${noC()}${S.cid?`
+  <div style="margin:13px 18px">
+    <div style="background:linear-gradient(135deg,${isT?'rgba(201,168,76,.12)':g==='A'?'rgba(232,115,90,.12)':'rgba(27,108,168,.12)'},rgba(13,79,124,.04));border-radius:15px;padding:12px 14px;border-left:4px solid ${gc}">
+      <div style="font-size:10px;font-weight:800;color:${gc};text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">📍 ${ts}</div>
+      <div class="row g10">
+        <div class="av" style="width:32px;height:32px;background:${gc};font-size:12px">${isT?'🔄':gn[0]}</div>
+        <div><div style="font-weight:800;font-size:13px;color:var(--dk)">${isT?'Transition de garde à 18h30':`Garde de ${chn()} : ${gn}`}</div>
+        <div style="font-size:11px;color:var(--gr)">Statut : <span style="font-weight:700;color:${stCol(status)}">${stLbl(status)}</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div style="margin:0 18px 13px;background:linear-gradient(135deg,var(--p),var(--pl));border-radius:18px;padding:17px;color:white;position:relative;overflow:hidden">
+    <div style="position:absolute;right:-14px;bottom:-14px;width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.05)"></div>
+    <div style="font-size:10px;font-weight:800;background:var(--g);color:white;padding:2px 9px;border-radius:20px;display:inline-block;margin-bottom:8px;letter-spacing:.5px">✨ SJ Family</div>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700;margin-bottom:5px">Bonjour ${S.prof?.name||''} 👋</div>
+    <div style="font-size:12px;opacity:.85;margin-bottom:12px">Tout pour ${chn()}, centralisé ici</div>
+    <div class="row g8">
+      ${pe>0?`<span style="background:rgba(255,255,255,.2);border-radius:9px;padding:4px 9px;font-size:10px;font-weight:800">🔄 ${pe} échange${pe>1?'s':''}</span>`:''}
+      ${pt>0?`<span style="background:rgba(255,255,255,.2);border-radius:9px;padding:4px 9px;font-size:10px;font-weight:800">✅ ${pt} tâche${pt>1?'s':''}</span>`:''}
+    </div>
+  </div>`:''}
+  <div class="sec">Modules</div>
+  <div class="hg">${tiles.map(t=>`<div class="ht" onclick="go('${t.sc}')"><div class="hti" style="background:${t.bg}">${t.i}</div><div class="htl">${t.l}</div><div class="hts">${t.s}</div></div>`).join('')}</div>
+  <div style="height:14px"></div>`;
+}
+
+// ════ AGENDA ════
+function rA(){
+  const y=S.cy,m=S.cm;
+  const first=new Date(y,m,1).getDay();const off=first===0?6:first-1;
+  const dim=new Date(y,m+1,0).getDate();const dip=new Date(y,m,0).getDate();
+  const tod=new Date();let cells=[];
+  for(let i=off-1;i>=0;i--)cells.push({d:dip-i,cur:false});
+  for(let i=1;i<=dim;i++)cells.push({d:i,cur:true});
+  while(cells.length<42)cells.push({d:cells.length-dim-off+1,cur:false});
+  function cls(cell){
+    if(!cell.cur)return'cald om';
+    const d=new Date(y,m,cell.d);const k=`${y}-${String(m+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`;
+    if(d.toDateString()===tod.toDateString())return'cald tod';
+    if(S.d.exchanges.some(e=>e.date===k&&e.status==='pending'))return'cald dpnd';
+    const g=S.cid?getG(k):'?';
+    if(g==='T')return'cald dtr';if(g==='A')return'cald dpa';if(g==='B')return'cald dpb';return'cald';
+  }
+  const upc=S.d.events.filter(e=>{try{return new Date(e.date+'T00:00:00')>=tod;}catch{return false;}}).slice(0,4);
+  const paN2=paN(),pbN2=pbN();
+  return`<div style="padding:13px 18px 0">
+  <div class="rowb" style="margin-bottom:12px">
+    <button class="bo bsm" onclick="S.cy=${m===0?y-1:y};S.cm=${m===0?11:m-1};renderS('agenda')">‹</button>
+    <div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700">${MN[m]} ${y}</div>
+    <button class="bo bsm" onclick="S.cy=${m===11?y+1:y};S.cm=${m===11?0:m+1};renderS('agenda')">›</button>
+  </div>
+  <div class="calg">
+    ${DN.map(d=>`<div class="caldn">${d}</div>`).join('')}
+    ${cells.map(cell=>{const k=`${y}-${String(m+1).padStart(2,'0')}-${String(cell.d).padStart(2,'0')}`;const hol=cell.cur&&FH[k];const hev=cell.cur&&S.d.events.some(e=>e.date===k);return`<button class="${cls(cell)}${hol?' dhol':''}${hev?' dev':''}" title="${hol||''}" onclick="if(${cell.cur})selDay('${k}')">${cell.d}</button>`;}).join('')}
+  </div>
+  <div class="rowb" style="margin-top:10px">
+    <button class="bo bsm" onclick="tgLeg()">ℹ️ Légende</button>
+    <div class="row g6"><span class="badge bco">${paN2}</span><span class="badge bpe">${pbN2}</span></div>
+  </div>
+  <div id="leg" style="display:none;margin-top:9px" class="card">
+    ${[['dpa',`Garde ${paN2}`],['dpb',`Garde ${pbN2}`],['dtr','Transition'],['tod',"Aujourd'hui"],['dpnd','Échange en attente'],['dhol','Jours fériés']].map(([c,l])=>`<div class="row g10" style="margin-bottom:6px;font-size:12px"><div class="cald ${c}" style="width:22px;height:22px;border-radius:6px;flex-shrink:0;aspect-ratio:auto;cursor:default;font-size:10px">6</div>${l}</div>`).join('')}
+  </div>
+  ${S.cid&&isP()?`<button class="bo" style="margin-top:11px" onclick="addEvModal()">➕ Ajouter un événement</button>`:''}
+  <div style="margin-top:15px">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:14px;font-weight:700;margin-bottom:8px">Prochains événements</div>
+    ${upc.length===0?`<div class="card" style="text-align:center;padding:18px;color:var(--gr)"><div style="font-size:30px;margin-bottom:7px">📅</div><div style="font-weight:700;font-size:12px">Aucun événement à venir</div></div>`
+    :`<div class="card" style="margin:0">${upc.map(e=>`<div class="li"><div class="lii" style="background:rgba(13,79,124,.08)">${e.icon||'📅'}</div><div class="lic"><div class="lit">${e.title}</div><div class="lis">${e.date||''} ${e.time?'à '+e.time:''}</div></div><div class="row g6"><span class="badge bgr2">${e.category||''}</span>${e.createdBy===S.user?.uid?`<button onclick="del('events','${e.id}');toast('Supprimé')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--co)">🗑</button>`:''}</div></div>`).join('')}</div>`}
+  </div>
+  <div style="height:16px"></div></div>`;
+}
+window.tgLeg=function(){const el=document.getElementById('leg');if(el)el.style.display=el.style.display==='none'?'block':'none';};
+window.selDay=function(k){
+  const g=S.cid?getG(k):'?';const paN2=paN(),pbN2=pbN();
+  const gn=g==='T'?'Transition':g==='A'?paN2:g==='B'?pbN2:'—';
+  const gc=g==='T'?'var(--g)':g==='A'?'var(--pa)':g==='B'?'var(--pb)':'var(--gr)';
+  const hol=FH[k];const de=S.d.events.filter(e=>e.date===k);
+  openModal(`<div class="mtt">📅 ${new Date(k+'T00:00:00').toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'})}</div>
+    <div class="card" style="margin:0 0 11px">${g==='T'?`<div class="row g10"><div style="font-size:24px">🔄</div><div><div style="font-weight:800">Transition de garde</div><div style="font-size:11px;color:var(--gr)">Passage à 18h30</div></div></div>`
+    :`<div class="row g10"><div class="av" style="width:38px;height:38px;background:${gc}">${gn[0]}</div><div><div style="font-weight:800;font-size:13px">Garde : ${gn}</div>${hol?`<span class="badge bsa" style="margin-top:3px;display:inline-flex">${hol}</span>`:''}</div></div>`}</div>
+    ${de.length>0?`<div style="margin-bottom:11px">${de.map(e=>`<div class="row g8" style="padding:7px;background:var(--gu);border-radius:9px;margin-bottom:5px"><div style="font-size:16px">${e.icon||'📅'}</div><div style="flex:1"><div style="font-weight:700;font-size:12px">${e.title}</div><div style="font-size:11px;color:var(--gr)">${e.time?'À '+e.time:''}</div></div></div>`).join('')}</div>`:''}
+    <button class="bp" onclick="closeModal();go('exchange')">🔄 Demander un échange</button>
+    ${isP()?`<button class="bo" style="margin-top:7px" onclick="closeModal();addEvModal('${k}')">➕ Ajouter un événement</button>`:''}
+  `);
+};
+window.addEvModal=function(pref){
+  openModal(`<div class="mtt">➕ Nouvel événement</div>
+    <div class="fg"><label class="fl">Titre</label><input class="fi" id="evt" placeholder="Ex: Réunion parents-profs"/></div>
+    <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="evd" value="${pref||new Date().toISOString().split('T')[0]}"/></div>
+    <div class="fg"><label class="fl">Heure</label><input class="fi" type="time" id="evh"/></div>
+    <div class="fg"><label class="fl">Catégorie</label><select class="fs" id="evc">${['École','Santé','Activités','Famille','Administratif','Autre'].map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">Icône</label><select class="fs" id="evi">${['🏫','🏥','⚽','🎂','👨‍⚕️','✈️','📋','🎨','🎭','🌟','💉','🦷'].map(i=>`<option value="${i}">${i}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">Note</label><textarea class="fta" id="evn" placeholder="Informations..."></textarea></div>
+    <button class="bp" onclick="subEv()">Ajouter l'événement</button>`);
+};
+window.subEv=async function(){
+  if(!S.cid){toast('❌ Configurez votre cercle');closeModal();return;}
+  const title=document.getElementById('evt')?.value?.trim(),date=document.getElementById('evd')?.value,
+    time=document.getElementById('evh')?.value,cat=document.getElementById('evc')?.value,
+    ico=document.getElementById('evi')?.value||'📅',note=document.getElementById('evn')?.value;
+  if(!title||!date){toast('❌ Titre et date requis');return;}
+  const cc={'École':'#1B6CA8','Santé':'#6BAF92','Activités':'#C9A84C','Famille':'#E8735A','Administratif':'#9B8EC4','Autre':'#6B7280'};
+  await add('events',{title,date,time,category:cat,icon:ico,note,color:cc[cat]||'#6B7280'});
+  await notif(`Nouvel événement : ${title} le ${date}`,'📅');
+  toast('✅ Événement ajouté !');closeModal();
+};
+
+// ════ PLANNING ════
+function rPL(){
+  const plan=S.cd?.planning;const tl={'1s2':'1 semaine / 2','223':'2-2-3','2253':'2-2-5-5','1we2':'1 week-end / 2'};
+  const paN2=paN(),pbN2=pbN();
+  return`<div style="padding:13px 18px 0">
+  ${plan?`<div class="card" style="border-left:4px solid var(--sa)"><div class="ctt">✅ Planning actif</div>
+    <span class="badge bsa" style="margin-bottom:7px;display:inline-flex">${tl[plan.type]||plan.type}</span>
+    <div style="font-size:12px;color:var(--gr)">Depuis le ${plan.startDate} · Commence par <strong>${plan.startParent==='A'?paN2:pbN2}</strong></div>
+    ${isP()?`<button class="bo" style="margin-top:10px;color:var(--co);border-color:var(--co)" onclick="resetPlan()">🗑 Supprimer</button>`:''}
+  </div>`:`<div class="warn">⚠️ Aucun planning configuré. Rythme par défaut utilisé.</div>`}
+  ${isP()?`<div class="card"><div class="ctt">⚙️ ${plan?'Modifier':'Configurer'} le planning</div>
+    <div class="fg"><label class="fl">Type de rythme</label><select class="fs" id="plt">
+      <option value="1s2">🔄 1 semaine / 2</option><option value="223">📅 2-2-3</option>
+      <option value="2253">📅 2-2-5-5</option><option value="1we2">🗓 1 week-end / 2</option>
+    </select></div>
+    <div class="fg"><label class="fl">Date de début</label><input class="fi" type="date" id="pld" value="${new Date().toISOString().split('T')[0]}"/></div>
+    <div class="fg"><label class="fl">Commence par</label>
+      <div style="display:flex;gap:9px">
+        <div id="plpa" onclick="selPP('A')" style="flex:1;padding:10px;border-radius:12px;border:2px solid var(--gl);background:var(--gu);display:flex;align-items:center;gap:7px;cursor:pointer">
+          <div class="av" style="width:26px;height:26px;background:var(--pa);font-size:11px">${paN2[0]}</div><span style="font-weight:700;font-size:12px">${paN2}</span>
+        </div>
+        <div id="plpb" onclick="selPP('B')" style="flex:1;padding:10px;border-radius:12px;border:2px solid var(--gl);background:var(--gu);display:flex;align-items:center;gap:7px;cursor:pointer">
+          <div class="av" style="width:26px;height:26px;background:var(--pb);font-size:11px">${pbN2[0]}</div><span style="font-weight:700;font-size:12px">${pbN2}</span>
+        </div>
+      </div>
+    </div>
+    <button class="bp" onclick="savePlan()">💾 Enregistrer</button>
+  </div>`:`<div class="info">Seuls les parents peuvent configurer le planning.</div>`}
+  <div style="height:16px"></div></div>`;
+}
+let selPPar='A';
+window.selPP=function(p){selPPar=p;['A','B'].forEach(x=>{const el=document.getElementById(`plp${x==='A'?'pa':'pb'}`);if(el){el.style.borderColor=x===p?'var(--p)':'var(--gl)';el.style.background=x===p?'rgba(13,79,124,.08)':'var(--gu)';}});};
+window.savePlan=async function(){
+  if(!S.cid||!isP()){toast('❌ Non autorisé');return;}
+  const type=document.getElementById('plt')?.value;const sd=document.getElementById('pld')?.value;
+  if(!sd){toast('❌ Sélectionnez une date');return;}
+  await updateDoc(doc(db,'circles',S.cid),{planning:{type,startDate:sd,startParent:selPPar}});
+  S.cd.planning={type,startDate:sd,startParent:selPPar};
+  await notif('Planning de garde mis à jour','📅');toast('✅ Planning enregistré !');renderS(S.screen);
+};
+window.resetPlan=async function(){if(!S.cid||!isP())return;await updateDoc(doc(db,'circles',S.cid),{planning:null});S.cd.planning=null;toast('Planning supprimé');renderS(S.screen);};
+
+// ════ EXCHANGE ════
+function rE(){
+  const status=S.cd?.status||'divorce';const csr=status==='marie';
+  const paN2=paN(),pbN2=pbN();
+  const upc=S.d.exchanges.filter(e=>{try{return new Date(e.date+'T00:00:00')>=new Date()&&e.status!=='refused';}catch{return false;}});
+  const hist=S.d.exchanges.filter(e=>{try{return new Date(e.date+'T00:00:00')<new Date()||e.status==='refused';}catch{return false;}});
+  return`<div style="padding:13px 18px 0">
+  <div class="tabs">
+    <button class="tab active" onclick="swT(this,'ex','list')">📋 Échanges</button>
+    <button class="tab" onclick="swT(this,'ex','new')">➕ Nouvelle</button>
+    <button class="tab" onclick="swT(this,'ex','stats')">📊 Suivi</button>
+  </div>
+  <div id="ex-list">
+    ${!S.cid?`<div class="info">Configurez d'abord votre cercle</div>`:''}
+    ${upc.length>0?`<div style="font-weight:800;font-size:11px;color:var(--p);margin-bottom:8px">À venir</div>${upc.map(e=>excC(e,csr)).join('')}`:''}
+    ${hist.length>0?`<div style="font-weight:800;font-size:11px;color:var(--gr);margin:12px 0 8px">Historique</div>${hist.slice(0,6).map(e=>excC(e,csr)).join('')}`:''}
+    ${upc.length===0&&hist.length===0?`<div style="text-align:center;padding:36px 0;color:var(--gr)"><div style="font-size:40px;margin-bottom:9px">🔄</div><div style="font-weight:700;font-size:13px">Aucun échange</div></div>`:''}
+  </div>
+  <div id="ex-new" style="display:none">
+    <div class="${status==='marie'?'info':'warn'}">${status==='marie'?'💑 Mode marié : la raison sera visible par les deux parents.':status==='separe'?'🔶 Mode séparé : la raison restera privée.':'📋 Mode divorcé : raison privée, validation obligatoire.'}</div>
+    <div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="exd" value="${new Date().toISOString().split('T')[0]}"/></div>
+    <div class="fg"><label class="fl">Type d'échange</label><select class="fs" id="ext">
+      <option value="A_B">De ${paN2} → ${pbN2}</option><option value="B_A">De ${pbN2} → ${paN2}</option>
+    </select></div>
+    <div class="fg"><label class="fl">Motif ${!csr?'(privé)':''}</label><select class="fs" id="exr">
+      <option value="">Choisir...</option>
+      ${['Réunion professionnelle','Rendez-vous médical','Événement familial','Voyage','Formation','Urgence','Autre'].map(r=>`<option>${r}</option>`).join('')}
+    </select></div>
+    <div class="fg"><label class="fl">Précision ${!csr?'(privée)':''}</label><textarea class="fta" id="exn" placeholder="Informations..."></textarea></div>
+    <button class="bp" onclick="subEx()">📤 Envoyer la demande</button>
+  </div>
+  <div id="ex-stats" style="display:none">
+    <div class="card" style="margin:0"><div class="ctt">Répartition</div>
+      <div style="display:flex;gap:9px;margin-bottom:12px">
+        ${['A','B'].map(p=>{const tot=Math.max(S.d.exchanges.filter(e=>e.status!=='refused').length,1);const cnt=S.d.exchanges.filter(e=>e.guardTo===p&&e.status!=='refused').length;const pct=Math.round(cnt/tot*100);const n=p==='A'?paN2:pbN2,c=p==='A'?'var(--pa)':'var(--pb)';
+        return`<div style="flex:1;background:${p==='A'?'rgba(232,115,90,.08)':'rgba(27,108,168,.08)'};border-radius:12px;padding:12px;text-align:center"><div class="av" style="width:36px;height:36px;background:${c};font-size:14px;margin:0 auto 6px">${n[0]}</div><div style="font-family:'Cormorant Garamond',serif;font-size:21px;font-weight:700;color:${c}">${pct}%</div><div style="font-size:11px;color:var(--gr)">${n}</div></div>`;}).join('')}
+      </div>
+      <div style="height:8px;border-radius:4px;background:var(--gu);overflow:hidden"><div style="height:100%;width:${Math.round(S.d.exchanges.filter(e=>e.guardTo==='A'&&e.status!=='refused').length/Math.max(S.d.exchanges.filter(e=>e.status!=='refused').length,1)*100)}%;background:linear-gradient(90deg,var(--pa),var(--pb));border-radius:4px"></div></div>
+    </div>
+  </div>
+  <div style="height:16px"></div></div>`;
+}
+function excC(e,csr){
+  const paN2=paN(),pbN2=pbN();const fn=e.guardFrom==='A'?paN2:pbN2,tn=e.guardTo==='A'?paN2:pbN2;
+  const fc=e.guardFrom==='A'?'var(--pa)':'var(--pb)',tc=e.guardTo==='A'?'var(--pa)':'var(--pb)';
+  const im=e.createdBy===S.user?.uid;const cv=!im&&e.status==='pending'&&isP();
+  return`<div class="exc ${e.status}">
+    <div style="font-size:11px;color:var(--gr);margin-bottom:6px">${e.date||''} ${csr&&e.reason?`· ${e.reason}`:''}</div>
+    <div class="row g8" style="margin-bottom:8px">
+      <div class="av" style="width:26px;height:26px;background:${fc};font-size:10px">${fn[0]}</div>
+      <div style="color:var(--g);font-size:10px;font-weight:900">›‹›</div>
+      <div class="av" style="width:26px;height:26px;background:${tc};font-size:10px">${tn[0]}</div>
+      <div style="font-size:12px;font-weight:700;color:var(--dk)">Garde → ${tn}</div>
+    </div>
+    ${cv?`<div class="row g8"><button class="bc bsm" style="flex:1" onclick="respEx('${e.id}','accepted')">✅ Accepter</button><button class="bo bsm" style="flex:1;color:var(--co);border-color:var(--co)" onclick="respEx('${e.id}','refused')">✗ Refuser</button></div>`:''}
+    ${e.status==='pending'&&im?`<span class="badge blv">⏳ En attente</span>`:''}
+    ${e.status==='accepted'?`<span class="badge bgr">✅ Accepté${e.respondedByName?' par '+e.respondedByName:''}</span>`:''}
+    ${e.status==='refused'?`<span class="badge bre">✗ Refusé</span>`:''}
+  </div>`;
+}
+window.swT=function(btn,pfx,tab){btn.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');['list','new','stats','overview','add'].forEach(t=>{const el=document.getElementById(`${pfx}-${t}`);if(el)el.style.display=t===tab?'block':'none';});};
+window.subEx=async function(){
+  if(!S.cid){toast('❌ Configurez votre cercle');return;}
+  const date=document.getElementById('exd')?.value,type=document.getElementById('ext')?.value,
+    reason=document.getElementById('exr')?.value,note=document.getElementById('exn')?.value;
+  if(!date){toast('❌ Sélectionnez une date');return;}
+  const[from,to]=type.split('_');const status=S.cd?.status||'divorce';
+  await add('exchanges',{date,guardFrom:from,guardTo:to,reason,note,reasonVisible:status==='marie',status:'pending'});
+  await notif(`Demande d'échange pour le ${date}`,'🔄');toast('✅ Demande envoyée !');go('exchange');
+};
+window.respEx=async function(id,status){
+  await upd('exchanges',id,{status,respondedBy:S.user.uid,respondedByName:S.prof?.name});
+  await notif(`Échange ${status==='accepted'?'accepté':'refusé'} par ${S.prof?.name}`,status==='accepted'?'✅':'❌');
+  toast(status==='accepted'?'✅ Échange accepté':'Échange refusé');
+};
+
+// ════ BUDGET ════
+function rB(){
+  const exp=S.d.expenses;const paN2=paN(),pbN2=pbN();
+  const tA=exp.filter(e=>e.paidByParent==='A').reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const tB=exp.filter(e=>e.paidByParent==='B').reduce((s,e)=>s+parseFloat(e.amount||0),0);
+  const tot=tA+tB;const bal=(tot*0.5)-tA;
+  const cC={'École':'var(--pl)','Santé':'var(--sa)','Activités':'var(--g)','Habillement':'var(--lv)','Alimentation':'var(--co)'};
+  const cI={'École':'📚','Santé':'🏥','Activités':'⚽','Habillement':'👕','Alimentation':'🥦','Transport':'🚗','Loisirs':'🎭','Autre':'📦'};
+  return`<div style="padding:13px 18px 0">
+  <div class="tabs">
+    <button class="tab active" onclick="swT(this,'bud','overview')">💰 Aperçu</button>
+    <button class="tab" onclick="swT(this,'bud','list')">📄 Dépenses</button>
+    <button class="tab" onclick="swT(this,'bud','add')">➕ Ajouter</button>
+  </div>
+  <div id="bud-overview">
+    <div class="card" style="border-left:4px solid ${Math.abs(bal)<1?'var(--sa)':'var(--co)'}">
+      <div style="font-size:10px;font-weight:800;color:var(--gr);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Solde</div>
+      ${Math.abs(bal)<1?`<div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--sa)">✅ Équilibré</div>`
+      :bal>0?`<div><div style="font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;color:var(--co)">${paN2} doit ${bal.toFixed(2)} €</div><div style="font-size:11px;color:var(--gr)">à ${pbN2}</div></div>`
+      :`<div><div style="font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;color:var(--co)">${pbN2} doit ${Math.abs(bal).toFixed(2)} €</div><div style="font-size:11px;color:var(--gr)">à ${paN2}</div></div>`}
+    </div>
+    <div style="display:flex;gap:9px;margin-bottom:11px">
+      ${['A','B'].map(p=>{const t=p==='A'?tA:tB,n=p==='A'?paN2:pbN2,c=p==='A'?'var(--pa)':'var(--pb)';
+      return`<div class="card" style="flex:1;margin:0"><div class="row g8" style="margin-bottom:4px"><div class="av" style="width:28px;height:28px;background:${c};font-size:11px">${n[0]}</div><div style="font-size:12px;font-weight:700">${n}</div></div><div style="font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:700;color:${c}">${t.toFixed(2)} €</div></div>`;}).join('')}
+    </div>
+    <div class="card" style="margin:0"><div class="ctt">Par catégorie</div>
+      ${Object.keys(cC).map(cat=>{const ct=exp.filter(e=>e.category===cat).reduce((s,e)=>s+parseFloat(e.amount||0),0);if(!ct)return'';const mx=Math.max(...Object.keys(cC).map(c=>exp.filter(e=>e.category===c).reduce((s,e)=>s+parseFloat(e.amount||0),0)),1);
+      return`<div style="margin-bottom:9px"><div class="rowb" style="margin-bottom:3px"><div style="font-size:12px;font-weight:700">${cI[cat]||'📦'} ${cat}</div><div style="font-size:12px;font-weight:800;color:${cC[cat]}">${ct.toFixed(2)} €</div></div><div style="height:6px;background:var(--gu);border-radius:3px;overflow:hidden"><div style="height:100%;width:${ct/mx*100}%;background:${cC[cat]};border-radius:3px"></div></div></div>`;}).join('')}
+    </div>
+  </div>
+  <div id="bud-list" style="display:none">
+    ${exp.length===0?`<div style="text-align:center;padding:36px;color:var(--gr)"><div style="font-size:40px;margin-bottom:9px">💰</div><div style="font-weight:700;font-size:13px">Aucune dépense</div></div>`
+    :exp.map(e=>{const n=e.paidByParent==='A'?paN2:pbN2,c=e.paidByParent==='A'?'var(--pa)':'var(--pb)';const cd=e.createdBy===S.user?.uid;
+    return`<div class="er"><div style="width:38px;height:38px;border-radius:11px;background:${cC[e.category]||'var(--gu)'}20;display:flex;align-items:center;justify-content:center;font-size:18px">${cI[e.category]||'📦'}</div><div style="flex:1"><div style="font-size:12px;font-weight:700">${e.label}</div><div style="font-size:10px;color:var(--gr)">${e.date||''} · répartition ${e.split||50}/${100-(e.split||50)}</div></div><div style="text-align:right"><div style="font-family:'Cormorant Garamond',serif;font-size:16px;font-weight:700;color:${c}">${parseFloat(e.amount||0).toFixed(2)} €</div><div style="font-size:10px;color:var(--gr)">${n}</div>${cd?`<button onclick="del('expenses','${e.id}');toast('Supprimé')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--co)">🗑</button>`:''}</div></div>`;}).join('')}
+  </div>
+  <div id="bud-add" style="display:none">
+    <div class="fg"><label class="fl">Description</label><input class="fi" id="expl" placeholder="Ex: Fournitures scolaires"/></div>
+    <div class="fg"><label class="fl">Montant (€)</label><input class="fi" type="number" id="expa" placeholder="0.00" step="0.01"/></div>
+    <div class="fg"><label class="fl">Catégorie</label><select class="fs" id="expc">${['École','Santé','Activités','Habillement','Alimentation','Transport','Loisirs','Autre'].map(c=>`<option>${c}</option>`).join('')}</select></div>
+    <div class="fg"><label class="fl">Payé par</label><div style="display:flex;gap:8px">
+      ${['A','B'].map(p=>{const n=p==='A'?paN2:pbN2,c=p==='A'?'var(--pa)':'var(--pb)';return`<div id="ep${p}" onclick="selPay('${p}')" style="flex:1;padding:10px;border-radius:12px;border:2px solid var(--gl);background:var(--gu);display:flex;align-items:center;gap:6px;cursor:pointer"><div class="av" style="width:24px;height:24px;background:${c};font-size:10px">${n[0]}</div><span style="font-weight:700;font-size:12px">${n}</span></div>`;}).join('')}
+    </div></div>
+    <div class="fg"><label class="fl">Répartition : <span id="spv">50</span>/50</label>
+      <input type="range" min="0" max="100" step="10" value="50" id="exps" oninput="document.getElementById('spv').textContent=this.value" style="width:100%;accent-color:var(--p)"/>
+    </div>
+    <button class="bp" onclick="subExp()">Ajouter</button>
+  </div>
+  <div style="height:16px"></div></div>`;
+}
+let curPay='A';
+window.selPay=function(p){curPay=p;['A','B'].forEach(x=>{const el=document.getElementById(`ep${x}`);if(el){el.style.borderColor=x===p?'var(--p)':'var(--gl)';el.style.background=x===p?'rgba(13,79,124,.08)':'var(--gu)';}});};
+window.subExp=async function(){
+  if(!S.cid){toast('❌ Configurez votre cercle');return;}
+  const label=document.getElementById('expl')?.value?.trim(),amount=document.getElementById('expa')?.value,
+    category=document.getElementById('expc')?.value,split=document.getElementById('exps')?.value||50;
+  if(!label||!amount){toast('❌ Remplissez tous les champs');return;}
+  await add('expenses',{label,amount:parseFloat(amount),category,paidByParent:curPay,split:parseInt(split),date:new Date().toISOString().split('T')[0]});
+  await notif(`Nouvelle dépense : ${label} ${parseFloat(amount).toFixed(2)}€`,'💰');toast('✅ Dépense ajoutée !');go('budget');
+};
+
+// ════ TASKS ════
+function rT(){
+  const tasks=S.d.tasks;const paN2=paN(),pbN2=pbN();
+  const pend=tasks.filter(t=>!t.done);const done=tasks.filter(t=>t.done);
+  const pC={'high':'bco','medium':'bgo','low':'bsa'};
+  return`<div style="padding:13px 18px 0">
+  <div style="display:flex;gap:6px;margin-bottom:12px">
+    <input class="fi" style="flex:1;margin:0" id="ti" placeholder="Nouvelle tâche..." onkeydown="if(event.key==='Enter')addTask()"/>
+    <button class="bp bsm" onclick="addTask()" style="padding:10px 13px">+</button>
+  </div>
+  ${pend.length>0?`<div class="rowb" style="margin-bottom:6px"><div style="font-weight:800;font-size:12px;color:var(--dk)">À faire</div><span class="badge bco">${pend.length}</span></div>
+  <div class="card" style="margin:0 0 13px">
+    ${pend.map(t=>{const an=t.assignedTo==='A'?paN2:t.assignedTo==='B'?pbN2:'Les deux';const ac=t.assignedTo==='A'?'var(--pa)':t.assignedTo==='B'?'var(--pb)':'var(--gr)';const cd=t.createdBy===S.user?.uid;
+    return`<div style="display:flex;align-items:flex-start;gap:9px;padding:9px 0;border-bottom:1px solid var(--gu)">
+      <div class="tck ${t.done?'done':''}" onclick="togTask('${t.id}',${!t.done})">${t.done?'✓':''}</div>
+      <div style="flex:1"><div style="font-size:13px;font-weight:600;color:var(--dk)">${t.text}</div>
+      <div class="row g6" style="margin-top:2px">${t.priority?`<span class="badge ${pC[t.priority]||'bgr2'}" style="font-size:10px;padding:2px 6px">${t.priority}</span>`:''}${t.category?`<span class="badge bgr2" style="font-size:10px;padding:2px 6px">${t.category}</span>`:''}</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px">
+        <div class="av" style="width:22px;height:22px;background:${ac};font-size:9px">${an[0]}</div>
+        ${cd?`<button onclick="del('tasks','${t.id}')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--co)">🗑</button>`:''}
+      </div>
+    </div>`;}).join('')}
+  </div>`:''}
+  ${done.length>0?`<div style="font-weight:800;font-size:12px;color:var(--gr);margin-bottom:6px">Terminées ✓ (${done.length})</div>
+  <div class="card" style="margin:0;opacity:.7">
+    ${done.map(t=>`<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--gu)">
+      <div class="tck done" onclick="togTask('${t.id}',false)">✓</div>
+      <div style="flex:1;font-size:13px;text-decoration:line-through;color:var(--gr)">${t.text}</div>
+      <button onclick="del('tasks','${t.id}')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--co)">🗑</button>
+    </div>`).join('')}
+  </div>`:''}
+  ${pend.length===0&&done.length===0?`<div style="text-align:center;padding:36px;color:var(--gr)"><div style="font-size:40px;margin-bottom:9px">✅</div><div style="font-weight:700;font-size:13px">Aucune tâche</div></div>`:''}
+  <div style="height:16px"></div></div>`;
+}
+window.addTask=async function(){if(!S.cid){toast('❌ Configurez votre cercle');return;}const input=document.getElementById('ti');const text=input?.value?.trim();if(!text)return;await add('tasks',{text,done:false,assignedTo:'both',category:'Général',priority:'medium'});if(input)input.value='';toast('✅ Tâche ajoutée !');};
+window.togTask=async function(id,done){await upd('tasks',id,{done});};
+
+// ════ SHOPPING ════
+function rSH(){
+  const items=S.d.shopping;const cats=[...new Set(items.map(i=>i.category))];
+  const cI={'Alimentation':'🥦','Hygiène':'🧼','Entretien':'🧹','Divers':'📦'};
+  return`<div style="padding:13px 18px 0">
+  <div style="display:flex;gap:6px;margin-bottom:12px">
+    <input class="fi" style="flex:1;margin:0" id="shi" placeholder="Ajouter un article..." onkeydown="if(event.key==='Enter')addShop()"/>
+    <button class="bp bsm" onclick="addShop()" style="padding:10px 13px">+</button>
+  </div>
+  <div class="sx" style="margin-bottom:12px">
+    ${['Alimentation','Hygiène','Entretien','Divers'].map(c=>`<button id="sc${c}" onclick="selSC('${c}',this)" style="padding:5px 11px;border-radius:20px;border:2px solid var(--gl);background:white;color:var(--gr);font-family:'Nunito',sans-serif;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;flex-shrink:0">${cI[c]} ${c}</button>`).join('')}
+  </div>
+  ${cats.length===0?`<div style="text-align:center;padding:36px;color:var(--gr)"><div style="font-size:40px;margin-bottom:9px">🛒</div><div style="font-weight:700;font-size:13px">Liste vide</div></div>`
+  :cats.map(cat=>{const ci=items.filter(i=>i.category===cat);if(!ci.length)return'';const dn=ci.filter(i=>i.done).length;
+  return`<div style="margin-bottom:15px"><div class="rowb" style="margin-bottom:6px"><div style="font-weight:800;font-size:12px">${cI[cat]||'📦'} ${cat}</div><span style="font-size:11px;color:var(--gr)">${dn}/${ci.length}</span></div>
+  <div class="card" style="margin:0">${ci.map(item=>{const ac=item.addedByParent==='A'?'var(--pa)':'var(--pb)';const an=item.addedByParent==='A'?paN():pbN();const cd=item.createdBy===S.user?.uid;
+  return`<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--gu);cursor:pointer" onclick="togShop('${item.id}',${!item.done})">
+    <div class="tck ${item.done?'done':''}">${item.done?'✓':''}</div>
+    <div style="flex:1;font-size:13px;font-weight:600;${item.done?'text-decoration:line-through;color:var(--gr)':''}">${item.text}</div>
+    <div class="av" style="width:20px;height:20px;background:${ac};font-size:9px">${an[0]}</div>
+    ${cd?`<button onclick="event.stopPropagation();del('shopping','${item.id}')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--co)">🗑</button>`:''}
+  </div>`;}).join('')}</div></div>`;}).join('')}
+  <div style="height:16px"></div></div>`;
+}
+let curSC='Alimentation';
+window.selSC=function(cat,btn){curSC=cat;document.querySelectorAll('[id^="sc"]').forEach(b=>{b.style.borderColor='var(--gl)';b.style.background='white';b.style.color='var(--gr)';});btn.style.borderColor='var(--sa)';btn.style.background='rgba(107,175,146,.1)';btn.style.color='var(--sd)';};
+window.addShop=async function(){if(!S.cid){toast('❌ Configurez votre cercle');return;}const input=document.getElementById('shi');const text=input?.value?.trim();if(!text)return;const p=isPA()?'A':'B';await add('shopping',{text,done:false,category:curSC,addedByParent:p});if(input)input.value='';toast('✅ Ajouté !');};
+window.togShop=async function(id,done){await upd('shopping',id,{done});};
+
+// ════ DOCS ════
+function rD(){
+  const docs=S.d.docs;const cC={'Santé':'var(--sa)','Identité':'var(--pl)','École':'var(--g)','Juridique':'var(--lv)','Assurance':'var(--co)'};
+  return`<div style="padding:13px 18px 0">
+  <input class="fi" id="dsr" placeholder="🔍 Rechercher..." oninput="filtDocs(this.value)" style="margin-bottom:12px"/>
+  <div id="dlist">${docs.length===0?`<div style="text-align:center;padding:36px;color:var(--gr)"><div style="font-size:40px;margin-bottom:9px">📁</div><div style="font-weight:700;font-size:13px">Aucun document</div></div>`
+  :docs.map(d=>{const cd=d.createdBy===S.user?.uid;return`<div class="di"><div style="width:44px;height:44px;border-radius:12px;background:${cC[d.category]||'var(--gu)'}20;display:flex;align-items:center;justify-content:center;font-size:21px">${d.icon||'📄'}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">${d.name}</div><div style="font-size:10px;color:var(--gr);margin-top:1px">${d.date||''} · ${d.createdByName||''}</div></div><div style="display:flex;flex-direction:column;gap:3px;align-items:flex-end"><span class="badge" style="background:${cC[d.category]||'var(--gu)'}20;color:${cC[d.category]||'var(--gr)'}">${d.category||''}</span>${cd?`<button onclick="del('docs','${d.id}');toast('Supprimé')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--co)">🗑</button>`:''}</div></div>`;}).join('')}</div>
+  ${isP()?`<button class="bo" style="margin-top:8px" onclick="addDocM()">📎 Ajouter un document</button>`:''}
+  <div style="height:16px"></div></div>`;
+}
+window.filtDocs=function(v){const docs=S.d.docs.filter(d=>d.name.toLowerCase().includes(v.toLowerCase()));const cC={'Santé':'var(--sa)','Identité':'var(--pl)','École':'var(--g)','Juridique':'var(--lv)'};const el=document.getElementById('dlist');if(!el)return;el.innerHTML=docs.map(d=>`<div class="di"><div style="width:44px;height:44px;border-radius:12px;background:${cC[d.category]||'var(--gu)'}20;display:flex;align-items:center;justify-content:center;font-size:21px">${d.icon||'📄'}</div><div style="flex:1"><div style="font-size:13px;font-weight:700">${d.name}</div></div><span class="badge" style="background:${cC[d.category]||'var(--gu)'}20;color:${cC[d.category]||'var(--gr)'}">${d.category||''}</span></div>`).join('');};
+window.addDocM=function(){if(!isP()){toast('❌ Réservé aux parents');return;}openModal(`<div class="mtt">📎 Ajouter un document</div>
+  <div class="fg"><label class="fl">Nom</label><input class="fi" id="dn" placeholder="Ex: Carnet de santé"/></div>
+  <div class="fg"><label class="fl">Catégorie</label><select class="fs" id="dc">${['Santé','Identité','École','Juridique','Assurance','Autre'].map(c=>`<option>${c}</option>`).join('')}</select></div>
+  <div class="fg"><label class="fl">Icône</label><select class="fs" id="di">${['📋','🛂','💉','💊','🏫','⚖️','🏥','📄','🔖','📜','🔑','💳'].map(i=>`<option value="${i}">${i}</option>`).join('')}</select></div>
+  <button class="bp" onclick="subDoc()">Ajouter</button>`);};
+window.subDoc=async function(){if(!S.cid){toast('❌ Configurez votre cercle');closeModal();return;}const name=document.getElementById('dn')?.value?.trim(),cat=document.getElementById('dc')?.value,ico=document.getElementById('di')?.value||'📄';if(!name){toast('❌ Entrez un nom');return;}await add('docs',{name,category:cat,icon:ico,date:new Date().toISOString().split('T')[0]});await notif(`Nouveau document : ${name}`,'📁');toast('✅ Document ajouté !');closeModal();};
+
+// ════ DIRECTORY ════
+function rDI(){
+  const contacts=S.d.contacts;const canAdd=isP();
+  return`<div style="padding:13px 18px 0">
+  <input class="fi" placeholder="🔍 Rechercher..." id="dirs" oninput="filtDir(this.value)" style="margin-bottom:12px"/>
+  <div id="dirlist">
+    ${contacts.length===0?`<div style="text-align:center;padding:36px;color:var(--gr)"><div style="font-size:40px;margin-bottom:9px">📞</div><div style="font-weight:700;font-size:13px">Aucun contact</div></div>`
+    :contacts.map(c=>{const abn=c.addedByParent==='A'?paN():pbN();const abc=c.addedByParent==='A'?'var(--pa)':'var(--pb)';const mp=isPA()?'A':'B';const csp=c.addedByParent===mp||isP();const cd=c.createdBy===S.user?.uid;
+    return`<div class="cc2"><div style="width:42px;height:42px;border-radius:12px;background:rgba(13,79,124,.08);display:flex;align-items:center;justify-content:center;font-size:20px">${c.icon||'👤'}</div>
+    <div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--dk)">${c.name}</div><div style="font-size:11px;color:var(--gr)">${c.role}</div>
+    ${csp&&c.phone?`<div style="font-size:11px;color:var(--p);font-weight:700;margin-top:1px">📞 ${c.phone}</div>`:''}
+    <div style="margin-top:3px"><span class="badge" style="background:${abc}20;color:${abc};font-size:10px">Ajouté par ${abn}</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-end">
+      ${csp&&c.phone?`<a href="tel:${c.phone}" style="background:rgba(13,79,124,.1);border-radius:8px;padding:5px 9px;font-size:11px;font-weight:700;color:var(--p);text-decoration:none">Appeler</a>`:''}
+      ${cd?`<button onclick="del('contacts','${c.id}');toast('Supprimé')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--co)">🗑</button>`:''}
+    </div></div>`;}).join('')}
+  </div>
+  ${canAdd?`<button class="bo" style="margin-top:8px" onclick="addCtM()">➕ Ajouter un contact</button>`:''}
+  <div style="height:16px"></div></div>`;
+}
+window.filtDir=function(v){const c=S.d.contacts.filter(x=>x.name.toLowerCase().includes(v.toLowerCase())||x.role.toLowerCase().includes(v.toLowerCase()));const el=document.getElementById('dirlist');if(!el)return;el.innerHTML=c.map(x=>`<div class="cc2"><div style="width:42px;height:42px;border-radius:12px;background:var(--gu);display:flex;align-items:center;justify-content:center;font-size:20px">${x.icon||'👤'}</div><div style="flex:1"><div style="font-size:13px;font-weight:800">${x.name}</div><div style="font-size:11px;color:var(--gr)">${x.role}</div></div></div>`).join('');};
+window.addCtM=function(){if(!isP()){toast('❌ Réservé aux parents');return;}openModal(`<div class="mtt">➕ Nouveau contact</div>
+  <div class="fg"><label class="fl">Nom</label><input class="fi" id="ctn" placeholder="Ex: Dr. Martin"/></div>
+  <div class="fg"><label class="fl">Rôle</label><input class="fi" id="ctr" placeholder="Ex: Médecin traitant"/></div>
+  <div class="fg"><label class="fl">Téléphone</label><input class="fi" type="tel" id="ctp" placeholder="06 00 00 00 00"/></div>
+  <div class="fg"><label class="fl">Icône</label><select class="fs" id="cti">${['👨‍⚕️','👩‍⚕️','🏫','🎓','⚽','🎨','🎭','👵','👴','🧑‍🏫','💊','🚑','🦷','🏊'].map(i=>`<option value="${i}">${i}</option>`).join('')}</select></div>
+  <button class="bp" onclick="subCt()">Ajouter</button>`);};
+window.subCt=async function(){if(!S.cid){toast('❌ Configurez votre cercle');closeModal();return;}const name=document.getElementById('ctn')?.value?.trim(),role=document.getElementById('ctr')?.value?.trim(),phone=document.getElementById('ctp')?.value?.trim(),ico=document.getElementById('cti')?.value||'👤';if(!name||!role){toast('❌ Nom et rôle requis');return;}const p=isPA()?'A':'B';await add('contacts',{name,role,phone,icon:ico,addedByParent:p});await notif(`Nouveau contact : ${name}`,'📞');toast('✅ Contact ajouté !');closeModal();};
+
+// ════ MEMORIES ════
+function rM(){const mem=S.d.memories;return`<div style="padding:13px 18px 0">
+  <div class="rowb" style="margin-bottom:12px"><div style="font-size:12px;color:var(--gr)">${mem.length} souvenir${mem.length!==1?'s':''}</div><button class="bc bsm" onclick="addMemM()">📸 Ajouter</button></div>
+  <div class="mg">
+    ${mem.map(m=>`<div class="mc"><div style="width:100%;height:100%;background:${m.color||'var(--gu)'};display:flex;align-items:center;justify-content:center;font-size:48px">${m.emoji||'📸'}</div><div class="mo"><div style="font-weight:800;font-size:11px">${m.title}</div><div style="opacity:.8;font-size:10px">${m.date||''} · ${m.createdByName||''}</div></div></div>`).join('')}
+    <div style="border-radius:14px;aspect-ratio:1;background:var(--gu);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;cursor:pointer;border:2px dashed var(--gl)" onclick="addMemM()"><div style="font-size:28px">📸</div><div style="font-size:11px;font-weight:700;color:var(--gr)">Nouveau</div></div>
+  </div>
+  <div style="height:16px"></div></div>`;
+}
+window.addMemM=function(){openModal(`<div class="mtt">📸 Nouveau souvenir</div>
+  <div class="fg"><label class="fl">Titre</label><input class="fi" id="mmt" placeholder="Ex: Anniversaire"/></div>
+  <div class="fg"><label class="fl">Émoji</label><select class="fs" id="mme">${['🎂','🏖️','🥇','🎨','⛷️','🎭','🌟','🎪','🏕️','🎡','🎵','🌈','🦋','🐣','🎠'].map(e=>`<option value="${e}">${e}</option>`).join('')}</select></div>
+  <div class="fg"><label class="fl">Couleur</label><select class="fs" id="mmc"><option value="#FFE4E1">Rose pâle</option><option value="#E1F5FE">Bleu ciel</option><option value="#FFF9C4">Jaune doux</option><option value="#F3E5F5">Lavande</option><option value="#E8F5E9">Vert menthe</option><option value="#FBE9E7">Pêche</option></select></div>
+  <div class="fg"><label class="fl">Note</label><textarea class="fta" id="mmn" placeholder="Un mot..."></textarea></div>
+  <button class="bp" onclick="subMem()">Ajouter</button>`);};
+window.subMem=async function(){if(!S.cid){toast('❌ Configurez votre cercle');closeModal();return;}const title=document.getElementById('mmt')?.value?.trim();if(!title){toast('❌ Entrez un titre');return;}const emoji=document.getElementById('mme')?.value||'📸',color=document.getElementById('mmc')?.value||'#FFE4E1',note=document.getElementById('mmn')?.value,date=new Date().toLocaleDateString('fr-FR',{month:'long',year:'numeric'});await add('memories',{title,emoji,color,note,date});await notif(`Nouveau souvenir : ${title}`,'📸');toast('✅ Souvenir ajouté !');closeModal();};
+
+// ════ NOTIFS ════
+function rN(){const notifs=S.d.notifs;return`<div style="padding:13px 18px 0">
+  ${notifs.length===0?`<div style="text-align:center;padding:56px 0;color:var(--gr)"><div style="font-size:40px;margin-bottom:9px">🔔</div><div style="font-weight:700;font-size:13px">Aucune notification</div></div>`
+  :notifs.map(n=>`<div class="ni2">${!n.read?`<div class="nd"></div>`:''}<div style="font-size:22px;flex-shrink:0">${n.icon||'🔔'}</div><div style="flex:1"><div style="font-size:13px;font-weight:${n.read?600:800};color:var(--dk)">${n.text}</div><div style="font-size:10px;color:var(--gr);margin-top:2px">${n.createdByName||''}</div></div>${!n.read?`<button onclick="mrkRd('${n.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--p);font-weight:700;font-family:'Nunito',sans-serif;white-space:nowrap">Lu</button>`:''}</div>`).join('')}
+  ${notifs.length>0?`<button class="bo" style="margin-top:8px" onclick="mrkAll()">✓ Tout marquer lu</button>`:''}
+  <div style="height:16px"></div></div>`;
+}
+window.mrkRd=async function(id){await upd('notifs',id,{read:true});};
+window.mrkAll=async function(){const un=S.d.notifs.filter(n=>!n.read);for(const n of un)await upd('notifs',n.id,{read:true});toast('✅ Tout marqué lu');};
+
+// ════ PROFILE ════
+function rPR(){
+  const prof=S.prof;const circle=S.cd;const hasC=!!S.cid;const status=circle?.status||'divorce';
+  const paN2=paN(),pbN2=pbN();const tl={'1s2':'1 semaine / 2','223':'2-2-3','2253':'2-2-5-5','1we2':'1 week-end / 2'};
+  return`<div style="padding:13px 18px 0">
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="av" style="width:52px;height:52px;background:${mc()};font-size:19px">${mi()}</div>
+      <div style="flex:1"><div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:700">${prof?.name||'Mon compte'}</div>
+      <div style="font-size:11px;color:var(--gr)">${prof?.email||''}</div>
+      <span class="badge ${prof?.role==='parent'?'bpe':'blv'}" style="margin-top:3px;display:inline-flex">${prof?.role==='parent'?'👤 Parent':'👥 Proche'}</span></div>
+    </div>
+  </div>
+  ${!hasC?`<div class="card" style="border-left:4px solid var(--g)"><div class="ctt">🫂 Configurer mon cercle</div>
+    <div style="display:flex;background:var(--gu);border-radius:11px;padding:3px;gap:2px;margin-bottom:12px">
+      <button class="tab active" style="flex:1;border-radius:8px" onclick="swCT(this,'create')">Créer</button>
+      <button class="tab" style="flex:1;border-radius:8px" onclick="swCT(this,'join')">Rejoindre</button>
+    </div>
+    <div id="ctc">
+      <div class="fg"><label class="fl">Statut du couple</label><select class="fs" id="cst"><option value="marie">💑 Mariés</option><option value="separe">🔶 Séparés</option><option value="divorce" selected>📋 Divorcés</option></select></div>
+      <div class="fg"><label class="fl">Prénom de l'enfant</label><input class="fi" id="cch" placeholder="Ex: Yasmine"/></div>
+      <div class="fg"><label class="fl">Email de l'autre parent (optionnel)</label><input class="fi" type="email" id="cpe" placeholder="parent@email.com"/></div>
+      <button class="bp" onclick="crCircle()">Créer le cercle familial</button>
+    </div>
+    <div id="ctj" style="display:none">
+      <div class="info">L'autre parent vous a partagé un code de cercle.</div>
+      <div class="fg"><label class="fl">Code du cercle</label><input class="fi" id="jc" placeholder="Collez le code ici..."/></div>
+      <button class="bp" onclick="jnCircle()">Rejoindre</button>
+    </div>
+  </div>`:`
+  <div class="card"><div class="ctt">💑 Statut du couple</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px">
+      ${[['marie','💑 Mariés'],['separe','🔶 Séparés'],['divorce','📋 Divorcés']].map(([v,l])=>`<div class="sto${status===v?' sel':''}" onclick="setSt('${v}')">${l}</div>`).join('')}
+    </div>
+    <div style="padding:8px 10px;border-radius:10px;background:${stCol(status)}15;font-size:12px;color:${stCol(status)};font-weight:700">${status==='marie'?'💡 Raisons des échanges visibles par les deux':status==='separe'?'💡 Raisons des échanges privées':'💡 Raisons privées — validation obligatoire'}</div>
+  </div>
+  <div class="card"><div class="ctt">👨‍👩‍👧 Cercle · ${circle?.childName||'Enfant'}</div>
+    <div style="font-size:10px;font-weight:800;color:var(--p);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px">Parents</div>
+    ${[['A',circle?.parentAName,circle?.parentAEmail],['B',circle?.parentBName,circle?.parentBEmail]].map(([p,n,e])=>`<div class="cm"><div class="av" style="width:36px;height:36px;background:${p==='A'?'var(--pa)':'var(--pb)'}">${(n||'?')[0]}</div><div style="flex:1"><div style="font-weight:800;font-size:13px">${n||'En attente...'}</div><div style="font-size:11px;color:var(--gr)">${e||''}</div></div><span class="badge ${n?'bgr':'bgo'}">${n?'✓':'⏳'}</span></div>`).join('')}
+    ${S.d.members.length>0?`<div style="font-size:10px;font-weight:800;color:var(--p);text-transform:uppercase;letter-spacing:.5px;margin:9px 0 7px">Proches</div>${S.d.members.map(m=>`<div class="cm"><div class="av" style="width:36px;height:36px;background:var(--lv)">${(m.name||'?')[0]}</div><div style="flex:1"><div style="font-weight:800;font-size:13px">${m.name}</div><div style="font-size:11px;color:var(--gr)">${m.role||'Proche'} · par ${m.addedByParentName||''}</div></div>${m.createdBy===S.user?.uid?`<button onclick="del('members','${m.id}');toast('Supprimé')" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--co)">🗑</button>`:''}</div>`).join('')}`:''}
+    ${isP()?`<button class="bo" style="margin-top:8px" onclick="invM()">➕ Inviter un proche</button>`:''}
+    <div style="margin-top:11px;padding:10px;background:var(--gu);border-radius:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--gr);margin-bottom:2px">Code de votre cercle (à partager)</div>
+      <div style="font-family:monospace;font-size:12px;font-weight:700;color:var(--p);word-break:break-all">${S.cid}</div>
+      <button onclick="cpCode()" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--p);font-weight:700;margin-top:2px;font-family:'Nunito',sans-serif">📋 Copier le code</button>
+    </div>
+  </div>
+  <div class="card"><div class="ctt">📅 Planning de garde</div>
+    ${S.cd?.planning?`<span class="badge bsa" style="margin-bottom:6px;display:inline-flex">${tl[S.cd.planning.type]||S.cd.planning.type}</span><div style="font-size:12px;color:var(--gr)">Depuis le ${S.cd.planning.startDate}</div>`:`<div style="font-size:12px;color:var(--gr)">Aucun planning configuré</div>`}
+    <button class="bo" style="margin-top:9px" onclick="go('planning')">⚙️ Configurer le planning</button>
+  </div>`}
+  <button class="bo" style="color:var(--co);border-color:var(--co);margin-bottom:16px" onclick="doLogout()">🚪 Se déconnecter</button>
+  </div>`;
+}
+window.swCT=function(btn,tab){btn.closest('div').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active');document.getElementById('ctc').style.display=tab==='create'?'block':'none';document.getElementById('ctj').style.display=tab==='join'?'block':'none';};
+window.crCircle=async function(){
+  const status=document.getElementById('cst')?.value||'divorce',childN=document.getElementById('cch')?.value?.trim()||'Mon enfant',pe=document.getElementById('cpe')?.value?.trim();
+  const ref=await addDoc(collection(db,'circles'),{status,parentA:S.user.uid,parentAName:S.prof.name,parentAEmail:S.user.email,parentB:null,parentBName:null,parentBEmail:pe||null,childName:childN,inviteEmail:pe||null,planning:null,createdAt:serverTimestamp()});
+  await updateDoc(doc(db,'users',S.user.uid),{circleId:ref.id});
+  S.prof.circleId=ref.id;S.cid=ref.id;S.cd={status,parentA:S.user.uid,parentAName:S.prof.name,childName:childN,planning:null};
+  startL();toast('✅ Cercle créé !');go('home');
+};
+window.jnCircle=async function(){
+  const code=document.getElementById('jc')?.value?.trim();if(!code){toast('❌ Entrez un code');return;}
+  try{const sn=await getDoc(doc(db,'circles',code));if(!sn.exists()){toast('❌ Cercle introuvable');return;}
+  await updateDoc(doc(db,'circles',code),{parentB:S.user.uid,parentBName:S.prof.name,parentBEmail:S.user.email});
+  await updateDoc(doc(db,'users',S.user.uid),{circleId:code});
+  S.prof.circleId=code;S.cid=code;S.cd={...sn.data(),parentB:S.user.uid,parentBName:S.prof.name};
+  startL();toast('✅ Cercle rejoint !');go('home');}catch(e){toast('❌ Erreur : '+e.message);}
+};
+window.setSt=async function(status){if(!S.cid)return;await updateDoc(doc(db,'circles',S.cid),{status});S.cd.status=status;await notif(`Statut mis à jour : ${stLbl(status)}`,'💑');toast('✅ Statut mis à jour');renderS(S.screen);};
+window.cpCode=function(){navigator.clipboard.writeText(S.cid).then(()=>toast('✅ Code copié !')).catch(()=>{const el=document.createElement('textarea');el.value=S.cid;document.body.appendChild(el);el.select();document.execCommand('copy');el.remove();toast('✅ Code copié !');});};
+window.invM=function(){if(!isP()){toast('❌ Réservé aux parents');return;}openModal(`<div class="mtt">➕ Inviter un proche</div>
+  <div class="info">Un proche aura accès à l'agenda uniquement.</div>
+  <div class="fg"><label class="fl">Prénom</label><input class="fi" id="imn" placeholder="Ex: Mamie Fatima"/></div>
+  <div class="fg"><label class="fl">Rôle</label><input class="fi" id="imr" placeholder="Ex: Grand-mère maternelle"/></div>
+  <button class="bp" onclick="subIM()">Inviter</button>`);};
+window.subIM=async function(){const name=document.getElementById('imn')?.value?.trim(),role=document.getElementById('imr')?.value?.trim();if(!name){toast('❌ Entrez un prénom');return;}const p=isPA()?'A':'B';await add('members',{name,role,addedByParent:p,addedByParentName:S.prof?.name});toast('✅ Proche ajouté !');closeModal();};
+
+// ════ SETTINGS ════
+function rST(){const prof=S.prof;return`<div style="padding:13px 18px 0">
+  <div class="card"><div class="ctt">👤 Mon compte</div>
+    ${[['Nom',prof?.name||''],['Email',prof?.email||''],['Rôle',prof?.role==='parent'?'Parent':'Proche']].map(([l,v])=>`<div class="sr"><div><div style="font-weight:700;font-size:13px">${l}</div><div style="font-size:12px;color:var(--gr)">${v}</div></div></div>`).join('')}
+  </div>
+  <div class="card"><div class="ctt">🔔 Notifications</div>
+    ${[['Échanges de garde','Demandes et validations',true],['Nouvelles dépenses','Budget partagé',true],['Tâches','Rappels et ajouts',false],['Souvenirs','Nouveaux moments',true]].map(([l,s,on])=>`<div class="sr"><div><div style="font-weight:700;font-size:13px">${l}</div><div style="font-size:11px;color:var(--gr)">${s}</div></div><button class="tgl ${on?'on':'off'}" onclick="this.classList.toggle('on');this.classList.toggle('off')"></button></div>`).join('')}
+  </div>
+  <div class="card"><div class="ctt">⚙️ Raccourcis</div>
+    <div class="sr"><div><div style="font-weight:700;font-size:13px">Statut du couple</div><div style="font-size:11px;color:var(--gr)">Visibilité des raisons</div></div><button class="bo bsm" onclick="go('profile')">Modifier</button></div>
+    <div class="sr"><div><div style="font-weight:700;font-size:13px">Planning de garde</div><div style="font-size:11px;color:var(--gr)">Rythme et dates</div></div><button class="bo bsm" onclick="go('planning')">Configurer</button></div>
+  </div>
+  <button class="bo" style="color:var(--co);border-color:var(--co);margin-bottom:16px" onclick="doLogout()">🚪 Se déconnecter</button>
+  </div>`;
+}
+
+// PWA SERVICE WORKER
+if('serviceWorker' in navigator){
+  const sw=`const C='sjf-v3';self.addEventListener('install',e=>e.waitUntil(caches.open(C).then(c=>c.addAll(['.']).catch(()=>{}))));self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k))))));self.addEventListener('fetch',e=>{if(e.request.url.includes('firebase')||e.request.url.includes('googleapis')||e.request.url.includes('gstatic'))return;e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{if(res.ok){const rc=res.clone();caches.open(C).then(c=>c.put(e.request,rc));}return res;})));});`;
+  const blob=new Blob([sw],{type:'application/javascript'});
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{});
+}
+</script>
+</body>
+</html>
