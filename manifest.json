@@ -1,0 +1,18 @@
+{
+  "name": "SJ Family",
+  "short_name": "SJ Family",
+  "description": "Votre assistant personnel familial",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#F8F9FF",
+  "theme_color": "#0D4F7C",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
