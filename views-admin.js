@@ -77,7 +77,7 @@ export function setupHtml() {
   const rows = st.log.map(l => `<div class="li"><div class="le" style="font-size:20px">${l.s === 'ok' ? '✅' : l.s === 'warn' ? '⚠️' : l.s === 'err' ? '❌' : '⏳'}</div><div class="f1"><div class="lt">${esc(l.t)}</div>${l.m ? `<div class="ls">${esc(l.m)}</div>` : ''}</div></div>`).join('');
   if (st.state === 'confirm') return `<h2>Installation express</h2><p class="muted center small">Tout va être créé exactement comme si vous le faisiez vous-même :</p>
     <div class="li"><div class="le">👤</div><div class="f1"><div class="lt">${esc(d.user.prenom)} ${esc(d.user.nom)}</div><div class="ls">${esc(d.user.email)} · ${esc(d.role || 'Papa')}</div></div></div>
-    <div class="li"><div class="le">🏡</div><div class="f1"><div class="lt">${esc(d.family.name)}</div><div class="ls">Autre parent : ${esc(d.family.other.prenom)} ${esc(d.family.other.nom || '')} (invitation en attente)</div></div></div>
+    <div class="li"><div class="le">🏡</div><div class="f1"><div class="lt">${esc(d.family.name)}</div><div class="ls">Autre parent : ${esc(d.family.other.prenom)} ${esc(d.family.other.nom || '')} (aucune invitation envoyée : vous l'inviterez plus tard)</div></div></div>
     <div class="li"><div class="le">🧒</div><div class="f1"><div class="lt">${esc(d.kids.map(k => k.prenom).join(' & '))}</div><div class="ls">${esc(d.kids.map(k => k.cls).filter(Boolean).join(' · '))}</div></div></div>
     <div class="li"><div class="le">📅</div><div class="f1"><div class="lt">Plannings officiels ${esc(d.import.join(' & '))}</div><div class="ls">Relais la veille à 18h30</div></div></div>
     ${d.admin ? `<div class="li"><div class="le">🛡️</div><div class="f1"><div class="lt">Compte admin</div><div class="ls">admin@admin.com → ${esc(ADMIN_EMAIL)}</div></div></div>` : ''}
@@ -128,7 +128,7 @@ async function runSetup() {
     let fid = existing && existing.currentFamily && (existing.familyIds || []).includes(existing.currentFamily) ? existing.currentFamily : (existing?.familyIds || [])[0] || null;
     if (fid) { l.s = 'ok'; l.m = 'Cercle existant conservé.'; }
     else {
-      fid = await createFamily({ name: d.family.name, mine: d.role || 'Papa', status: d.family.status || 'separes', oprenom: d.family.other.prenom, onom: d.family.other.nom || '', ophone: d.family.other.phone || '', oemail: d.family.other.email || '', zone: d.family.zone || 'B', ht: d.family.ht || '18:30' },
+      fid = await createFamily({ name: d.family.name, mine: d.role || 'Papa', status: d.family.status || 'separes', oprenom: d.family.other.prenom, onom: d.family.other.nom || '', ophone: d.family.other.phone || '', oemail: d.family.other.email || '', noInvite: true, zone: d.family.zone || 'B', ht: d.family.ht || '18:30' },
         { profile: prof, userId: uid, linkUser: false });
       const f = await db.get(`families/${fid}`);
       l.s = 'ok'; l.m = `${d.family.name} · code du cercle ${f?.joinCode || ''}`;

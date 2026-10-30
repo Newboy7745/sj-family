@@ -55,7 +55,7 @@ export async function createFamily(f, { profile = S.profile, userId = uid(), lin
   await db.set(`families/${fid}`, fam);
   await db.set(`families/${fid}/members/${u}`, { uid: u, prenom: p.prenom || '', nom: p.nom || '', name: p.prenom || '', email: p.email || '', phone: p.phone || '', role: 'parent', parentCode: 'A', joinedAt: Date.now() });
   await db.set(`joinCodes/${code}`, { fid, name: fam.name, by: p.prenom || '', createdAt: Date.now() });
-  if (f.oprenom || f.ophone || f.oemail) await db.set(`families/${fid}/invites/${db.newId()}`, { prenom: f.oprenom || '', nom: f.onom || '', phone: f.ophone || '', email: (f.oemail || '').toLowerCase(), role: 'parent', relation: other, state: 'pending', by: u, byName: p.prenom || '', at: Date.now() });
+  if (!f.noInvite && (f.oprenom || f.ophone || f.oemail)) await db.set(`families/${fid}/invites/${db.newId()}`, { prenom: f.oprenom || '', nom: f.onom || '', phone: f.ophone || '', email: (f.oemail || '').toLowerCase(), role: 'parent', relation: other, state: 'pending', by: u, byName: p.prenom || '', at: Date.now() });
   if (linkUser) await db.update(`users/${u}`, { familyIds: db.arrayUnion(fid), currentFamily: fid, [`lastSeen.${fid}`]: Date.now() });
   stat('families');
   await db.set(`families/${fid}/activity/${db.newId()}`, { cat: 'cercle', title: `Cercle créé : ${fam.name}`, body: '', icon: '🏡', by: u, byName: p.prenom || '', at: Date.now() });
