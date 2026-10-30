@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js';
-import { toast, esc } from './ui.js';
+import * as E from './engine.js?v=6.3';
+import { toast, esc } from './ui.js?v=6.3';
 
-export const VERSION = '6.2';
+export const VERSION = '6.3';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 export const REPO = 'Newboy7745/sj-family';
 export const APK_URL = `https://github.com/${REPO}/releases/latest/download/SJ-Widgets.apk`;

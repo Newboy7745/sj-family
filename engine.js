@@ -416,7 +416,9 @@ export function buildICS({ engine, childIds, children, parents, from, to, events
 // ───────────── Flux des widgets (lu par l'app Android et Scriptable) ─────────────
 export function buildFeed({ engine, family, children, parents, events = [], tasks = [], notes = [], includeHealth = false, today = todayISO(), appUrl }) {
   const prevMonth = (() => { let [y, m] = today.split('-').map(Number); m--; if (m < 1) { m = 12; y--; } return `${y}-${pad(m)}-01`; })();
-  const from = mondayOf(prevMonth);
+  // début du flux : jusqu'à un an en arrière (navigation ‹ › dans les widgets), au moins le mois précédent
+  let from = mondayOf(prevMonth);
+  for (const c of children) { const cv = engine.coverage(c.id); if (cv) { const f0 = cv.from > addDays(today, -366) ? cv.from : addDays(today, -366); if (f0 < from) from = f0; } }
   let maxTo = addDays(today, 30);
   for (const c of children) { const cv = engine.coverage(c.id); if (cv && cv.to > maxTo) maxTo = cv.to; }
   const to = maxTo > addDays(today, 400) ? addDays(today, 400) : maxTo;

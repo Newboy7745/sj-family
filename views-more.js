@@ -1,9 +1,9 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js';
-import { randomId } from './backend.js';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS } from './core.js';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen } from './ui.js';
-import { kidChips, countdown } from './views-home.js';
+import * as E from './engine.js?v=6.3';
+import { randomId } from './backend.js?v=6.3';
+import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS } from './core.js?v=6.3';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen } from './ui.js?v=6.3';
+import { kidChips, countdown } from './views-home.js?v=6.3';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -187,7 +187,8 @@ export const views = {
       <div class="card"><h3>🤖 Samsung / Android</h3>
         <div class="steps"><div class="st"><span class="sn">1</span><span class="f1">Installez l'app <b>SJ Widgets</b> (Android, gratuite). Autorisez « installer des applis inconnues » si demandé.</span></div>
         <div class="st"><span class="sn">2</span><span class="f1">Revenez ici et touchez <b>Connecter mes widgets</b> (ou collez le code dans l'app).</span></div>
-        <div class="st"><span class="sn">3</span><span class="f1">Appui long sur l'écran d'accueil → <b>Widgets</b> → <b>SJ Widgets</b> → choisissez Garde, Semaine, Mois ou Programme puis l'enfant (${esc(kids)} ou Tous).</span></div></div>
+        <div class="st"><span class="sn">3</span><span class="f1">Appui long sur l'écran d'accueil → <b>Widgets</b> → <b>SJ Widgets</b> → choisissez Garde, Semaine, Mois ou Programme puis l'enfant (${esc(kids)} ou Tous).</span></div>
+        <div class="st"><span class="sn">4</span><span class="f1">Sur le widget : <b>‹ ›</b> pour passer au jour, à la semaine ou au mois précédent/suivant ; touchez le titre pour revenir à aujourd'hui.</span></div></div>
         <div class="row gap wrap mt"><a class="btn primary f1" href="${APK_URL}">${IC.download} Télécharger l'APK</a><a class="btn coral f1" href="${intent}">🔗 Connecter mes widgets</a></div>
         <button class="btn soft block mt" data-act="w-copy" data-v="${tok}">${IC.copy} Copier le code de connexion</button>
         <div class="hint">L'app SJ Widgets vous rappelle aussi chaque relais par une notification (2 h avant, réglable).</div></div>

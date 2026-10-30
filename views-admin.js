@@ -1,9 +1,9 @@
 // ═══════════════ Mode administrateur (statistiques anonymes) & installation express par lien ═══════════════
-import * as E from './engine.js';
-import { SJ_PLANNINGS } from './sj-data.js';
-import { S, VERSION, REPO, ADMIN_EMAIL, STAT_KEYS, stat, errMsg, LS } from './core.js';
-import { esc, toast, IC } from './ui.js';
-import { createFamily } from './views-family.js';
+import * as E from './engine.js?v=6.3';
+import { SJ_PLANNINGS } from './sj-data.js?v=6.3';
+import { S, VERSION, REPO, ADMIN_EMAIL, STAT_KEYS, stat, errMsg, LS } from './core.js?v=6.3';
+import { esc, toast, IC } from './ui.js?v=6.3';
+import { createFamily } from './views-family.js?v=6.3';
 
 const FB = 'https://console.firebase.google.com/project/sj-family-dd337';
 

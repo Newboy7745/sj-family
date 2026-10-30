@@ -1,19 +1,19 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js';
-import { createBackend } from './backend.js';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat } from './core.js';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet } from './ui.js';
-import * as Home from './views-home.js';
-import * as Agenda from './views-agenda.js';
-import * as Plan from './views-planning.js';
-import * as Exch from './views-exchange.js';
-import * as Fam from './views-family.js';
-import * as Bud from './views-budget.js';
-import * as More from './views-more.js';
-import * as Admin from './views-admin.js';
-import * as Install from './install.js';
+import * as E from './engine.js?v=6.3';
+import { createBackend } from './backend.js?v=6.3';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat } from './core.js?v=6.3';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet } from './ui.js?v=6.3';
+import * as Home from './views-home.js?v=6.3';
+import * as Agenda from './views-agenda.js?v=6.3';
+import * as Plan from './views-planning.js?v=6.3';
+import * as Exch from './views-exchange.js?v=6.3';
+import * as Fam from './views-family.js?v=6.3';
+import * as Bud from './views-budget.js?v=6.3';
+import * as More from './views-more.js?v=6.3';
+import * as Admin from './views-admin.js?v=6.3';
+import * as Install from './install.js?v=6.3';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));

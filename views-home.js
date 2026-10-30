@@ -1,7 +1,7 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js';
-import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation } from './core.js';
-import { esc, fmtAgo } from './ui.js';
+import * as E from './engine.js?v=6.3';
+import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation } from './core.js?v=6.3';
+import { esc, fmtAgo } from './ui.js?v=6.3';
 
 export function kidChips() {
   if (S.children.length < 1) return '';

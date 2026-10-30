@@ -1,9 +1,9 @@
 // ═══════════════ Cercle familial : création, adhésion, statut, enfants, membres, invitations ═══════════════
-import * as E from './engine.js';
-import { randomId } from './backend.js';
-import { stat } from './core.js';
-import { S, engine, parents, pName, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, PARENT_COLORS, CHILD_EMOJIS, avatar } from './core.js';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, copyText, closeSheetsThen } from './ui.js';
+import * as E from './engine.js?v=6.3';
+import { randomId } from './backend.js?v=6.3';
+import { stat } from './core.js?v=6.3';
+import { S, engine, parents, pName, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, PARENT_COLORS, CHILD_EMOJIS, avatar } from './core.js?v=6.3';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, copyText, closeSheetsThen } from './ui.js?v=6.3';
 
 const STATUS = { separes: '🔶 Séparés', divorces: '📋 Divorcés' };
 const code6 = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const b = new Uint8Array(6); crypto.getRandomValues(b); return [...b].map(x => a[x % a.length]).join(''); };
