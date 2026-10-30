@@ -44,6 +44,8 @@ export function openSheet(html, { onMount, cls = '', onClose } = {}) {
   requestAnimationFrame(() => ov.classList.add('in'));
   ov.addEventListener('click', e => { if (e.target === ov) closeSheet(); });
   const sh = ov.firstElementChild;
+  // pas de suggestions d'e-mails/identifiants étrangers à l'application dans les formulaires
+  sh.querySelectorAll('input:not([autocomplete]),textarea:not([autocomplete])').forEach(i => i.setAttribute('autocomplete', 'off'));
   if (onMount) onMount(sh);
   const f = sh.querySelector('[autofocus]'); if (f && window.innerWidth > 700) f.focus();
   return sh;

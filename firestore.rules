@@ -1,8 +1,12 @@
 rules_version = '2';
-// SJ Family v6 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// SJ Family v6.1 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    // Administrateur : compte khalid.ajdid@gmail.com (alias de connexion admin@admin.com), adresse confirmée
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == 'khalid.ajdid@gmail.com' && request.auth.token.email_verified == true;
+    }
     function isMember(fid) {
       return signedIn() && exists(/databases/$(database)/documents/families/$(fid)/members/$(request.auth.uid));
     }
@@ -38,6 +42,25 @@ service cloud.firestore {
       match /{sub}/{docId} {
         allow read, write: if isMember(fid);
       }
+    }
+
+    // Statistiques anonymes (compteurs) : chacun peut ajouter +1, seul l'admin peut les lire
+    function statKeys() {
+      return ['users', 'families', 'active', 'installAndroid', 'installIOS', 'installOther', 'dlAndroid', 'dlIOS'];
+    }
+    function newVal(k) { return request.resource.data.get(k, 0); }
+    function oldVal(k) { return resource.data.get(k, 0); }
+    function startOk(k) { return newVal(k) is int && newVal(k) >= 0 && newVal(k) <= 1; }
+    function incOk(k) { return newVal(k) is int && (newVal(k) == oldVal(k) || newVal(k) == oldVal(k) + 1); }
+    match /stats/{id} {
+      allow get, list: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly(statKeys())
+        && startOk('users') && startOk('families') && startOk('active') && startOk('installAndroid')
+        && startOk('installIOS') && startOk('installOther') && startOk('dlAndroid') && startOk('dlIOS');
+      allow update: if request.resource.data.keys().hasOnly(statKeys())
+        && incOk('users') && incOk('families') && incOk('active') && incOk('installAndroid')
+        && incOk('installIOS') && incOk('installOther') && incOk('dlAndroid') && incOk('dlIOS');
+      allow delete: if isAdmin();
     }
 
     // Flux des widgets : lecture publique d'un document précis (lien secret), écriture par les membres

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 import * as E from './engine.js';
 import { createBackend } from './backend.js';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL } from './core.js';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat } from './core.js';
 import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet } from './ui.js';
 import * as Home from './views-home.js';
 import * as Agenda from './views-agenda.js';
@@ -12,8 +12,10 @@ import * as Exch from './views-exchange.js';
 import * as Fam from './views-family.js';
 import * as Bud from './views-budget.js';
 import * as More from './views-more.js';
+import * as Admin from './views-admin.js';
+import * as Install from './install.js';
 
-const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More];
+const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
 const AFTER = Object.assign({}, ...MODS.map(m => m.after || {}));
 const ACTIONS = Object.assign({}, ...MODS.map(m => m.actions || {}));
@@ -58,7 +60,13 @@ document.addEventListener('change', e => {
 let raf = 0, deferred = false;
 S.render = () => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; doRender(); }); };
 document.addEventListener('focusout', () => { if (deferred) { deferred = false; setTimeout(S.render, 60); } });
-window.addEventListener('hashchange', () => { S.route = parseHash(); window.scrollTo(0, 0); S.render(); });
+function checkSetupLink() {
+  if (parseHash().view !== 'setup' || !/[?&]k=/.test(location.hash)) return false;
+  S.setup = { data: Admin.readSetupPayload(), state: 'confirm', log: [] };
+  history.replaceState(null, '', location.pathname + location.search + '#/setup'); // efface les informations du lien de l'historique
+  return true;
+}
+window.addEventListener('hashchange', () => { checkSetupLink(); S.route = parseHash(); window.scrollTo(0, 0); S.render(); });
 
 function lighten(hex, k) {
   const n = parseInt(hex.replace('#', ''), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
@@ -100,7 +108,9 @@ function header({ title = '', back = null, actions = true } = {}) {
 }
 function doRender() {
   if (!S.ready) return;
+  if (S.setup) return renderSetup();
   if (!S.user) return renderAuth();
+  if (isAdminUser()) return renderAdmin();
   if (!S.profile) return renderLoading();
   const ae = document.activeElement, view = $('#view');
   if (ae && view && view.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && S.lastView === S.route.view) { deferred = true; return; }
@@ -128,44 +138,71 @@ function doRender() {
   if (bx) { bx.textContent = px; bx.classList.toggle('hide', !px); }
   try { AFTER[r.view]?.(v, r.params || {}); } catch (e) { console.error(e); }
 }
+function renderAdmin() {
+  shell(false); header({ title: 'Administration', actions: false });
+  $('.top-r').innerHTML = `<button class="tb" data-act="logout" aria-label="Déconnexion">${IC.logout}</button>`;
+  $('#view').innerHTML = Admin.adminHtml(); S.lastView = 'admin';
+}
+function renderSetup() {
+  const app = $('#app'); app.dataset.shell = 'auth';
+  app.innerHTML = `<div class="auth"><img class="logo-full" src="logo-full.png" alt="SJ Family"><div class="box">${Admin.setupHtml()}</div></div>`;
+}
 function renderLoading() { shell(false); header({ actions: false }); $('#view').innerHTML = '<div class="boot"><div class="spin"></div></div>'; }
 
 // ───── Connexion / inscription
 function renderAuth() {
   const mode = S.authMode || 'login';
   const app = $('#app'); app.dataset.shell = 'auth';
-  const L = (n, l, t = 'text', ac = '', ph = '') => `<label class="lbl">${l}</label><input class="in" name="${n}" type="${t}" ${ac ? `autocomplete="${ac}"` : ''} placeholder="${ph}">`;
+  // autocomplete : « username » = seuls les identifiants déjà enregistrés pour CE site sont proposés ; « off » ailleurs
+  const L = (n, l, t = 'text', ac = 'off', ph = '', val = '') => `<label class="lbl">${l}</label><input class="in" name="${n}" type="${t}" autocomplete="${ac}" autocapitalize="${t === 'email' ? 'off' : 'sentences'}" spellcheck="false" placeholder="${ph}" value="${esc(val)}">`;
   let body;
-  if (mode === 'login') body = `<h2>Connexion</h2>${L('email', 'E-mail', 'email', 'email', 'vous@exemple.fr')}${L('pw', 'Mot de passe', 'password', 'current-password')}
+  if (mode === 'login') body = `<h2>Connexion</h2>${L('email', 'E-mail', 'email', 'username', 'vous@exemple.fr', S.authEmail || '')}${L('pw', 'Mot de passe', 'password', 'current-password')}
     <button class="btn primary block mt2" data-act="auth-login">Se connecter</button>
+    ${S.adminFail ? `<div class="alert mt"><div class="ai">🛡️</div><div class="small">Compte admin introuvable ou mot de passe incorrect.<br><a href="#" class="lnk" data-act="auth-admin-create">Créer le compte admin</a> · <a href="#" class="lnk" data-act="auth-mode" data-m="reset">Mot de passe oublié</a></div></div>` : ''}
     <div class="sw2"><a href="#" data-act="auth-mode" data-m="reset">Mot de passe oublié ?</a></div>
     <div class="sw2">Pas encore de compte ? <a href="#" data-act="auth-mode" data-m="register">Créer un compte</a></div>`;
   else if (mode === 'register') body = `<h2>Créer un compte</h2>
-    <div class="two"><div>${L('prenom', 'Prénom', 'text', 'given-name')}</div><div>${L('nom', 'Nom', 'text', 'family-name')}</div></div>
-    ${L('phone', 'Téléphone', 'tel', 'tel', '06 12 34 56 78')}${L('email', 'E-mail', 'email', 'email', 'vous@exemple.fr')}
+    <div class="two"><div>${L('prenom', 'Prénom', 'text', 'off')}</div><div>${L('nom', 'Nom', 'text', 'off')}</div></div>
+    ${L('phone', 'Téléphone', 'tel', 'off', '06 12 34 56 78')}${L('email', 'E-mail', 'email', 'username', 'vous@exemple.fr')}
     ${L('pw', 'Mot de passe (6 caractères min.)', 'password', 'new-password')}${L('pw2', 'Confirmer le mot de passe', 'password', 'new-password')}
     <button class="btn primary block mt2" data-act="auth-register">Créer mon compte</button>
     <div class="sw2">Déjà inscrit ? <a href="#" data-act="auth-mode" data-m="login">Se connecter</a></div>`;
-  else body = `<h2>Mot de passe oublié</h2><p class="muted center small">Recevez un lien de réinitialisation par e-mail.</p>${L('email', 'E-mail', 'email', 'email')}
+  else body = `<h2>Mot de passe oublié</h2><p class="muted center small">Recevez un lien de réinitialisation par e-mail.</p>${L('email', 'E-mail', 'email', 'username', '', S.authEmail || '')}
     <button class="btn primary block mt2" data-act="auth-reset">Envoyer le lien</button>
     <div class="sw2"><a href="#" data-act="auth-mode" data-m="login">Retour à la connexion</a></div>`;
   app.innerHTML = `<div class="auth"><img class="logo-full" src="logo-full.png" alt="SJ Family"><div class="tag">La garde partagée, simple et sereine</div>
-    <form class="box" onsubmit="return false">${body}</form><div class="ver">SJ Family ${VERSION}${S.be?.mode === 'demo' ? ' · mode démo' : ''}</div></div>`;
+    <form class="box" autocomplete="off" onsubmit="return false">${body}</form>${Install.installButtons({ dark: true })}
+    <div class="ver">SJ Family ${VERSION}${S.be?.mode === 'demo' ? ' · mode démo' : ''}</div></div>`;
 }
 const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+const isAlias = e => ADMIN_ALIASES.includes(String(e || '').trim().toLowerCase());
+const isAdminMail = e => isAlias(e) || String(e || '').trim().toLowerCase() === ADMIN_EMAIL;
 Object.assign(ACTIONS, {
-  'auth-mode': el => { S.authMode = el.dataset.m; renderAuth(); },
+  'auth-mode': el => { const f = $('.auth form') ? readForm($('.auth form')) : {}; if (f.email) S.authEmail = f.email; S.authMode = el.dataset.m; S.adminFail = false; renderAuth(); },
   'auth-login': async el => {
-    const f = readForm(el.closest('form'));
-    if (!emailOk(f.email) || !f.pw) return toast('Saisissez votre e-mail et votre mot de passe.', 'warn');
-    el.disabled = true;
-    try { await S.be.auth.signIn(f.email, f.pw); } catch (e) { toast(errMsg(e), 'err', 4000); el.disabled = false; }
+    const f = readForm(el.closest('form')), alias = isAlias(f.email);
+    const email = alias ? ADMIN_EMAIL : f.email.trim().toLowerCase();
+    if (!emailOk(email) || !f.pw) return toast('Saisissez votre e-mail et votre mot de passe.', 'warn');
+    el.disabled = true; S.authEmail = f.email; S.adminFail = false;
+    try { await S.be.auth.signIn(email, f.pw); S.authEmail = ''; }
+    catch (e) {
+      el.disabled = false;
+      if (alias || email === ADMIN_EMAIL) { S.adminFail = true; S.adminPw = f.pw; renderAuth(); }
+      toast(errMsg(e), 'err', 4000);
+    }
+  },
+  'auth-admin-create': async () => {
+    const pw = S.adminPw || '';
+    if (pw.length < 6) return toast('Saisissez le mot de passe admin (6 caractères min.).', 'warn');
+    try { await S.be.auth.signUp(ADMIN_EMAIL, pw); try { await S.be.auth.sendVerification(); } catch (x) { /* */ } S.adminFail = false; S.adminPw = null; toast(`Compte admin créé. Confirmez l'e-mail envoyé à ${ADMIN_EMAIL}.`, 'ok', 5000); }
+    catch (e) { toast(String(e?.code || '').includes('email-already-in-use') ? 'Le compte admin existe déjà : mot de passe incorrect. Utilisez « Mot de passe oublié ».' : errMsg(e), 'err', 5000); }
   },
   'auth-register': async el => {
     const f = readForm(el.closest('form'));
     if (!f.prenom || !f.nom) return toast('Prénom et nom obligatoires.', 'warn');
     if (f.phone.replace(/\D/g, '').length < 10) return toast('Numéro de téléphone invalide.', 'warn');
     if (!emailOk(f.email)) return toast('Adresse e-mail invalide.', 'warn');
+    if (isAdminMail(f.email)) return toast('Cette adresse est réservée au mode administrateur. Utilisez une autre adresse pour votre compte parent.', 'warn', 5000);
     if (f.pw.length < 6) return toast('Mot de passe : 6 caractères minimum.', 'warn');
     if (f.pw !== f.pw2) return toast('Les mots de passe ne correspondent pas.', 'warn');
     el.disabled = true;
@@ -173,14 +210,15 @@ Object.assign(ACTIONS, {
       S.signingUp = { prenom: f.prenom, nom: f.nom.toUpperCase(), phone: f.phone, email: f.email.toLowerCase() };
       const u = await S.be.auth.signUp(f.email, f.pw);
       await S.be.db.set(`users/${u.uid}`, { ...S.signingUp, familyIds: [], currentFamily: null, createdAt: Date.now() }, true);
+      stat('users');
       S.signingUp = null; toast(`Bienvenue ${f.prenom} !`);
     } catch (e) { S.signingUp = null; toast(errMsg(e), 'err', 4500); el.disabled = false; }
   },
   'auth-reset': async el => {
-    const f = readForm(el.closest('form'));
-    if (!emailOk(f.email)) return toast('Adresse e-mail invalide.', 'warn');
-    await guard(() => S.be.auth.reset(f.email), 'Lien envoyé, vérifiez votre boîte mail (et les spams).');
-    S.authMode = 'login'; renderAuth();
+    const f = readForm(el.closest('form')), email = isAlias(f.email) ? ADMIN_EMAIL : f.email.trim().toLowerCase();
+    if (!emailOk(email)) return toast('Adresse e-mail invalide.', 'warn');
+    await guard(() => S.be.auth.reset(email), `Lien envoyé${isAlias(f.email) ? ' à ' + ADMIN_EMAIL : ''}, vérifiez votre boîte mail (et les spams).`);
+    S.authMode = 'login'; S.adminFail = false; renderAuth();
   },
 });
 
@@ -226,12 +264,15 @@ async function start() {
     return;
   }
   S.route = parseHash();
+  checkSetupLink();
+  Install.checkStandalone();
   S.ready = true;
   S.be.auth.onChange(u => {
     S.user = u;
     if (unUser) { unUser(); unUser = null; }
     resetFamily(); S.fid = null; S.profile = null; S.families = {}; S.remindersDone = false;
     if (!u) { S.render(); return; }
+    if (isAdminUser()) { S.profile = { admin: true }; S.admin = null; S.render(); return; }
     renderLoading();
     unUser = S.be.db.listenDoc(`users/${u.uid}`, async p => {
       if (!p) {
@@ -240,6 +281,7 @@ async function start() {
         return;
       }
       S.profile = p;
+      if (LS.get('activeDay', '') !== E.todayISO() && !S.setupRunning) { LS.set('activeDay', E.todayISO()); stat('active'); }
       const fid = p.currentFamily && (p.familyIds || []).includes(p.currentFamily) ? p.currentFamily : (p.familyIds || [])[0] || null;
       if (fid !== S.fid) attachFamily(fid);
       loadFamilyNames(p.familyIds || []);

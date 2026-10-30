@@ -77,4 +77,17 @@ Vous recevez les actions des autres membres (jamais les vôtres) et un rappel av
 | `firestore.rules` | Règles de sécurité à coller dans Firebase |
 | `sw.js`, `manifest.json`, icônes | Installation sur l'écran d'accueil, hors-ligne |
 
+## 7. Mode administrateur
+
+Sur l'écran de connexion, saisissez **admin@admin.com** et le mot de passe admin : l'application ouvre uniquement
+le tableau de bord (comptes créés, utilisateurs actifs par jour, cercles, installations Android/iPhone,
+clics « Télécharger », téléchargements de l'APK des widgets). Les statistiques sont anonymes.
+Ce compte correspond au compte Firebase **khalid.ajdid@gmail.com** (mot de passe oublié → lien envoyé à cette adresse) ;
+l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de passe n'est écrit dans le code.
+
+## 8. Nettoyer les comptes de test (console Firebase)
+
+- *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.
+- *Firestore Database › Données* : menu ⋮ de chaque collection (`users`, `families`, `joinCodes`, `widgets`, `stats`, anciennes `circles`/`admin`) › **Supprimer la collection**.
+
 Mode démonstration (sans compte, données locales) : ajoutez `?demo=1` à l'adresse.

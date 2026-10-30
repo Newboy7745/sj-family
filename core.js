@@ -4,13 +4,33 @@
 import * as E from './engine.js';
 import { toast, esc } from './ui.js';
 
-export const VERSION = '6.0';
+export const VERSION = '6.1';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 export const REPO = 'Newboy7745/sj-family';
 export const APK_URL = `https://github.com/${REPO}/releases/latest/download/SJ-Widgets.apk`;
 export const SCRIPT_URL = `${APP_URL}widget-iphone.js`;
 export const FEED_URL = t => `https://firestore.googleapis.com/v1/projects/sj-family-dd337/databases/(default)/documents/widgets/${t}?key=AIzaSyDlyQZ-O5Xuko-jtIvhJSzlncg1eL9Icdg`;
 
+// Compte administrateur : « admin@admin.com » est un alias du compte Firebase khalid.ajdid@gmail.com (aucun mot de passe dans le code)
+export const ADMIN_EMAIL = 'khalid.ajdid@gmail.com';
+export const ADMIN_ALIASES = ['admin@admin.com', 'admin@admin@com', 'admin@admin.fr'];
+export const isAdminUser = () => (S.user?.email || '').toLowerCase() === ADMIN_EMAIL;
+export function platform() {
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
+  if (/Android/i.test(ua)) return 'android';
+  return 'other';
+}
+export const isStandalone = () => !!(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+/** Statistiques anonymes (compteurs uniquement, aucune donnée personnelle) lues par le mode admin */
+export const STAT_KEYS = ['users', 'families', 'active', 'installAndroid', 'installIOS', 'installOther', 'dlAndroid', 'dlIOS'];
+export async function stat(key) {
+  if (!S.be || !STAT_KEYS.includes(key)) return;
+  const inc = S.be.db.increment(1);
+  try {
+    await Promise.all([S.be.db.set('stats/global', { [key]: inc }, true), S.be.db.set(`stats/d-${E.todayISO()}`, { [key]: inc }, true)]);
+  } catch (e) { console.warn('stat', key, e?.code || e); }
+}
 export const CATS = {
   garde: { i: '📅', n: 'Garde' }, echange: { i: '🔄', n: 'Échanges' }, budget: { i: '💰', n: 'Budget' },
   agenda: { i: '🗓️', n: 'Agenda' }, taches: { i: '✅', n: 'Tâches' }, liaison: { i: '📒', n: 'Liaison' },

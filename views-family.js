@@ -1,6 +1,7 @@
 // ═══════════════ Cercle familial : création, adhésion, statut, enfants, membres, invitations ═══════════════
 import * as E from './engine.js';
 import { randomId } from './backend.js';
+import { stat } from './core.js';
 import { S, engine, parents, pName, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, PARENT_COLORS, CHILD_EMOJIS, avatar } from './core.js';
 import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, copyText, closeSheetsThen } from './ui.js';
 
@@ -40,8 +41,8 @@ function createSheet(pendingChild = null) {
     <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="fam-create-go">Créer le cercle</button></div>`);
   S.pendingChild = pendingChild;
 }
-async function createFamily(f) {
-  const db = S.be.db, u = uid(), p = S.profile || {}, fid = db.newId(), code = code6();
+export async function createFamily(f, { profile = S.profile, userId = uid(), linkUser = true } = {}) {
+  const db = S.be.db, u = userId, p = profile || {}, fid = db.newId(), code = code6();
   const other = f.mine === 'Papa' ? 'Maman' : f.mine === 'Maman' ? 'Papa' : 'Parent';
   const fam = {
     name: f.name || `Famille ${p.nom || ''}`, ownerUid: u, status: f.status || 'separes', joinCode: code, createdAt: Date.now(),
@@ -55,7 +56,8 @@ async function createFamily(f) {
   await db.set(`families/${fid}/members/${u}`, { uid: u, prenom: p.prenom || '', nom: p.nom || '', name: p.prenom || '', email: p.email || '', phone: p.phone || '', role: 'parent', parentCode: 'A', joinedAt: Date.now() });
   await db.set(`joinCodes/${code}`, { fid, name: fam.name, by: p.prenom || '', createdAt: Date.now() });
   if (f.oprenom || f.ophone || f.oemail) await db.set(`families/${fid}/invites/${db.newId()}`, { prenom: f.oprenom || '', nom: f.onom || '', phone: f.ophone || '', email: (f.oemail || '').toLowerCase(), role: 'parent', relation: other, state: 'pending', by: u, byName: p.prenom || '', at: Date.now() });
-  await db.update(`users/${u}`, { familyIds: db.arrayUnion(fid), currentFamily: fid, [`lastSeen.${fid}`]: Date.now() });
+  if (linkUser) await db.update(`users/${u}`, { familyIds: db.arrayUnion(fid), currentFamily: fid, [`lastSeen.${fid}`]: Date.now() });
+  stat('families');
   await db.set(`families/${fid}/activity/${db.newId()}`, { cat: 'cercle', title: `Cercle créé : ${fam.name}`, body: '', icon: '🏡', by: u, byName: p.prenom || '', at: Date.now() });
   return fid;
 }

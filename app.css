@@ -256,3 +256,20 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 
 @media (min-width:700px){ .modules{grid-template-columns:repeat(3,1fr)} .cday{min-height:78px} }
 @media print{ .top,.tabs,.noprint{display:none!important} #view{padding:0} .card{box-shadow:none;border:1px solid #ddd} }
+
+/* ───── Installation & admin (v6.1) */
+.inst{width:100%;max-width:440px;margin-top:16px;background:#fff;border-radius:22px;padding:14px;box-shadow:var(--sh)}
+.inst.dark{background:rgba(255,255,255,.1);box-shadow:none;border:1px solid rgba(255,255,255,.18)}
+.inst-t{font-weight:800;text-align:center;margin-bottom:10px}
+.inst.dark .inst-t{color:#fff}
+.inst.dark .btn.ghost{background:transparent;border-color:rgba(255,255,255,.7);color:#fff}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.kpi{background:#fff;border-radius:20px;padding:14px;box-shadow:var(--sh)}
+.kpi .ki{font-size:24px}.kpi .kv{font-size:30px;font-weight:800;color:var(--navy);line-height:1.1;margin-top:4px}
+.kpi .kl{font-size:13px;font-weight:800;color:#334}.kpi .ks{font-size:12px;color:var(--muted);margin-top:3px}
+.abars{display:flex;align-items:flex-end;gap:2px;height:120px;border-bottom:1px solid var(--line);position:relative}
+.abars .ab{flex:1;height:100%;display:flex;flex-direction:column-reverse;position:relative}
+.abars .ab span{display:block;width:100%;border-radius:3px 3px 0 0;min-height:2px}
+.abars .ab em{position:absolute;bottom:-17px;left:0;font-style:normal;font-size:9.5px;color:var(--muted);white-space:nowrap}
+.lg{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+@media (min-width:700px){.kpis{grid-template-columns:repeat(3,1fr)}}

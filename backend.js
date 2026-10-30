@@ -45,12 +45,14 @@ async function createFirebase() {
   return {
     mode: 'firebase',
     auth: {
-      onChange: cb => A.onAuthStateChanged(auth, u => cb(u ? { uid: u.uid, email: u.email } : null)),
+      onChange: cb => A.onAuthStateChanged(auth, u => cb(u ? { uid: u.uid, email: (u.email || '').toLowerCase(), emailVerified: !!u.emailVerified } : null)),
       signIn: (e, p) => A.signInWithEmailAndPassword(auth, e, p),
       signUp: async (e, p) => { const r = await A.createUserWithEmailAndPassword(auth, e, p); return { uid: r.user.uid, email: r.user.email }; },
       signOut: () => A.signOut(auth),
       reset: e => A.sendPasswordResetEmail(auth, e),
-      current: () => auth.currentUser ? { uid: auth.currentUser.uid, email: auth.currentUser.email } : null,
+      current: () => auth.currentUser ? { uid: auth.currentUser.uid, email: (auth.currentUser.email || '').toLowerCase(), emailVerified: !!auth.currentUser.emailVerified } : null,
+      sendVerification: () => A.sendEmailVerification(auth.currentUser),
+      refresh: async () => { const u = auth.currentUser; if (!u) return null; await u.reload(); await u.getIdToken(true); return { uid: u.uid, email: (u.email || '').toLowerCase(), emailVerified: !!auth.currentUser.emailVerified }; },
     },
     db: {
       newId: () => F.doc(F.collection(fs, '_')).id,
@@ -68,6 +70,7 @@ async function createFirebase() {
       arrayUnion: (...v) => F.arrayUnion(...v),
       arrayRemove: (...v) => F.arrayRemove(...v),
       deleteField: () => F.deleteField(),
+      increment: n => F.increment(n),
     },
   };
 }
@@ -102,8 +105,9 @@ function createMock() {
     if (o.limit) rows = rows.slice(0, o.limit);
     return rows;
   };
-  const AU = Symbol('au'), AR = Symbol('ar'), DF = Symbol('df');
+  const AU = Symbol('au'), AR = Symbol('ar'), DF = Symbol('df'), INC = Symbol('inc');
   const applyVal = (cur, v) => {
+    if (v && v[INC] !== undefined) return (+cur || 0) + v[INC];
     if (v && v[AU]) return [...new Set([...(cur || []), ...v[AU]])];
     if (v && v[AR]) return (cur || []).filter(x => !v[AR].includes(x));
     return v;
@@ -121,7 +125,7 @@ function createMock() {
     for (const [k, v] of Object.entries(data)) {
       if (v === undefined) continue;
       if (mode === 'update' && k.includes('.')) { setDeep(out, k, v); continue; }
-      if (v && (v[AU] || v[AR] || v[DF])) { setDeep(out, k.replace(/\./g, '\u0000'), v); continue; }
+      if (v && (v[AU] || v[AR] || v[DF] || v[INC] !== undefined)) { setDeep(out, k.replace(/\./g, '\u0000'), v); continue; }
       if (mode === 'merge' && v && typeof v === 'object' && !Array.isArray(v) && out[k] && typeof out[k] === 'object') out[k] = deepMerge(out[k], plain(v));
       else out[k] = plain(v);
     }
@@ -129,7 +133,7 @@ function createMock() {
   };
   const deepMerge = (a, b) => { const r = { ...a }; for (const [k, v] of Object.entries(b)) r[k] = v && typeof v === 'object' && !Array.isArray(v) && r[k] && typeof r[k] === 'object' ? deepMerge(r[k], v) : v; return r; };
   const authNotify = () => queueMicrotask(() => { for (const cb of authL) cb(cur()); });
-  const cur = () => store.session ? { uid: store.users[store.session].uid, email: store.session } : null;
+  const cur = () => store.session ? { uid: store.users[store.session].uid, email: store.session, emailVerified: true } : null;
   const err = code => { const e = new Error(code); e.code = code; return e; };
   return {
     mode: 'demo',
@@ -143,6 +147,8 @@ function createMock() {
       signOut: async () => { store.session = null; save(); authNotify(); },
       reset: async () => { },
       current: cur,
+      sendVerification: async () => { },
+      refresh: async () => cur(),
     },
     db: {
       newId: () => randomId(20),
@@ -165,6 +171,7 @@ function createMock() {
       arrayUnion: (...v) => ({ [AU]: v }),
       arrayRemove: (...v) => ({ [AR]: v }),
       deleteField: () => ({ [DF]: true }),
+      increment: n => ({ [INC]: n }),
     },
   };
 }
