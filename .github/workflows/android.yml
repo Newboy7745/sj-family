@@ -1,0 +1,55 @@
+# SJ Family — construit automatiquement l'app Android « SJ Widgets » (APK)
+# et la publie dans les « Releases » du dépôt. Lien de téléchargement permanent :
+# https://github.com/Newboy7745/sj-family/releases/latest/download/SJ-Widgets.apk
+name: SJ Widgets (Android)
+
+on:
+  push:
+    paths:
+      - 'android-src.zip'
+      - 'android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Préparer les sources
+        run: |
+          rm -rf build-android
+          if [ -f android-src.zip ]; then
+            mkdir build-android && unzip -q android-src.zip -d build-android
+          else
+            cp -r android build-android
+          fi
+          ls build-android
+
+      - name: Compiler l'APK
+        working-directory: build-android
+        run: gradle --no-daemon assembleRelease
+
+      - name: Publier la version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build-android/app/build/outputs/apk/release/app-release.apk SJ-Widgets.apk
+          TAG="widgets-${{ github.run_number }}"
+          gh release create "$TAG" SJ-Widgets.apk \
+            --title "SJ Widgets ${{ github.run_number }}" \
+            --notes "Application Android des widgets SJ Family. Installez SJ-Widgets.apk sur le téléphone (autoriser les applis inconnues)." \
+            --latest

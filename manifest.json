@@ -1,26 +1,25 @@
 {
   "name": "SJ Family",
   "short_name": "SJ Family",
-  "description": "Mon assistant personnel familial",
-  "start_url": "/sj-family/index.html",
-  "scope": "/sj-family/",
+  "description": "Mon assistant personnel familial : garde partagée, agenda, échanges, budget",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0A3D6B",
-  "theme_color": "#0A3D6B",
+  "background_color": "#0B3D6E",
+  "theme_color": "#0B3D6E",
+  "lang": "fr",
   "prefer_related_applications": false,
   "icons": [
-    {
-      "src": "/sj-family/assets/icon-512_2.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/sj-family/assets/icon-512_2.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Agenda", "url": "./#/agenda", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Échanges", "url": "./#/exchanges", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Budget", "url": "./#/budget", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }

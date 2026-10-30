@@ -1,0 +1,51 @@
+rules_version = '2';
+// SJ Family v6 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isMember(fid) {
+      return signedIn() && exists(/databases/$(database)/documents/families/$(fid)/members/$(request.auth.uid));
+    }
+
+    // Profil : chacun le sien
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Codes d'invitation : lisibles un par un (jamais listables)
+    match /joinCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn() && isMember(request.resource.data.fid);
+      allow delete: if signedIn() && isMember(resource.data.fid);
+    }
+
+    // Cercles familiaux
+    match /families/{fid} {
+      allow read: if isMember(fid);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if isMember(fid);
+      allow delete: if false;
+
+      // Adhésion : le créateur, ou toute personne possédant le code du cercle
+      match /members/{uid} {
+        allow create: if signedIn() && request.auth.uid == uid && (
+          get(/databases/$(database)/documents/families/$(fid)).data.ownerUid == request.auth.uid ||
+          get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.fid == fid);
+      }
+
+      // Toutes les données du cercle : réservées aux membres
+      match /{sub}/{docId} {
+        allow read, write: if isMember(fid);
+      }
+    }
+
+    // Flux des widgets : lecture publique d'un document précis (lien secret), écriture par les membres
+    match /widgets/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow create, update: if signedIn() && isMember(request.resource.data.fid);
+      allow delete: if signedIn() && isMember(resource.data.fid);
+    }
+  }
+}
