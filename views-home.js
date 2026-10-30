@@ -45,7 +45,7 @@ function gardeCard(kids) {
   const week = [...Array(7)].map((_, i) => {
     const d = E.addDays(mon, i), codes = ids.map(id => eng.code(id, d));
     const ho = eng.handovers(ids, d, d).length;
-    return `<button class="wd ${d === today ? 'today' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">${E.JOURS_L[i]}<b>${+d.slice(8)}</b>${ho ? '<span class="ho">🔁</span>' : ''}</button>`;
+    return `<button class="wd ${d === today ? 'today' : ''} ${d < today ? 'past' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">${E.JOURS_L[i]}<b>${+d.slice(8)}</b>${ho ? '<span class="ho">🔁</span>' : ''}</button>`;
   }).join('');
   return `<div class="garde"><div class="gt">Garde du jour · ${esc(label)}</div>
     <div class="gw">${avatar(P.name, who === 'A' ? 'var(--pa-d)' : 'var(--pb-d)', 50)}<div class="f1"><div class="gn">Chez ${esc(P.name)}${P.short && P.short !== P.name ? ` <span class="muted" style="font-weight:700">(${esc(P.short)})</span>` : ''}</div>

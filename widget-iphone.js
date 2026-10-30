@@ -39,6 +39,15 @@ async function loadFeed() {
   return feed;
 }
 
+const _cellCache = {};
+function pastCell(color, w, h) {
+  const k = `${color.hex}-${w}-${h}`; if (_cellCache[k]) return _cellCache[k];
+  const dc = new DrawContext(); dc.size = new Size(w, h); dc.opaque = false; dc.respectScreenScale = true;
+  dc.setFillColor(color); dc.fillRect(new Rect(0, 0, w, h));
+  const p = new Path(); p.move(new Point(0, h)); p.addLine(new Point(w, 0));
+  dc.addPath(p); dc.setStrokeColor(new Color('#13233A', 0.55)); dc.setLineWidth(1.4); dc.strokePath();
+  return (_cellCache[k] = dc.getImage());
+}
 const feed = await loadFeed();
 const family = config.widgetFamily || 'medium';
 const raw = String(args.widgetParameter || '').split(/[;,]/).map(s => s.trim()).filter(Boolean);
@@ -135,6 +144,7 @@ else {
     for (let i = 0; i < 7; i++) {
       const d = addDays(mon, i), c = code(K[0], d);
       const cell = row.addStack(); cell.layoutVertically(); cell.size = new Size(40, 46); cell.cornerRadius = 9; cell.backgroundColor = colorOf(c);
+      if (d < today) cell.backgroundImage = pastCell(colorOf(c), 40, 46);
       if (d === today) { cell.borderWidth = 2.5; cell.borderColor = WHITE; }
       cell.addSpacer(4);
       const l1 = cell.addStack(); l1.addSpacer(); txt(l1, JL[i], 10, { bold: true, color: INK }); l1.addSpacer();
@@ -163,6 +173,7 @@ else {
         const d = addDays(start, wk * 7 + i), inM = +d.slice(5, 7) === m, c = code(K[0], d);
         const cell = r.addStack(); cell.size = new Size(40, weeks > 5 ? 24 : 28); cell.cornerRadius = 6; cell.centerAlignContent();
         cell.backgroundColor = inM ? colorOf(c) : new Color('#ffffff', 0.06);
+        if (inM && d < today) cell.backgroundImage = pastCell(colorOf(c), 40, weeks > 5 ? 24 : 28);
         if (d === today) { cell.borderWidth = 2; cell.borderColor = WHITE; }
         cell.addSpacer(); txt(cell, String(+d.slice(8)), 11, { bold: true, color: inM ? ((feed.off || {})[d] ? new Color('#C0392B') : INK) : new Color('#ffffff', 0.35) }); cell.addSpacer();
         if (i < 6) r.addSpacer(4);

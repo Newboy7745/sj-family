@@ -273,3 +273,8 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .abars .ab em{position:absolute;bottom:-17px;left:0;font-style:normal;font-size:9.5px;color:var(--muted);white-space:nowrap}
 .lg{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 @media (min-width:700px){.kpis{grid-template-columns:repeat(3,1fr)}}
+
+/* jours passés barrés en diagonale */
+.cday.past::before,.wd.past::before{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(to top right,transparent calc(50% - 1px),rgba(19,35,58,.38) 50%,transparent calc(50% + 1px))}
+.cday.past .dn,.wd.past b{opacity:.6}

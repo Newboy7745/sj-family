@@ -4,7 +4,7 @@
 import * as E from './engine.js';
 import { toast, esc } from './ui.js';
 
-export const VERSION = '6.1';
+export const VERSION = '6.2';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 export const REPO = 'Newboy7745/sj-family';
 export const APK_URL = `https://github.com/${REPO}/releases/latest/download/SJ-Widgets.apk`;
