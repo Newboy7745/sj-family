@@ -1,3 +1,4 @@
+process.on('unhandledRejection', e => { console.log(`::error title=Plantage::${String(e?.stack || e).replace(/\s+/g, ' ').slice(0, 900)}`); process.exit(1); });
 // Tests des règles Firestore de SJ Family (exécutés par GitHub Actions avec l'émulateur Firestore)
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
 import { readFileSync } from 'node:fs';
@@ -27,7 +28,7 @@ let fails = 0, n = 0;
 async function t(name, p, ok = true) {
   n++;
   try { await (ok ? assertSucceeds(p) : assertFails(p)); console.log('✓', name); }
-  catch (e) { fails++; console.log('✗', name, '—', e?.message || e); }
+  catch (e) { fails++; const m = String(e?.message || e).replace(/\s+/g, ' ').slice(0, 300); console.log('✗', name, '—', m); console.log(`::error title=${name}::${m}`); }
 }
 // Parent seul
 await t('parent lit le cercle', getDoc(doc(pa, `families/${F}`)));
@@ -85,5 +86,5 @@ await t('proche lit Tâches', getDocs(collection(pr, `families/${F}/tasks`)));
 await t('jeton widgets : parent écrit', setDoc(doc(pa, 'widgets/tok'), { fid: F, payload: '{}' }));
 await t('jeton widgets : lecture publique', getDoc(doc(env.unauthenticatedContext().firestore(), 'widgets/tok')));
 await env.cleanup();
-console.log(`\n${n - fails}/${n} tests réussis`);
+console.log(`\n${n - fails}/${n} tests réussis`); console.log(`::notice title=Règles::${n - fails}/${n} tests réussis`);
 process.exit(fails ? 1 : 0);
