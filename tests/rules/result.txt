@@ -14,18 +14,18 @@
 ✓ parent migre le jeton
 ✓ parent lit l'ancien journal
 ✓ parent écrit son historique
-[2026-10-31T19:39:59.504Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81271434 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:31.923Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x2265691c error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L45
 ✓ parent ne change pas le parent A
 ✓ proche crée sa fiche avec le code
-[2026-10-31T19:39:59.562Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81271435 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:31.981Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x2265691d error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
 ✓ proche ne peut pas se donner des droits
-[2026-10-31T19:39:59.583Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81271436 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:32.004Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x2265691e error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
 ✓ proche ne peut pas devenir parent
 ✓ proche s'ajoute à memberUids
-[2026-10-31T19:39:59.628Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81271437 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:32.047Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x2265691f error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L45
 ✓ proche ne modifie pas les réglages
 ✓ proche lit sa fiche
@@ -37,7 +37,7 @@ evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L45
 ✓ proche ne liste pas tous les échanges
 ✓ proche ne lit pas private
 ✓ proche écrit aux parents
-[2026-10-31T19:39:59.774Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81271439 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:32.182Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x22656921 error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L114:26 for 'create' @ L114, evaluation error at L116:26 for 'update' @ L116, false for 'create' @ L114
 ✓ proche n'écrit pas à un autre proche
 ✓ proche lit ses notes (créées)
@@ -58,14 +58,14 @@ evaluation error at L114:26 for 'create' @ L114, evaluation error at L116:26 for
 ✓ parent B prend la place B
 ✓ parent B se déclare parent B
 ✓ parent B lit childInfo
-[2026-10-31T19:40:00.042Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x8127143a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:32.465Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x22656922 error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L45
 ✓ un proche ne peut plus prendre la place B
-[2026-10-31T19:40:00.052Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x8127143b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:32.477Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x22656923 error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
 ✓ parent A ne change plus seul les accès
 ✓ parent A propose
-[2026-10-31T19:40:00.091Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x8127143e error. Code: 7 Message: 7 PERMISSION_DENIED: 
+[2026-10-31T19:51:32.502Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x22656926 error. Code: 7 Message: 7 PERMISSION_DENIED: 
 evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
 ✓ parent A ne valide pas sa propre proposition
 ✓ parent B valide
@@ -73,9 +73,25 @@ evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
 ✓ proche lit Tâches
 ✓ jeton widgets : parent écrit
 ✓ jeton widgets : lecture publique
+✓ nouveau parent crée son cercle
+✓ nouveau parent crée sa fiche
+✓ nouveau parent crée le code
+✓ nouveau parent écrit son historique
+✓ nouveau parent ajoute un enfant
+✓ nouveau parent écrit childInfo
+✓ nouveau parent importe un planning
+✓ un inconnu ne lit pas le cercle
+✓ parent écrit au proche
+✓ proche marque la note lue
+[2026-10-31T19:51:32.720Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x2265692a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L116:26 for 'update' @ L116, false for 'update' @ L116
+✓ proche ne modifie pas le texte
+✓ parent remplit le sac
+✓ proche sans accès ne voit pas le sac
+✓ parent supprime le souvenir du proche
 
-50/50 tests réussis
-::notice title=Règles::50/50 tests réussis
+64/64 tests réussis
+::notice title=Règles::64/64 tests réussis
 [32m[1m✔ [22m[39m Script exited successfully (code 0)
 [36m[1mi  emulators:[22m[39m Shutting down emulators.
 [36m[1mi  firestore:[22m[39m Stopping Firestore Emulator
