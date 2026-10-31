@@ -21,6 +21,7 @@ jobs:
         working-directory: tests/rules
         run: |
           set +e
+          cp ../../firestore.rules firestore.rules
           firebase emulators:exec --only firestore --project demo-sjf "node test.mjs" > result.txt 2>&1
           echo "EXIT=$?" >> result.txt
           tail -80 result.txt
