@@ -1,8 +1,8 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.6';
-import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove } from './core.js?v=6.6';
+import * as E from './engine.js?v=6.7';
+import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.7';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.6';
+import { esc, fmtAgo } from './ui.js?v=6.7';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -59,6 +59,11 @@ function gardeCard(kids) {
 }
 export function pendingItems() {
   const me = uid(), out = [];
+  // mes envois non validés à temps : à renvoyer (tous les membres)
+  for (const g of approvalGroups({ expired: true }).filter(g => g.by === me)) {
+    const n = g.items.length;
+    out.push({ i: '⌛', t: `${subLabel(g.sub, n)} non validé${n > 1 ? 's' : ''} dans les 48 h${g.title ? ' : ' + g.title : ''}`, s: 'Touchez pour renvoyer la demande ou supprimer', go: g.sub });
+  }
   if (!isParent()) return out;
   for (const p of S.plannings) {
     if (p.state === 'pending' && p.createdBy !== me) out.push({ i: '📅', t: `Nouveau planning à valider : ${p.title}`, s: `Proposé par ${p.createdByName || 'l\'autre parent'} · ${childNames(p.childIds)}`, go: 'plannings' });
@@ -68,11 +73,18 @@ export function pendingItems() {
   if (xs.length) out.push({ i: '🔄', t: `${xs.length} demande${xs.length > 1 ? 's' : ''} d'échange à traiter`, s: xs.map(x => x.summary || '').slice(0, 2).join(' · '), go: 'exchanges' });
   const f = S.family;
   if (f?.pendingSettings && f.pendingSettings.by !== me) out.push({ i: '⏰', t: 'Modification des horaires de relais à valider', s: `Par ${f.pendingSettings.byName}`, go: 'settings' });
-  const am = S.memories.filter(canApprove).length, ad = S.docs.filter(canApprove).length;
-  if (am) out.push({ i: '📸', t: `${am} souvenir${am > 1 ? 's' : ''} à valider`, s: 'Visibles par les proches après votre accord (48 h max)', go: 'memories' });
-  if (ad) out.push({ i: '📁', t: `${ad} document${ad > 1 ? 's' : ''} à valider`, s: 'Ajouté(s) par l\'autre parent', go: 'docs' });
+  // importations à valider (un lot = les photos/vidéos envoyées ensemble) : elles disparaissent après 48 h sans validation
+  for (const g of approvalGroups()) {
+    const todo = g.items.filter(canApprove); if (!todo.length) continue;
+    const n = todo.length, quiet = todo.every(isMuted);
+    out.push({ i: g.sub === 'docs' ? '📁' : '📸', t: `${subLabel(g.sub, n)} de ${g.byName || 'un membre'} à valider`, s: `Disparaît dans ${leftText(g.exp - Date.now())} sans validation${quiet ? ' · 🔕 rappels coupés' : ''}`, go: g.sub, mute: quiet ? null : { c: g.sub, g: g.grp } });
+  }
   for (const m of S.members.filter(x => x.pendingPerms && x.pendingPerms.by !== me)) out.push({ i: '🔐', t: `Accès de ${m.prenom || m.name} à valider`, s: `Proposé par ${m.pendingPerms.byName || memberName(m.pendingPerms.by)}`, go: 'family' });
   return out;
+}
+/** Carte « à valider » (accueil, notifications) : le bouton Sourdine ne déclenche pas la navigation */
+export function pendHtml(x) {
+  return `<div class="alert"><div class="ai" data-go="${x.go}" style="cursor:pointer">${x.i}</div><div class="f1" data-go="${x.go}" style="cursor:pointer"><div class="at">${esc(x.t)}</div><div class="small">${esc(x.s)}</div></div>${x.mute ? `<button class="btn ghost sm" style="flex:none" data-act="appr-mute" data-c="${x.mute.c}" data-g="${esc(x.mute.g)}" title="Couper les rappels">🔕</button>` : ''}<span class="lnk" data-go="${x.go}" style="cursor:pointer">›</span></div>`;
 }
 function setupSteps() {
   if (!isParent()) return '';
@@ -142,7 +154,7 @@ export const views = {
     return {
       html: `<h1 class="hello">Bonjour ${esc(prenom)} 👋</h1><div class="date-l">${E.fmtDate(today, 'wdmy')}</div>
       ${kidChips()}
-      ${pend.map(p => `<div class="alert" data-go="${p.go}" style="cursor:pointer"><div class="ai">${p.i}</div><div class="f1"><div class="at">${esc(p.t)}</div><div class="small">${esc(p.s)}</div></div><span class="lnk">›</span></div>`).join('')}
+      ${pend.map(pendHtml).join('')}
       ${lastNotes()}
       ${cards}
       ${todayAgenda()}

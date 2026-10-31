@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.6';
-import { randomId } from './backend.js?v=6.6';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche } from './core.js?v=6.6';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.6';
-import { kidChips, countdown, pendingItems } from './views-home.js?v=6.6';
-import { createFamily } from './views-family.js?v=6.6';
-import { openPrint } from './print.js?v=6.6';
+import * as E from './engine.js?v=6.7';
+import { randomId } from './backend.js?v=6.7';
+import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg } from './core.js?v=6.7';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.7';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.7';
+import { createFamily } from './views-family.js?v=6.7';
+import { openPrint } from './print.js?v=6.7';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -81,12 +81,17 @@ const DCATS = [{ v: 'sante', l: '🩺 Santé' }, { v: 'ecole', l: '📚 École' 
 // ───────────── Répertoire
 const CCATS = [{ v: 'sante', l: '🩺 Santé' }, { v: 'ecole', l: '🏫 École' }, { v: 'garde', l: '🧸 Garde' }, { v: 'famille', l: '👵 Famille' }, { v: 'activite', l: '⚽ Activités' }, { v: 'urgence', l: '🚨 Urgence' }, { v: 'autre', l: '📇 Autre' }];
 
+async function delMemory(m) {
+  await S.be.db.del(fpath('memories', m.id));
+  if (m.type === 'video') { for (let i = 0; i < (m.chunks || 0); i++) await S.be.db.del(fpath('blobs', `${m.id}_v${i}`)).catch(() => { }); }
+  else if (m.blobId) await S.be.db.del(fpath('blobs', m.blobId)).catch(() => { });
+}
 async function saveBlob(data, mime, name, kind = 'doc', extra = {}) { const id = S.be.db.newId(); await S.be.db.set(fpath('blobs', id), { data, mime, name: name || '', kind, ...extra, at: Date.now(), by: uid() }); return id; }
 /** Range un fichier dans Documents (copie indépendante : supprimer l'un ne touche pas l'autre) */
 async function fileDoc(file, { title, cat, childIds, fromNote = null }) {
   const db = S.be.db, bid = db.newId(), id = db.newId(), now = Date.now();
   await Promise.all([
-    db.set(fpath('docs', id), { title, cat: cat || 'autre', childIds: childIds || [], blobId: bid, mime: file.mime, size: (file.data || '').length, thumb: file.thumb || null, fromNote, pub: !needApproval(), createdAt: now, createdBy: uid(), createdByName: myName() }),
+    db.set(fpath('docs', id), { title, cat: cat || 'autre', childIds: childIds || [], blobId: bid, mime: file.mime, size: (file.data || '').length, thumb: file.thumb || null, fromNote, pub: !needApproval(), sentAt: now, createdAt: now, createdBy: uid(), createdByName: myName() }),
     db.set(fpath('blobs', bid), { data: file.data, mime: file.mime, name: file.name || '', kind: 'doc', at: now, by: uid() }),
   ]);
   return id;
@@ -145,15 +150,16 @@ export const views = {
     };
   },
   docs(p) {
-    const cat = p.cat || '', list = S.docs.filter(d => (!cat || d.cat === cat) && matchKids(d)).sort((a, b) => b.createdAt - a.createdAt);
+    const cat = p.cat || '', list = S.docs.filter(d => (!cat || d.cat === cat) && matchKids(d) && shownItem(d)).sort((a, b) => (canApprove(b) || canResend(b) ? 1 : 0) - (canApprove(a) || canResend(a) ? 1 : 0) || b.createdAt - a.createdAt);
     return {
       title: 'Documents', back: 'home',
       html: `${kidChips()}${can('docs') ? `<button class="btn primary block mb mt" data-act="doc-new">${IC.plus} Ajouter un document</button>` : ''}
       <div class="chips scroll mb"><button class="chip sm ${!cat ? 'on' : ''}" data-go="docs">Tous</button>${DCATS.map(c => `<button class="chip sm ${cat === c.v ? 'on' : ''}" data-go="docs" data-params='{"cat":"${c.v}"}'>${c.l}</button>`).join('')}</div>
-      <div class="card">${list.length ? list.map(d => `<div class="li"><button data-act="doc-open" data-id="${d.id}">${thumbHtml(d.thumb, d.mime)}</button><button class="f1" style="text-align:left" data-act="doc-open" data-id="${d.id}"><div class="lt">${esc(d.title)}</div>${d.pub === false ? `<div class="ls" style="color:var(--warn)">${esc(approvalText(d))}</div>` : ''}<div class="ls">${DCATS.find(c => c.v === d.cat)?.l || ''}${d.childIds?.length ? ' · ' + esc(childNames(d.childIds)) : ''} · ${E.fmtDate(E.todayISO(new Date(d.createdAt || Date.now())), 'num')} · ${esc(d.createdByName || '')}${d.fromNote ? ' · 📒 note' : ''}</div></button>
-        ${canApprove(d) ? `<button class="ib" style="background:var(--ok-l);color:var(--ok)" data-act="appr-ok" data-c="docs" data-id="${d.id}">✓</button><button class="ib" style="background:var(--err-l);color:var(--err)" data-act="appr-no" data-c="docs" data-id="${d.id}">✗</button>` : ''}
+      <div class="card">${list.length ? list.map(d => `<div class="li"><button data-act="doc-open" data-id="${d.id}">${thumbHtml(d.thumb, d.mime)}</button><div class="f1"><button style="text-align:left;width:100%" data-act="doc-open" data-id="${d.id}"><div class="lt">${esc(d.title)}</div>${d.pub === false ? `<div class="ls" style="color:var(--warn)">${esc(approvalText(d))}</div>` : ''}<div class="ls">${DCATS.find(c => c.v === d.cat)?.l || ''}${d.childIds?.length ? ' · ' + esc(childNames(d.childIds)) : ''} · ${E.fmtDate(E.todayISO(new Date(d.createdAt || Date.now())), 'num')} · ${esc(d.createdByName || '')}${d.fromNote ? ' · 📒 note' : ''}</div></button>
+        ${canApprove(d) ? `<div class="row gap wrap" style="margin-top:6px"><button class="btn ok sm" data-act="appr-ok" data-c="docs" data-id="${d.id}">✓ Valider</button><button class="btn danger sm" data-act="appr-no" data-c="docs" data-id="${d.id}">✗ Refuser</button>${isMuted(d) ? '' : `<button class="btn ghost sm" data-act="appr-mute" data-c="docs" data-g="${esc(grpOf(d))}" title="Couper les rappels">🔕</button>`}</div>` : ''}
+        ${canResend(d) ? `<div class="row gap" style="margin-top:6px"><button class="btn primary sm" data-act="appr-resend" data-c="docs" data-g="${esc(grpOf(d))}">📤 Renvoyer pour validation</button></div>` : ''}</div>
         ${isParent() || d.createdBy === uid() ? `<button class="ib" data-act="doc-del" data-id="${d.id}">${IC.trash}</button>` : ''}</div>`).join('') : '<div class="empty"><div class="e-i">📁</div>Coffre-fort vide. Ajoutez carnet de santé, certificats, jugement…</div>'}</div>
-      <div class="hint center">Photos compressées automatiquement · PDF jusqu'à 700 Ko.</div>`,
+      <div class="hint center">Photos compressées automatiquement · PDF jusqu'à 700 Ko.${needApproval() ? " Chaque ajout est validé par l'autre parent sous 48 h ; sinon il disparaît et doit être renvoyé (📤)." : ''}</div>`,
     };
   },
   contacts(p) {
@@ -166,16 +172,32 @@ export const views = {
         ${c.phone ? `<a class="ib" href="tel:${esc(c.phone)}">${IC.phone}</a>` : ''}${c.email ? `<a class="ib" href="mailto:${esc(c.email)}">${IC.mail}</a>` : ''}</div>`).join('') : '<div class="empty"><div class="e-i">📞</div>Ajoutez médecin, école, nounou, grands-parents…</div>'}</div>`,
     };
   },
+  /** Lien des rappels push : ouvre la liste à valider ; « &mute=1 » (bouton Sourdine de la notification) coupe les rappels de ce lot */
+  appr(p) {
+    const c = p.c === 'docs' ? 'docs' : 'memories';
+    if (!S.loaded[c] || (isParent() && !S.loaded.members)) return { title: 'Validation', back: 'home', html: '<div class="card empty"><div class="e-i">⏳</div>Chargement…</div>' };
+    const items = groupItems(c, p.g || ''), key = `${c}:${p.g}:${p.mute || ''}`;
+    if (S.ui.apprDone !== key) {
+      S.ui.apprDone = key;
+      if (p.mute === '1') muteGroup(c, p.g).then(n => toast(n ? '🔕 Rappels coupés pour cette demande. Vous pouvez encore valider.' : 'Plus rien à valider ici.', n ? 'ok' : 'warn', 4000)).catch(e => toast(errMsg(e), 'err'));
+      else if (!items.some(it => canApprove(it) || canResend(it))) toast(items.length ? 'Cette demande a déjà été traitée.' : "Ce média n'est plus disponible.", 'warn', 3500);
+    }
+    history.replaceState(null, '', `#/${c}`); S.route = { view: c, params: {} };
+    return views[c]({});
+  },
   memories() {
-    const list = S.memories.filter(matchKids).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt - a.createdAt);
-    const todo = list.filter(canApprove);
+    const list = S.memories.filter(m => matchKids(m) && shownItem(m)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt - a.createdAt);
+    const todo = list.filter(canApprove), exp = list.filter(canResend), loud = todo.filter(m => !isMuted(m));
+    const soon = todo.length ? Math.min(...todo.map(m => (m.sentAt || m.createdAt || 0) + 48 * 3600000)) : 0;
     return {
       title: 'Souvenirs', back: isParent() ? 'home' : null,
       html: `${kidChips()}<button class="btn primary block mb mt" data-act="mem-new">📸 Ajouter des photos ou des vidéos</button>
-      ${todo.length ? `<div class="alert"><div class="ai">⏳</div><div class="f1"><div class="at">${todo.length} souvenir${todo.length > 1 ? 's' : ''} à valider</div><div class="small">Visibles par tout le cercle après votre accord (publiés automatiquement 48 h après l'ajout sans refus).</div>
-        <div class="row gap mt"><button class="btn ok sm" data-act="appr-all" data-c="memories">✓ Tout valider</button></div></div></div>` : ''}
-      ${list.length ? `<div class="grid3">${list.map(m => `<button class="ph ${m.pub === false ? 'pend' : ''}" data-act="mem-open" data-id="${m.id}">${m.thumb ? `<img src="${m.thumb}" alt="">` : '📷'}${m.type === 'video' ? '<i class="play">▶</i>' : ''}${m.pub === false ? `<b class="pb">${m.refused ? '❌' : '⏳'}</b>` : ''}<span>${esc(m.title || E.fmtDate(m.date, 'short'))}</span></button>`).join('')}</div>` : '<div class="card empty"><div class="e-i">📸</div>Partagez les beaux moments avec l\'autre parent.</div>'}
-      <div class="hint center">Chaque photo ou vidéo ajoutée est validée par l'autre parent (sous 48 h) avant d'être visible par les proches.</div>`,
+      ${todo.length ? `<div class="alert"><div class="ai">⏳</div><div class="f1"><div class="at">${todo.length} souvenir${todo.length > 1 ? 's' : ''} à valider</div><div class="small">Visibles par tout le cercle après votre accord. Sans validation, ${todo.length > 1 ? 'ils disparaissent' : 'il disparaît'} dans ${leftText(soon - Date.now())} et ${todo.length > 1 ? 'devront' : 'devra'} être renvoyé${todo.length > 1 ? 's' : ''}.${loud.length ? '' : ' 🔕 Rappels coupés.'}</div>
+        <div class="row gap mt wrap"><button class="btn ok sm" data-act="appr-all" data-c="memories">✓ Tout valider</button>${loud.length ? '<button class="btn ghost sm" data-act="appr-mute" data-c="memories" data-all="1">🔕 Sourdine</button>' : ''}</div></div></div>` : ''}
+      ${exp.length ? `<div class="alert"><div class="ai">⌛</div><div class="f1"><div class="at">${exp.length} souvenir${exp.length > 1 ? 's' : ''} non validé${exp.length > 1 ? 's' : ''} dans les 48 h</div><div class="small">${exp.length > 1 ? 'Ils ne sont visibles que par vous' : "Il n'est visible que par vous"}. Renvoyez la demande pour 48 h de plus, ou supprimez.</div>
+        <div class="row gap mt wrap"><button class="btn primary sm" data-act="appr-resend" data-c="memories" data-all="1">📤 Tout renvoyer</button><button class="btn danger sm" data-act="mem-del-exp">${IC.trash} Supprimer</button></div></div></div>` : ''}
+      ${list.length ? `<div class="grid3">${list.map(m => `<button class="ph ${m.pub === false ? 'pend' : ''}" data-act="mem-open" data-id="${m.id}">${m.thumb ? `<img src="${m.thumb}" alt="">` : '📷'}${m.type === 'video' ? '<i class="play">▶</i>' : ''}${m.pub === false ? `<b class="pb">${m.refused ? '❌' : isExpired(m) ? '⌛' : '⏳'}</b>` : ''}<span>${esc(m.title || E.fmtDate(m.date, 'short'))}</span></button>`).join('')}</div>` : '<div class="card empty"><div class="e-i">📸</div>Partagez les beaux moments avec l\'autre parent.</div>'}
+      <div class="hint center">Chaque photo ou vidéo ajoutée doit être validée par l'autre parent sous 48 h pour être visible par tout le cercle. Sans validation, elle disparaît et doit être renvoyée. Rappels 24 h, 1 h et 15 min avant (🔕 pour les couper).</div>`,
     };
   },
   notifs(p) {
@@ -194,7 +216,7 @@ export const views = {
     const pend = pendingItems();
     return {
       title: 'Notifications', back: 'home',
-      html: `${pend.length ? `<div class="lbl" style="margin-top:0">⏳ À valider (${pend.length})</div>${pend.map(x => `<div class="alert" data-go="${x.go}" style="cursor:pointer"><div class="ai">${x.i}</div><div class="f1"><div class="at">${esc(x.t)}</div><div class="small">${esc(x.s)}</div></div><span class="lnk">›</span></div>`).join('')}` : ''}
+      html: `${pend.length ? `<div class="lbl" style="margin-top:0">⏳ À traiter (${pend.length})</div>${pend.map(pendHtml).join('')}` : ''}
       <div class="seg"><button class="${tab === 'notifs' ? 'on' : ''}" data-go="notifs" data-params='{"tab":"notifs"}'>🔔 Reçues</button><button class="${tab === 'hist' ? 'on' : ''}" data-go="notifs" data-params='{"tab":"hist"}'>📜 Mon historique</button></div>
       <div class="chips scroll mb"><button class="chip sm ${!cat ? 'on' : ''}" data-go="notifs" data-params='{"tab":"${tab}"}'>Tout</button>${Object.entries(CATS).filter(([k]) => counts[k]).map(([k, c]) => `<button class="chip sm ${cat === k ? 'on' : ''}" data-go="notifs" data-params='{"tab":"${tab}","cat":"${k}"}'>${c.i} ${c.n} (${counts[k]})</button>`).join('')}</div>
       ${html || `<div class="card empty"><div class="e-i">🔕</div>${tab === 'notifs' ? 'Aucune notification. Vos propres actions apparaissent dans votre historique.' : 'Aucune activité.'}</div>`}
@@ -363,12 +385,12 @@ export const actions = {
     el.disabled = true;
     // affichage immédiat : la page Documents s'ouvre sur la bonne catégorie pendant l'envoi
     if (f.childIds?.length && !f.childIds.some(id => selIds().includes(id))) setSel([]);
-    const job = guard(async () => { await fileDoc(x, { title: f.title, cat: f.cat, childIds: f.childIds }); await log('documents', `Nouveau document : ${f.title}`, { body: `${DCATS.find(c => c.v === f.cat)?.l || ''}${f.childIds?.length ? ' · ' + childNames(f.childIds) : ''}` }); return true; }, 'Document enregistré ✓');
+    const job = guard(async () => { await fileDoc(x, { title: f.title, cat: f.cat, childIds: f.childIds }); await log('documents', `Nouveau document${needApproval() ? ' à valider' : ''} : ${f.title}`, { body: `${DCATS.find(c => c.v === f.cat)?.l || ''}${f.childIds?.length ? ' · ' + childNames(f.childIds) : ''}${needApproval() ? ' · à valider sous 48 h' : ''}` }); queueApprovals(1500); return true; }, 'Document enregistré ✓');
     closeSheetsThen(() => go('docs', { cat: f.cat }));
     await job;
   },
   'doc-open': el => { const d = S.docs.find(x => x.id === el.dataset.id); if (d) openBlob(d.blobId, d.title); },
-  'doc-del': async el => { const d = S.docs.find(x => x.id === el.dataset.id); if (!d) return; if (!(await confirmBox('Supprimer ce document ?', esc(d.title), 'Supprimer', true))) return; await guard(async () => { await S.be.db.del(fpath('docs', d.id)); await S.be.db.del(fpath('blobs', d.blobId)); await log('documents', `Document supprimé : ${d.title}`); }, 'Document supprimé'); },
+  'doc-del': async el => { const d = S.docs.find(x => x.id === el.dataset.id); if (!d) return; if (!(await confirmBox('Supprimer ce document ?', esc(d.title), 'Supprimer', true))) return; await guard(async () => { await S.be.db.del(fpath('docs', d.id)); await S.be.db.del(fpath('blobs', d.blobId)); await log('documents', `Document supprimé : ${d.title}`); }, 'Document supprimé'); queueApprovals(300); },
   // répertoire
   'ct-new': () => ctSheet(),
   'ct-open': el => ctSheet(S.contacts.find(c => c.id === el.dataset.id)),
@@ -389,7 +411,7 @@ export const actions = {
       <div class="grid3 mt" data-part="pv"></div><div class="hint" data-part="st"></div>
       <label class="lbl">Titre</label><input class="in" name="title" placeholder="Ex. Anniversaire de Jandal"><label class="lbl">Date</label><input class="in" type="date" name="date" value="${E.todayISO()}">
       <label class="lbl">Texte</label><textarea class="in" name="text" rows="3"></textarea><label class="lbl">Enfants</label>${kidChipsForm()}
-      <div class="hint">${needApproval() ? "L'autre parent valide sous 48 h avant que les proches les voient." : 'Visibles tout de suite par le cercle.'} Vidéos : 3 minutes maximum, compressées automatiquement.</div>
+      <div class="hint">${needApproval() ? "L'autre parent a 48 h pour valider ; sinon ils disparaissent et devront être renvoyés." : 'Visibles tout de suite par le cercle.'} Vidéos : 3 minutes maximum, compressées automatiquement.</div>
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="mem-save">Enregistrer</button></div>`);
     sh._media = [];
     const render = () => { sh.querySelector('[data-part="pv"]').innerHTML = sh._media.map(p => `<div class="ph">${p.thumb ? `<img src="${p.thumb}">` : ''}${p.type === 'video' ? '<i class="play">▶</i>' : ''}</div>`).join(''); };
@@ -415,9 +437,9 @@ export const actions = {
     el.disabled = true; toast('Envoi…', 'ok', 1500);
     const pub = !needApproval();
     const ok = await guard(async () => {
-      const db = S.be.db;
+      const db = S.be.db, grp = db.newId(), sent = Date.now();
       for (const p of sh._media) {
-        const id = db.newId(), base = { title: f.title, date: f.date, text: f.text, childIds: f.childIds, thumb: p.thumb, bk: 1, pub, createdAt: Date.now(), createdBy: uid(), createdByName: myName() };
+        const id = db.newId(), base = { title: f.title, date: f.date, text: f.text, childIds: f.childIds, thumb: p.thumb, bk: 1, pub, grp, sentAt: sent, createdAt: Date.now(), createdBy: uid(), createdByName: myName() };
         if (p.type === 'video') {
           const b64 = await blobToBase64(p.blob), CH = 700000, n = Math.ceil(b64.length / CH);
           for (let i = 0; i < n; i++) await db.set(fpath('blobs', `${id}_v${i}`), { data: b64.slice(i * CH, (i + 1) * CH), i, kind: 'mem', at: Date.now(), by: uid() });
@@ -429,7 +451,7 @@ export const actions = {
       }
       const n = sh._media.length, what = `${n} nouveau${n > 1 ? 'x' : ''} souvenir${n > 1 ? 's' : ''}${f.title ? ' : ' + f.title : ''}`;
       if (pub) await log('souvenirs', what, { to: 'all', icon: '📸' });
-      else await log('souvenirs', `${what} — à valider`, { icon: '⏳', body: 'Visible par les proches après validation (48 h max)' });
+      else { await log('souvenirs', `${what} — à valider`, { icon: '⏳', body: 'À valider sous 48 h, sinon à renvoyer' }); queueApprovals(1500); }
       return true;
     }, pub ? 'Souvenirs enregistrés' : 'Souvenirs envoyés pour validation');
     if (ok) closeSheet(); else el.disabled = false;
@@ -437,7 +459,7 @@ export const actions = {
   'mem-open': async el => {
     const m = S.memories.find(x => x.id === el.dataset.id); if (!m) return;
     const sh = openSheet(`<h3 class="sh-title">${esc(m.title || 'Souvenir')}</h3><div class="muted small">${E.fmtDate(m.date)} · ${esc(m.createdByName || '')}${m.childIds?.length ? ' · ' + esc(childNames(m.childIds)) : ''}</div>
-      ${m.pub === false ? `<div class="alert mt"><div class="ai">${m.refused ? '❌' : '⏳'}</div><div class="f1 small">${esc(approvalText(m))}${canApprove(m) ? `<div class="row gap mt"><button class="btn ok sm" data-act="appr-ok" data-c="memories" data-id="${m.id}">✓ Valider</button><button class="btn danger sm" data-act="appr-no" data-c="memories" data-id="${m.id}">✗ Refuser</button></div>` : ''}</div></div>` : ''}
+      ${m.pub === false ? `<div class="alert mt"><div class="ai">${m.refused ? '❌' : isExpired(m) ? '⌛' : '⏳'}</div><div class="f1 small">${esc(approvalText(m))}${canApprove(m) ? `<div class="row gap mt wrap"><button class="btn ok sm" data-act="appr-ok" data-c="memories" data-id="${m.id}">✓ Valider</button><button class="btn danger sm" data-act="appr-no" data-c="memories" data-id="${m.id}">✗ Refuser</button>${isMuted(m) ? '' : `<button class="btn ghost sm" data-act="appr-mute" data-c="memories" data-g="${esc(grpOf(m))}">🔕 Sourdine</button>`}</div>` : ''}${canResend(m) ? `<div class="row gap mt"><button class="btn primary sm" data-act="appr-resend" data-c="memories" data-g="${esc(grpOf(m))}">📤 Renvoyer pour validation</button></div>` : ''}</div></div>` : ''}
       <div data-part="b">${m.type === 'video' ? `<div class="vidwait"><img class="receipt" src="${m.thumb}"><div class="small muted center">Chargement de la vidéo…</div></div>` : `<img class="receipt" src="${m.thumb}">`}</div>${m.text ? `<p>${esc(m.text)}</p>` : ''}
       <div class="sh-actions">${m.createdBy === uid() || isParent() ? `<button class="btn danger" data-act="mem-del" data-id="${m.id}">${IC.trash}</button>` : ''}<button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
     const box = sh.querySelector('[data-part="b"]');
@@ -451,11 +473,7 @@ export const actions = {
   },
   'mem-del': async el => {
     const m = S.memories.find(x => x.id === el.dataset.id); if (!m) return; if (!(await confirmBox('Supprimer ce souvenir ?', '', 'Supprimer', true))) return;
-    await guard(async () => {
-      await S.be.db.del(fpath('memories', m.id));
-      if (m.type === 'video') { for (let i = 0; i < (m.chunks || 0); i++) await S.be.db.del(fpath('blobs', `${m.id}_v${i}`)).catch(() => { }); }
-      else if (m.blobId) await S.be.db.del(fpath('blobs', m.blobId)).catch(() => { });
-    }, 'Souvenir supprimé'); closeSheet();
+    await guard(() => delMemory(m), 'Souvenir supprimé'); closeSheet(); queueApprovals(300);
   },
   // ───── validation des importations par l'autre parent (souvenirs, documents)
   'appr-ok': async el => {
@@ -463,18 +481,40 @@ export const actions = {
     await guard(async () => {
       await updItem(c, it.id, { pub: true, okBy: uid(), okByName: myName(), okAt: Date.now() });
       await log(c === 'memories' ? 'souvenirs' : 'documents', c === 'memories' ? `📸 Nouveau souvenir${it.title ? ' : ' + it.title : ''}` : `Document validé : ${it.title}`, { to: c === 'memories' ? 'all' : 'parents', icon: c === 'memories' ? '📸' : '✅', body: `ajouté par ${it.createdByName || ''}` });
+      queueApprovals(300);
     }, 'Validé ✓');
     if (el.closest('.sheet')) closeSheet();
   },
   'appr-no': async el => {
     const c = el.dataset.c, it = S[c].find(x => x.id === el.dataset.id); if (!canApprove(it)) return;
     if (!(await confirmBox('Refuser ?', 'Il ne sera pas visible par les proches. La personne qui l\'a ajouté pourra le supprimer.', 'Refuser', true))) return;
-    await guard(async () => { await updItem(c, it.id, { refused: true, refusedBy: uid(), refusedByName: myName(), refusedAt: Date.now() }); await log(c === 'memories' ? 'souvenirs' : 'documents', `${c === 'memories' ? 'Souvenir' : 'Document'} refusé${it.title ? ' : ' + it.title : ''}`, { icon: '❌' }); }, 'Refusé');
+    await guard(async () => { await updItem(c, it.id, { refused: true, refusedBy: uid(), refusedByName: myName(), refusedAt: Date.now() }); await log(c === 'memories' ? 'souvenirs' : 'documents', `${c === 'memories' ? 'Souvenir' : 'Document'} refusé${it.title ? ' : ' + it.title : ''}`, { icon: '❌' }); queueApprovals(300); }, 'Refusé');
     if (el.closest('.sheet')) closeSheet();
   },
   'appr-all': async el => {
     const c = el.dataset.c, items = S[c].filter(canApprove); if (!items.length) return;
-    await guard(async () => { for (const it of items) await updItem(c, it.id, { pub: true, okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('souvenirs', `📸 ${items.length} nouveau${items.length > 1 ? 'x' : ''} souvenir${items.length > 1 ? 's' : ''}`, { to: 'all', icon: '📸' }); }, 'Tout est validé ✓');
+    await guard(async () => { for (const it of items) await updItem(c, it.id, { pub: true, okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('souvenirs', `📸 ${items.length} nouveau${items.length > 1 ? 'x' : ''} souvenir${items.length > 1 ? 's' : ''}`, { to: 'all', icon: '📸' }); queueApprovals(300); }, 'Tout est validé ✓');
+  },
+  // sourdine : plus de rappels pour ce lot (validation toujours possible jusqu'à l'expiration)
+  'appr-mute': async el => {
+    const c = el.dataset.c === 'docs' ? 'docs' : 'memories';
+    const grps = el.dataset.all ? [...new Set(S[c].filter(it => canApprove(it) && !isMuted(it)).map(grpOf))] : [el.dataset.g];
+    const n = await guard(async () => { let k = 0; for (const g of grps) k += await muteGroup(c, g); return k; });
+    if (n) toast('🔕 Rappels coupés. Vous pouvez encore valider jusqu\'à l\'expiration.', 'ok', 3500); else if (n === 0) toast('Plus rien à valider ici.', 'warn');
+  },
+  // renvoi d'une demande expirée : 48 h de plus pour l'autre parent
+  'appr-resend': async el => {
+    const c = el.dataset.c === 'docs' ? 'docs' : 'memories';
+    const grps = el.dataset.all ? [...new Set(S[c].filter(canResend).map(grpOf))] : [el.dataset.g];
+    const n = await guard(async () => { let k = 0; for (const g of grps) k += await resendGroup(c, g); return k; });
+    if (n) toast(`📤 Renvoyé${n > 1 ? 's' : ''} : l'autre parent a de nouveau 48 h pour valider.`, 'ok', 3500);
+    if (el.closest('.sheet')) closeSheet();
+  },
+  'mem-del-exp': async () => {
+    const list = S.memories.filter(canResend); if (!list.length) return;
+    if (!(await confirmBox(`Supprimer ${list.length > 1 ? 'ces ' + list.length + ' souvenirs' : 'ce souvenir'} ?`, 'Non validés dans les 48 h, ils ne sont visibles que par vous.', 'Supprimer', true))) return;
+    await guard(async () => { for (const m of list) await delMemory(m); }, 'Supprimé');
+    queueApprovals(300);
   },
   // réglages
   'set-relais': () => relaisEditor(),

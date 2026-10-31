@@ -1,8 +1,8 @@
 // ═══════════════ Sac : affaires de chaque relais + listes des vacances (demandées ou envoyées, aller / retour) ═══════════════
-import * as E from './engine.js?v=6.6';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go } from './core.js?v=6.6';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.6';
-import { kidChips } from './views-home.js?v=6.6';
+import * as E from './engine.js?v=6.7';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go } from './core.js?v=6.7';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.7';
+import { kidChips } from './views-home.js?v=6.7';
 
 const runKey = h => `${h.date}_${h.time.replace(':', '')}_${h.to}`;
 const relaisItems = () => S.sac.filter(i => !i.kind);

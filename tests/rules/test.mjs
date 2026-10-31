@@ -61,7 +61,7 @@ await t('proche ne liste pas toutes les notes', getDocs(collection(pr, `families
 await t('proche lit une photo souvenir', getDoc(doc(pr, `families/${F}/blobs/bm`)));
 await t('proche ne lit pas un document', getDoc(doc(pr, `families/${F}/blobs/bd`)), false);
 await t('proche ne lit pas Documents', getDocs(collection(pr, `families/${F}/docs`)), false);
-await t('proche ajoute un souvenir (à valider)', setDoc(doc(pr, `families/${F}/memories/m1`), { createdBy: 'pr', title: 'Plage', pub: false }));
+await t('proche ajoute un souvenir (à valider)', setDoc(doc(pr, `families/${F}/memories/m1`), { createdBy: 'pr', title: 'Plage', pub: false, createdAt: Date.now() }));
 await t('proche ne publie pas lui-même', setDoc(doc(pr, `families/${F}/memories/m2`), { createdBy: 'pr', title: 'X', pub: true }), false);
 await t('proche lit ses souvenirs en attente', getDocs(query(collection(pr, `families/${F}/memories`), where('createdBy', '==', 'pr'))));
 await t('proche lit les souvenirs publiés', getDocs(query(collection(pr, `families/${F}/memories`), where('pub', '==', true))));
@@ -109,6 +109,26 @@ await t('proche ne modifie pas le texte', updateDoc(doc(pr, `families/${F}/notes
 await t('parent remplit le sac', setDoc(doc(pa, `families/${F}/sac/s1`), { name: 'Doudou', createdBy: 'pa' }));
 await t('proche sans accès ne voit pas le sac', getDocs(collection(pr, `families/${F}/sac`)), false);
 await t('parent supprime le souvenir du proche', deleteDoc(doc(pa, `families/${F}/memories/m1`)));
+// Validation sous 48 h par l'autre parent, sinon renvoi
+const H48 = 48 * 3600000, now = Date.now();
+await t('parent A envoie un souvenir à valider', setDoc(doc(pa, `families/${F}/memories/m4`), { createdBy: 'pa', pub: false, grp: 'g4', sentAt: now, createdAt: now }));
+await t('parent A ne valide pas son propre souvenir', updateDoc(doc(pa, `families/${F}/memories/m4`), { pub: true }), false);
+await t('parent B coupe les rappels', updateDoc(doc(pb, `families/${F}/memories/m4`), { 'muted.pb': true }));
+await t('parent B valide dans les 48 h', updateDoc(doc(pb, `families/${F}/memories/m4`), { pub: true, okBy: 'pb' }));
+await t('parent A envoie un souvenir (expiré)', setDoc(doc(pa, `families/${F}/memories/m5`), { createdBy: 'pa', pub: false, sentAt: now - H48 - 60000, createdAt: now - H48 - 60000 }));
+await t('parent B ne valide plus après 48 h', updateDoc(doc(pb, `families/${F}/memories/m5`), { pub: true }), false);
+await t('parent A renvoie la demande', updateDoc(doc(pa, `families/${F}/memories/m5`), { sentAt: now, muted: {} }));
+await t('parent B valide après le renvoi', updateDoc(doc(pb, `families/${F}/memories/m5`), { pub: true }));
+await t('proche envoie un souvenir (expiré)', setDoc(doc(pr, `families/${F}/memories/m7`), { createdBy: 'pr', pub: false, createdAt: now - H48 - 60000 }));
+await t('parent ne valide pas un souvenir expiré', updateDoc(doc(pa, `families/${F}/memories/m7`), { pub: true }), false);
+await t('proche renvoie son souvenir', updateDoc(doc(pr, `families/${F}/memories/m7`), { sentAt: now, muted: {} }));
+await t('parent valide le souvenir renvoyé', updateDoc(doc(pa, `families/${F}/memories/m7`), { pub: true }));
+await t('parent B envoie un document à valider', setDoc(doc(pb, `families/${F}/docs/d2`), { title: 'Ordonnance', createdBy: 'pb', pub: false, sentAt: now, createdAt: now }));
+await t('parent B ne valide pas son document', updateDoc(doc(pb, `families/${F}/docs/d2`), { pub: true }), false);
+await t('parent A valide le document', updateDoc(doc(pa, `families/${F}/docs/d2`), { pub: true }));
+await t('parent programme un rappel de validation', setDoc(doc(pa, `families/${F}/reminders/ap_g4_1`), { kind: 'ap', grp: 'g4', sent: now, exp: now + H48, targets: { pb: 'sjf-x' } }));
+await t('parent liste les rappels de validation', getDocs(query(collection(pb, `families/${F}/reminders`), where('kind', '==', 'ap'))));
+await t('proche ne lit pas les rappels', getDocs(query(collection(pr, `families/${F}/reminders`), where('kind', '==', 'ap'))), false);
 await env.cleanup();
 console.log(`\n${n - fails}/${n} tests réussis`); console.log(`::notice title=Règles::${n - fails}/${n} tests réussis`);
 process.exit(fails ? 1 : 0);

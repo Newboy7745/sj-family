@@ -119,11 +119,24 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
 
 - **Vidéos** dans les souvenirs : filmer ou importer (3 min max), compressées sur le téléphone (480p, MP4) et rangées
   en morceaux dans Firestore (offre gratuite, 15 Mo max par vidéo).
-- **Validation des importations** : chaque souvenir (photo/vidéo) ou document ajouté est validé par l'autre parent ;
-  sans refus, publication automatique 48 h après l'ajout. Les proches ne voient que ce qui est publié.
+- **Validation des importations** : chaque souvenir (photo/vidéo) ou document ajouté est validé par l'autre parent.
+  Les proches ne voient que ce qui est publié (voir 6.7 pour le délai de 48 h).
 - Sac : retirer une affaire d'un relais ne la supprime jamais de la liste type ni des listes des vacances.
 - Lien d'import de listes préparées : `#/import?k=…` (outil `mklists.py`).
 - Règles Firestore v6.6 à republier.
+
+## 10 bis. Nouveautés 6.7
+
+- **48 h pour valider, sinon renvoi** : une importation non validée dans les 48 h qui suivent l'envoi disparaît pour
+  l'autre parent (elle n'est plus jamais publiée automatiquement). La personne qui l'a envoyée la garde, marquée ⌛,
+  avec **📤 Renvoyer** (nouvelle demande de 48 h) ou **Supprimer**. Elle est aussi prévenue à l'expiration.
+- **Rappels** à l'autre parent 24 h, 1 h et 15 min avant l'expiration (notifications ntfy programmées ; les photos ou
+  vidéos envoyées ensemble ne font qu'un rappel). Ils s'arrêtent dès que la demande est validée, refusée, supprimée,
+  ou mise en **🔕 Sourdine** (bouton dans l'application ou directement dans la notification ; la validation reste
+  possible jusqu'à l'expiration).
+- Registre partagé des rappels : `reminders/ap_<lot>_<envoi>` (pas de doublon entre les téléphones des deux parents).
+  Les rappels d'un envoi fait par un proche sont programmés à la prochaine ouverture de l'application par un parent.
+- Règles Firestore v6.7 : la validation n'est acceptée que de l'autre parent et avant la fin des 48 h.
 
 ## 11. Nettoyer les comptes de test (console Firebase)
 

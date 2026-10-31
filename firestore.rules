@@ -1,5 +1,5 @@
 rules_version = '2';
-// SJ Family v6.6 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// SJ Family v6.7 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
 // Parents : tout le cercle. Proches : agenda à jour, souvenirs, notes qui leur sont adressées, et les rubriques
 // ouvertes par les parents (validées par l'autre parent). Historique personnel pour chacun (inbox).
 service cloud.firestore {
@@ -22,6 +22,13 @@ service cloud.firestore {
     function byMe() { return request.resource.data.get('createdBy', '') == request.auth.uid; }
     function mine() { return resource.data.get('createdBy', '') == request.auth.uid; }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    // Validation d'une importation (souvenir, document) : par l'autre parent, dans les 48 h qui suivent l'envoi.
+    // Passé ce délai, la personne qui l'a ajoutée doit la renvoyer (nouvelle date d'envoi).
+    function approveOk(fid) {
+      return !(resource.data.get('pub', true) == false && request.resource.data.get('pub', false) == true)
+        || ((resource.data.get('createdBy', '') != request.auth.uid || !bothParents(fid))
+          && request.time.toMillis() < resource.data.get('sentAt', resource.data.get('createdAt', 0)) + 172800000);
+    }
 
     // Profil : chacun le sien
     match /users/{uid} {
@@ -88,7 +95,7 @@ service cloud.firestore {
       match /private/{d} { allow read, write: if isParent(fid); }
       match /childInfo/{id} { allow read, write: if isParent(fid); }
       match /invites/{id} { allow read, write: if isParent(fid); }
-      match /reminders/{id} { allow read, write: if isParent(fid); }
+      match /reminders/{id} { allow read, write: if isParent(fid); } // rappels programmés (relais, validations)
 
       // Agenda à jour (visible de tout le cercle, modifié par les parents)
       match /children/{id} { allow read: if isMember(fid); allow write: if isParent(fid); }
@@ -107,7 +114,7 @@ service cloud.firestore {
       match /memories/{id} {
         allow read: if isParent(fid) || (isMember(fid) && (resource.data.pub == true || resource.data.createdBy == request.auth.uid));
         allow create: if isMember(fid) && byMe() && (isParent(fid) || request.resource.data.pub == false);
-        allow update: if isParent(fid) || (isMember(fid) && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false));
+        allow update: if (isParent(fid) && approveOk(fid)) || (isMember(fid) && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false));
         allow delete: if isParent(fid) || (isMember(fid) && mine());
       }
       // Notes de liaison : les parents voient tout ; un proche voit celles qui lui sont adressées et les siennes
@@ -133,7 +140,7 @@ service cloud.firestore {
       match /docs/{id} {
         allow read: if isParent(fid) || (perm(fid, 'docs') && (resource.data.pub == true || resource.data.createdBy == request.auth.uid));
         allow create: if (isParent(fid) || (perm(fid, 'docs') && request.resource.data.pub == false)) && byMe();
-        allow update: if isParent(fid) || (perm(fid, 'docs') && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false));
+        allow update: if (isParent(fid) && approveOk(fid)) || (perm(fid, 'docs') && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false));
         allow delete: if isParent(fid) || (perm(fid, 'docs') && mine());
       }
       match /tasks/{id} {

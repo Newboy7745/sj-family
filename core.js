@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.6';
-import { toast, esc } from './ui.js?v=6.6';
+import * as E from './engine.js?v=6.7';
+import { toast, esc } from './ui.js?v=6.7';
 
-export const VERSION = '6.6';
+export const VERSION = '6.7';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';
@@ -169,11 +169,18 @@ export async function log(cat, title, { body = '', link = null, icon = null, to 
 }
 
 // ───── Notifications push gratuites (ntfy.sh) vers les autres membres
-export async function ntfyPublish(topic, { title, message, tags, click, delay }) {
+export async function ntfyPublish(topic, { title, message, tags, click, delay, seq, actions, priority }) {
   if (!topic) return;
   const body = { topic, title: String(title || '').slice(0, 200), message: String(message || ' ').slice(0, 1000), click: click || APP_URL };
-  if (tags) body.tags = tags; if (delay) body.delay = delay;
+  if (tags) body.tags = tags; if (delay) body.delay = delay; if (seq) body.sequence_id = seq; if (actions) body.actions = actions; if (priority) body.priority = priority;
+  if (S.be?.mode === 'demo') { (S.ntfyLog ||= []).push({ op: 'pub', ...body }); return; }
   try { await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify(body) }); } catch (e) { console.warn('ntfy', e); }
+}
+/** Annule une notification programmée (identifiant de séquence ntfy) avant son envoi */
+export function ntfyCancel(topic, seq) {
+  if (!topic || !seq) return;
+  if (S.be?.mode === 'demo') { (S.ntfyLog ||= []).push({ op: 'del', topic, seq }); return; }
+  fetch(`https://ntfy.sh/${encodeURIComponent(topic)}/${encodeURIComponent(seq)}/delete`, { mode: 'no-cors' }).catch(e => console.warn('ntfy', e));
 }
 /** Notifications push vers des membres précis (les sujets ntfy des autres ne sont connus que des parents) */
 export function pushTo(uids, title, message) {
@@ -252,15 +259,148 @@ export async function guard(fn, okMsg) {
   catch (e) { console.error(e); toast(errMsg(e), 'err', 4500); return undefined; }
 }
 export function needsValidation() { return isParent() && hasOtherParent(); }
-/** Importations (souvenirs, documents) : validées par l'autre parent sous 48 h avant d'être visibles de tout le cercle */
+/**
+ * Importations (souvenirs, documents) : l'autre parent a 48 h pour valider. Sans validation, le média expire :
+ * il disparaît pour l'autre parent et la personne qui l'a envoyé doit le renvoyer (nouvelle demande de 48 h).
+ * Rappels push à l'autre parent 24 h, 1 h et 15 min avant l'expiration, sauf s'il a mis la demande en sourdine.
+ */
 export const APPROVE_MS = 48 * 3600000;
 export const needApproval = () => isParent() ? hasOtherParent() : true;
-export const canApprove = it => isParent() && it && it.pub === false && !it.refused && it.createdBy !== uid();
+export const sentAt = it => it?.sentAt || it?.createdAt || it?.at || 0;
+export const expiresAt = it => sentAt(it) + APPROVE_MS;
+export const grpOf = it => it?.grp || it?.id;
+export const isPending = it => !!it && it.pub === false && !it.refused;
+export const isExpired = it => isPending(it) && Date.now() >= expiresAt(it);
+export const canApprove = it => isParent() && isPending(it) && !isExpired(it) && it.createdBy !== uid();
+export const canResend = it => isExpired(it) && it.createdBy === uid();
+/** Les médias expirés ne restent visibles que pour la personne qui les a envoyés (pour les renvoyer) */
+export const shownItem = it => !isExpired(it) || it.createdBy === uid();
+export const isMuted = it => !!it?.muted?.[uid()];
+/** Temps restant : « 47 h 12 min », « 15 min » */
+export function leftText(ms) {
+  const s = Math.max(0, Math.ceil(ms / 60000)), h = Math.floor(s / 60), m = s % 60;
+  return h ? `${h} h${m ? ' ' + String(m).padStart(2, '0') + ' min' : ''}` : `${m} min`;
+}
 export function approvalText(it) {
   if (!it || it.pub !== false) return '';
   if (it.refused) return `❌ Refusé par ${it.refusedByName || "l'autre parent"}`;
-  const left = Math.max(0, (it.createdAt || it.at || Date.now()) + APPROVE_MS - Date.now()), h = Math.ceil(left / 3600000);
-  return `⏳ À valider${isParent() && it.createdBy !== uid() ? '' : " par l'autre parent"} · publié automatiquement dans ${h} h sans refus`;
+  if (isExpired(it)) return it.createdBy === uid() ? '⌛ Non validé dans les 48 h : renvoyez-le pour une nouvelle demande' : '⌛ Expiré (non validé dans les 48 h)';
+  const left = leftText(expiresAt(it) - Date.now());
+  if (canApprove(it)) return `⏳ À valider · disparaît dans ${left} sans validation${isMuted(it) ? ' · 🔕 rappels coupés' : ''}`;
+  return `⏳ En attente de validation par ${isParent() ? "l'autre parent" : 'un parent'} · expire dans ${left}`;
+}
+const SUB_N = { memories: ['Souvenir', 'souvenirs'], docs: ['Document', 'documents'] };
+export const subLabel = (sub, n) => n > 1 ? `${n} ${SUB_N[sub][1]}` : SUB_N[sub][0];
+/** Lots en attente (les photos/vidéos envoyées ensemble forment un lot) */
+export function approvalGroups({ expired = false } = {}) {
+  const out = new Map();
+  for (const sub of ['memories', 'docs']) for (const it of S[sub] || []) {
+    if (!isPending(it) || isExpired(it) !== expired) continue;
+    const k = `${sub}:${grpOf(it)}:${sentAt(it)}`;
+    if (!out.has(k)) out.set(k, { sub, grp: grpOf(it), sent: sentAt(it), exp: expiresAt(it), items: [], by: it.createdBy, byName: it.createdByName || memberName(it.createdBy), title: it.title || '' });
+    out.get(k).items.push(it);
+  }
+  return [...out.values()].sort((a, b) => a.exp - b.exp);
+}
+export const groupItems = (sub, grp) => (S[sub] || []).filter(it => grpOf(it) === grp);
+const AP_STEPS = [['r24', 1440], ['r1', 60], ['r15', 15]];
+const apSeq = (g, k) => `sj${g.grp}${Math.round(g.sent / 1000).toString(36)}${k}`.replace(/[^-_A-Za-z0-9]/g, '').slice(0, 64);
+const apLink = g => `${APP_URL}#/appr?c=${g.sub}&g=${encodeURIComponent(g.grp)}`;
+function scheduleSteps(g, targets, owner, now) {
+  const n = g.items.length, what = subLabel(g.sub, n), pl = n > 1;
+  const quote = g.title ? ` « ${g.title} »` : '';
+  for (const topic of Object.values(targets)) for (const [k, min] of AP_STEPS) {
+    const when = g.exp - min * 60000; if (when < now + 30000) continue;
+    const left = min >= 60 ? `${min / 60} h` : `${min} min`, url = apLink(g);
+    ntfyPublish(topic, {
+      title: `${min <= 15 ? '⚠️' : '⏳'} ${what} à valider : il reste ${left}`,
+      message: `Envoyé${pl ? 's' : ''} par ${g.byName || 'un membre'}${quote}. Sans validation, ${pl ? 'ils disparaissent' : 'il disparaît'} dans ${left} et ${pl ? 'devront' : 'devra'} être renvoyé${pl ? 's' : ''}.`,
+      delay: String(Math.round(when / 1000)), seq: apSeq(g, k), click: url, priority: min <= 15 ? 4 : 3,
+      actions: [{ action: 'view', label: 'Ouvrir', url }, { action: 'view', label: '🔕 Sourdine', url: url + '&mute=1', clear: true }],
+    });
+  }
+  if (owner && g.exp > now + 30000) ntfyPublish(owner.topic, {
+    title: `⌛ ${what} non validé${pl ? 's' : ''} dans les 48 h`, message: `${quote ? quote.trim() + ' : ' : ''}personne ne l'a validé à temps. Renvoyez-le depuis l'application pour une nouvelle demande.`,
+    delay: String(Math.round(g.exp / 1000)), seq: apSeq(g, 'ex'), click: apLink(g),
+  });
+}
+function cancelSteps(L, only, now) {
+  for (const [u, topic] of Object.entries(L.targets || {})) {
+    if (only && u !== only) continue;
+    for (const [k, min] of AP_STEPS) if (L.exp - min * 60000 > now) ntfyCancel(topic, apSeq(L, k));
+  }
+  if (!only && L.owner?.topic && L.exp > now) ntfyCancel(L.owner.topic, apSeq(L, 'ex'));
+}
+let apT = null, apBusy = false, apAgain = false;
+export function queueApprovals(ms = 2500) { clearTimeout(apT); apT = setTimeout(syncApprovals, ms); }
+/**
+ * Rappels de validation (programmés une seule fois par lot grâce au registre reminders/ap_…, partagé par les deux parents)
+ * et annulation de ceux qui restent quand le lot est validé, refusé, supprimé, renvoyé ou mis en sourdine.
+ */
+export async function syncApprovals() {
+  if (!S.fid || !S.family) return;
+  if (apBusy) { apAgain = true; return; }
+  apBusy = true;
+  try {
+    await expiredNotice();
+    if (!isParent() || !S.loaded.memories || !S.loaded.docs || !S.loaded.members) return;
+    const db = S.be.db, now = Date.now(), live = new Map(), have = new Set();
+    for (const g of approvalGroups()) live.set(`ap_${g.grp}_${g.sent}`, g);
+    const ledger = await db.list(fpath('reminders'), { where: [['kind', '==', 'ap']] });
+    for (const L of ledger) {
+      const g = live.get(L.id);
+      // lot introuvable ici alors qu'il vient d'être envoyé : pas encore reçu, on attend (sinon : supprimé)
+      if (!g && !groupItems(L.sub, L.grp).length && now - (L.at || 0) < 120000) continue;
+      if (!g) { cancelSteps(L, null, now); await db.del(fpath('reminders', L.id)).catch(() => { }); continue; }
+      have.add(L.id);
+      const quiet = Object.keys(L.targets || {}).filter(u => g.items.every(it => it.muted?.[u]));
+      if (quiet.length) {
+        for (const u of quiet) cancelSteps(L, u, now);
+        const targets = { ...L.targets }; for (const u of quiet) delete targets[u];
+        await db.update(fpath('reminders', L.id), { targets }).catch(() => { });
+      }
+    }
+    const p = parents();
+    for (const [key, g] of live) {
+      if (have.has(key) || g.exp <= now) continue;
+      const targets = {};
+      for (const u of [p.A.uid, p.B.uid]) {
+        if (!u || u === g.by || g.items.every(it => it.muted?.[u])) continue;
+        const m = S.members.find(x => x.uid === u); if (m?.ntfyOn && m.ntfyTopic) targets[u] = m.ntfyTopic;
+      }
+      const ow = S.members.find(x => x.uid === g.by), owner = ow?.ntfyOn && ow.ntfyTopic ? { uid: g.by, topic: ow.ntfyTopic } : null;
+      const created = await db.createIfAbsent(fpath('reminders', key), { kind: 'ap', sub: g.sub, grp: g.grp, sent: g.sent, exp: g.exp, targets, owner, at: now });
+      if (created) scheduleSteps(g, targets, owner, now);
+    }
+  } catch (e) { console.warn('validation', e?.code || e); }
+  finally { apBusy = false; if (apAgain) { apAgain = false; queueApprovals(800); } }
+}
+/** Mes envois expirés : une entrée dans mon historique (une fois par envoi) */
+async function expiredNotice() {
+  for (const g of approvalGroups({ expired: true })) {
+    if (g.by !== uid()) continue;
+    const todo = g.items.filter(it => it.expSeen !== sentAt(it)); if (!todo.length) continue;
+    for (const it of todo) await updItem(g.sub, it.id, { expSeen: sentAt(it) }).catch(() => { });
+    const pl = g.items.length > 1;
+    await log(g.sub === 'docs' ? 'documents' : 'souvenirs', `${subLabel(g.sub, g.items.length)} non validé${pl ? 's' : ''} dans les 48 h${g.title ? ' : ' + g.title : ''}`, { to: 'self', icon: '⌛', body: `À renvoyer depuis ${g.sub === 'docs' ? 'Documents' : 'Souvenirs'}`, link: g.sub });
+  }
+}
+/** Sourdine : plus de rappels pour moi sur ce lot (je peux toujours valider jusqu'à l'expiration) */
+export async function muteGroup(sub, grp) {
+  const items = groupItems(sub, grp).filter(it => canApprove(it) && !isMuted(it));
+  for (const it of items) await updItem(sub, it.id, { [`muted.${uid()}`]: true });
+  queueApprovals(400);
+  return items.length;
+}
+/** Renvoi d'un lot expiré : nouvelle demande de validation de 48 h */
+export async function resendGroup(sub, grp) {
+  const items = groupItems(sub, grp).filter(canResend); if (!items.length) return 0;
+  const now = Date.now();
+  for (const it of items) await updItem(sub, it.id, { sentAt: now, muted: {} });
+  const n = items.length, t = items[0].title;
+  await log(sub === 'docs' ? 'documents' : 'souvenirs', `${subLabel(sub, n)} renvoyé${n > 1 ? 's' : ''} pour validation${t ? ' : ' + t : ''}`, { icon: '⏳', body: 'À valider sous 48 h' });
+  queueApprovals(400);
+  return n;
 }
 /** Note de liaison qui m'est adressée (les anciennes notes sans destinataires concernent les parents) */
 export const noteForMe = n => !n.to || n.to.includes(uid()) || (!n.to.length && n.createdBy === uid());

@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.6';
-import { createBackend } from './backend.js?v=6.6';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.6';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.6';
-import * as Home from './views-home.js?v=6.6';
-import * as Agenda from './views-agenda.js?v=6.6';
-import * as Plan from './views-planning.js?v=6.6';
-import * as Exch from './views-exchange.js?v=6.6';
-import * as Fam from './views-family.js?v=6.6';
-import * as Bud from './views-budget.js?v=6.6';
-import * as More from './views-more.js?v=6.6';
-import * as Admin from './views-admin.js?v=6.6';
-import * as Install from './install.js?v=6.6';
-import * as Sac from './views-sac.js?v=6.6';
-import * as Print from './print.js?v=6.6';
+import * as E from './engine.js?v=6.7';
+import { createBackend } from './backend.js?v=6.7';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.7';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.7';
+import * as Home from './views-home.js?v=6.7';
+import * as Agenda from './views-agenda.js?v=6.7';
+import * as Plan from './views-planning.js?v=6.7';
+import * as Exch from './views-exchange.js?v=6.7';
+import * as Fam from './views-family.js?v=6.7';
+import * as Bud from './views-budget.js?v=6.7';
+import * as More from './views-more.js?v=6.7';
+import * as Admin from './views-admin.js?v=6.7';
+import * as Install from './install.js?v=6.7';
+import * as Sac from './views-sac.js?v=6.7';
+import * as Print from './print.js?v=6.7';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -248,6 +248,7 @@ Object.assign(ACTIONS, {
 
 // ───── Abonnements Firestore (selon le rôle : parent = tout le cercle, proche = agenda, souvenirs, ses notes + rubriques autorisées)
 const SUBS = ['members', 'invites', 'children', 'childInfo', 'plannings', 'exchanges', 'events', 'tasks', 'notes', 'expenses', 'docs', 'contacts', 'memories', 'sac', 'sacRuns'];
+const AP_SUBS = new Set(['memories', 'docs', 'memoriesMine', 'docsMine', 'members']);
 const FEED_SUBS = new Set(['children', 'childInfo', 'plannings', 'exchanges', 'events', 'tasks', 'notes']);
 let unUser = null, unFam = [], unData = [];
 function stopData() { unData.forEach(f => { try { f(); } catch (e) { /* */ } }); unData = []; S.dataKey = ''; }
@@ -264,6 +265,7 @@ function listenSub(sub, path, opts = null, into = null) {
     if (FEED_SUBS.has(sub)) queueFeed();
     if (sub === 'members' && !S.remindersDone && S.loaded.plannings) { S.remindersDone = true; setTimeout(scheduleReminders, 4000); }
     if (isParent()) scheduleMigrate();
+    if (AP_SUBS.has(sub)) queueApprovals();
   }, opts, err => { console.warn(sub, err?.code || err); S.loaded[sub] = true; S.render(); }));
 }
 /** (Ré)abonne les données quand le rôle ou les autorisations changent */
@@ -347,14 +349,9 @@ async function migrate() {
       try { await db.update(`families/${fid}/blobs/${m.blobId}`, { kind: 'mem' }); } catch (e) { /* */ }
       await db.update(`families/${fid}/memories/${m.id}`, { bk: 1 });
     }
-    // 6) importations : anciennes = publiées ; sans refus 48 h après l'ajout = publiées automatiquement
+    // 6) importations antérieures à la validation = publiées (les nouvelles expirent après 48 h sans validation : voir syncApprovals)
     for (const sub of ['memories', 'docs']) if (S.loaded[sub]) {
-      const now = Date.now(); let auto = 0;
-      for (const it of S[sub]) {
-        if (it.pub === undefined) await db.update(`families/${fid}/${sub}/${it.id}`, { pub: true });
-        else if (it.pub === false && !it.refused && (it.createdAt || 0) + 48 * 3600000 < now) { await db.update(`families/${fid}/${sub}/${it.id}`, { pub: true, okAuto: true, okAt: now }); auto++; }
-      }
-      if (auto && sub === 'memories') await log('souvenirs', `📸 ${auto} souvenir${auto > 1 ? 's' : ''} publié${auto > 1 ? 's' : ''} (48 h sans refus)`, { to: 'all', icon: '📸' });
+      for (const it of S[sub]) if (it.pub === undefined) await db.update(`families/${fid}/${sub}/${it.id}`, { pub: true });
     }
     S.migrated = true;
   } catch (e) { console.warn('migration', e?.code || e); }
@@ -404,7 +401,9 @@ async function start() {
   });
   // maintenance périodique : flux widgets (glissement des dates) + rappels
   setInterval(() => { if (S.family) { syncFeed(); scheduleReminders(); } }, 60 * 60 * 1000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.family) { S.render(); queueFeed(); } });
+  // expiration des demandes de validation (48 h) et rappels associés
+  setInterval(() => { if (S.family && !document.hidden) { queueApprovals(100); if (['memories', 'docs', 'notifs'].includes(S.route?.view)) S.render(); } }, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.family) { S.render(); queueFeed(); queueApprovals(1500); } });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw', e));
 }
 start();
