@@ -1,10 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.4';
-import { randomId } from './backend.js?v=6.4';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe } from './core.js?v=6.4';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet } from './ui.js?v=6.4';
-import { kidChips, countdown, pendingItems } from './views-home.js?v=6.4';
-import { openPrint } from './print.js?v=6.4';
+import * as E from './engine.js?v=6.5';
+import { randomId } from './backend.js?v=6.5';
+import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe } from './core.js?v=6.5';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet } from './ui.js?v=6.5';
+import { kidChips, countdown, pendingItems } from './views-home.js?v=6.5';
+import { createFamily } from './views-family.js?v=6.5';
+import { openPrint } from './print.js?v=6.5';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -216,6 +217,7 @@ export const views = {
         <div class="hint">Gratuit, sans compte, sur iPhone et Samsung, via l'application « ntfy ». Vous n'êtes jamais notifié de vos propres actions.</div></div>
       <div class="card"><h3>📱 Widgets</h3><p class="small muted" style="margin-top:0">Garde du jour, semaine, mois, pleine page et programme sur l'écran d'accueil.</p><button class="btn ghost block" data-go="widgets">Configurer les widgets</button></div>
       <div class="card"><h3>📤 Exporter</h3><button class="btn soft block" data-act="print-year">🖨️ Imprimer le calendrier annuel</button><button class="btn soft block mt" data-act="ics-sheet">📅 Vers Google Agenda / Samsung / iPhone (.ics)</button>${can('expenses') ? '<button class="btn soft block mt" data-act="exp-csv">💰 Dépenses (tableur .csv)</button>' : ''}</div>
+      ${par ? testCard() : ''}
       <div class="card"><h3>ℹ️ Application</h3>
         <button class="btn soft block" data-act="app-refresh">${IC.refresh} Mettre à jour / vider le cache</button>
         ${S.be.mode === 'demo' ? `<button class="btn soft block mt" data-act="demo-off">Quitter le mode démo</button>` : ''}
@@ -551,3 +553,66 @@ function ruleSheet() {
   const upd = () => { const k = readForm(sh).kind || 'dow'; sh.querySelector('[data-part="dow"]').classList.toggle('hide', !k.startsWith('dow')); sh.querySelector('[data-part="par"]').classList.toggle('hide', k !== 'dow2'); sh.querySelector('[data-part="date"]').classList.toggle('hide', k !== 'date'); };
   sh.addEventListener('chipchange', upd);
 }
+
+// ───────────── Mode test : un cercle d'essai « 🧪 Famille TEST » avec une maman TEST (aucun lien avec le vrai cercle)
+const testAcc = () => LS.get('testAcc', null);
+function testCard() {
+  const t = testAcc(), inTest = t && S.fid === t.fid;
+  return `<div class="card"><h3>🧪 Mode test</h3>
+    <p class="small muted" style="margin-top:0">Un cercle d'essai séparé avec une <b>Maman TEST</b>, pour tout essayer (validations, listes des vacances, notes…) sans toucher à votre vrai cercle ni prévenir l'autre parent.</p>
+    ${t ? `<div class="prow"><span>Compte Maman TEST</span><b class="small">${esc(t.email)}</b></div>
+      <div class="row gap mt"><button class="btn primary f1" data-act="test-switch">👩 Passer en Maman TEST</button><button class="btn soft f1" data-act="test-creds">🔑 Identifiants</button></div>
+      <button class="btn soft block mt" data-act="fam-switch" data-id="${inTest ? (t.realFid || '') : t.fid}">${inTest ? '🏠 Revenir à mon vrai cercle' : '🧪 Ouvrir le cercle de test'}</button>`
+    : `<button class="btn primary block" data-act="test-create">🧪 Créer le cercle de test avec une Maman TEST</button>`}</div>`;
+}
+function credsSheet(t) {
+  openSheet(`<h3 class="sh-title">🔑 Maman TEST</h3><p class="small muted">Compte d'essai (adresse fictive, aucun e-mail envoyé). Pour l'utiliser : <b>Passer en Maman TEST</b>, ou connectez-vous avec ces identifiants dans un autre navigateur (Samsung Internet) pour avoir les deux parents en même temps.</p>
+    <div class="prow"><span>E-mail</span><b>${esc(t.email)}</b></div><div class="prow"><span>Mot de passe</span><b>${esc(t.pw)}</b></div>
+    <div class="row gap mt"><button class="btn soft f1" data-act="w-copy" data-v="${esc(t.email + ' / ' + t.pw)}">${IC.copy} Copier</button><button class="btn primary f1" data-act="test-switch">👩 Passer en Maman TEST</button></div>`);
+}
+Object.assign(actions, {
+  'test-create': async el => {
+    if (!(await confirmBox('Créer le cercle de test ?', "Un cercle « 🧪 Famille TEST » est créé avec une copie de vos enfants, de leurs photos et plannings, et un compte « Maman TEST » (adresse fictive). Votre vrai cercle n'est pas modifié et personne n'est prévenu.", 'Créer'))) return;
+    await new Promise(r => setTimeout(r, 400)); // laisse la fenêtre de confirmation se fermer
+    el.disabled = true; toast('Création du cercle de test…', 'ok', 2500);
+    const realFid = S.fid, db = S.be.db, rnd = randomId(6).toLowerCase();
+    const t = { email: `maman.test.${rnd}@example.com`, pw: 'Test-' + randomId(6), realFid, mainEmail: S.user.email, ownerUid: uid() };
+    const kids = [...S.children], infos = [...S.childInfo], pls = S.plannings.filter(x => x.state === 'active'), st = settings(), short = parents()[myCode() || 'A'].short || 'Papa';
+    const ok = await guard(async () => {
+      const fid = await createFamily({ name: '🧪 Famille TEST', mine: short, oprenom: 'Maman', onom: 'TEST', noInvite: true, zone: st.zone, ht: st.handoverTime });
+      await db.update(`families/${fid}`, { settings: { ...st }, testCircle: true });
+      const map = {};
+      for (const c of kids) {
+        const id = db.newId(); map[c.id] = id;
+        await db.set(`families/${fid}/children/${id}`, { prenom: c.prenom, nom: c.nom || '', birth: c.birth || '', emoji: c.emoji || '🧒', photo: c.photo || null, createdAt: Date.now(), createdBy: uid() });
+        const info = infos.find(x => x.id === c.id); if (info) { const { id: _i, ...rest } = info; await db.set(`families/${fid}/childInfo/${id}`, rest, true); }
+      }
+      for (const p of pls) { const { id: _p, ...rest } = p; await db.set(`families/${fid}/plannings/${db.newId()}`, { ...rest, childIds: (p.childIds || []).map(k => map[k]).filter(Boolean) }); }
+      const fam = await db.get(`families/${fid}`);
+      await S.be.auth.side(t.email, t.pw, async ({ uid: mu, db: d2 }) => {
+        await d2.set(`users/${mu}`, { prenom: 'Maman', nom: 'TEST', email: t.email, phone: '0600000000', familyIds: [fid], currentFamily: fid, createdAt: Date.now() }, true);
+        await d2.set(`families/${fid}/members/${mu}`, { uid: mu, prenom: 'Maman', nom: 'TEST', name: 'Maman', email: t.email, phone: '0600000000', role: 'parent', relation: '', parentCode: null, joinCode: fam.joinCode, joinedAt: Date.now() });
+        await d2.update(`families/${fid}`, { 'parents.B.uid': mu, 'parents.B.name': 'Maman', 'parents.B.phone': '0600000000', 'parents.B.email': t.email });
+        await d2.update(`families/${fid}/members/${mu}`, { parentCode: 'B' });
+        await d2.update(`families/${fid}`, { memberUids: d2.arrayUnion(mu) });
+        const aid = d2.newId();
+        for (const r of [mu, t.ownerUid || null].filter(Boolean)) await d2.set(`families/${fid}/inbox/${r}/items/${aid}`, { cat: 'cercle', title: 'Maman TEST a rejoint le cercle de test (parent)', body: '', icon: '🧪', by: mu, byName: 'Maman', at: Date.now() });
+      });
+      t.fid = fid; LS.set('testAcc', t);
+      return true;
+    }, 'Cercle de test prêt 🧪');
+    el.disabled = false;
+    if (ok) credsSheet(t);
+  },
+  'test-creds': () => { const t = testAcc(); if (t) credsSheet(t); },
+  'test-switch': async () => {
+    const t = testAcc(); if (!t) return;
+    LS.set('testBackEmail', S.user?.email || t.mainEmail || '');
+    await guard(async () => { await S.be.auth.signOut(); await S.be.auth.signIn(t.email, t.pw); });
+    location.hash = '#/home';
+  },
+  'test-back': async () => {
+    const back = LS.get('testBackEmail', '') || testAcc()?.mainEmail || '';
+    await guard(() => S.be.auth.signOut()); S.authEmail = back; S.authMode = 'login'; location.hash = '';
+  },
+});

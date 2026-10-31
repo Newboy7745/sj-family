@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.4';
-import { createBackend } from './backend.js?v=6.4';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily } from './core.js?v=6.4';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.4';
-import * as Home from './views-home.js?v=6.4';
-import * as Agenda from './views-agenda.js?v=6.4';
-import * as Plan from './views-planning.js?v=6.4';
-import * as Exch from './views-exchange.js?v=6.4';
-import * as Fam from './views-family.js?v=6.4';
-import * as Bud from './views-budget.js?v=6.4';
-import * as More from './views-more.js?v=6.4';
-import * as Admin from './views-admin.js?v=6.4';
-import * as Install from './install.js?v=6.4';
-import * as Sac from './views-sac.js?v=6.4';
-import * as Print from './print.js?v=6.4';
+import * as E from './engine.js?v=6.5';
+import { createBackend } from './backend.js?v=6.5';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily } from './core.js?v=6.5';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.5';
+import * as Home from './views-home.js?v=6.5';
+import * as Agenda from './views-agenda.js?v=6.5';
+import * as Plan from './views-planning.js?v=6.5';
+import * as Exch from './views-exchange.js?v=6.5';
+import * as Fam from './views-family.js?v=6.5';
+import * as Bud from './views-budget.js?v=6.5';
+import * as More from './views-more.js?v=6.5';
+import * as Admin from './views-admin.js?v=6.5';
+import * as Install from './install.js?v=6.5';
+import * as Sac from './views-sac.js?v=6.5';
+import * as Print from './print.js?v=6.5';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -146,7 +146,7 @@ function doRender() {
   try { out = fn(r.params || {}); } catch (e) { console.error(e); out = { title: 'Oups', html: `<div class="card"><b>Une erreur d'affichage est survenue.</b><p class="muted small">${esc(e.message)}</p><button class="btn primary" data-go="home">Retour à l'accueil</button></div>` }; }
   if (typeof out === 'string') out = { html: out };
   header(out);
-  const v = $('#view'); v.innerHTML = out.html; S.lastView = r.view;
+  const v = $('#view'); v.innerHTML = testBanner() + out.html; S.lastView = r.view;
   const tab = TAB_OF[r.view];
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
   const bx = $('#bx'), bs = $('#bs'), bl = $('#bl'), px = Exch.pendingForMe ? Exch.pendingForMe() : 0, ps = Sac.pendingCount ? Sac.pendingCount() : 0, pl = More.unreadNotes ? More.unreadNotes() : 0;
@@ -154,6 +154,13 @@ function doRender() {
   if (bs) { bs.textContent = ps; bs.classList.toggle('hide', !ps); }
   if (bl) { bl.textContent = pl; bl.classList.toggle('hide', !pl); }
   try { AFTER[r.view]?.(v, r.params || {}); } catch (e) { console.error(e); }
+}
+/** Bandeau du mode test : session Maman TEST, ou cercle de test ouvert */
+function testBanner() {
+  const t = LS.get('testAcc', null), me = S.user?.email || '';
+  if (/^maman\.test\./.test(me)) return `<div class="testbar"><span>🧪 Vous êtes <b>Maman TEST</b></span><button class="btn soft sm" data-act="test-back">Revenir à mon compte</button></div>`;
+  if (t && S.fid === t.fid) return `<div class="testbar"><span>🧪 Cercle de test</span><button class="btn soft sm" data-act="fam-switch" data-id="${t.realFid || ''}">Mon vrai cercle</button></div>`;
+  return '';
 }
 function renderAdmin() {
   shell(false); header({ title: 'Administration', actions: false });

@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.4';
-import { toast, esc } from './ui.js?v=6.4';
+import * as E from './engine.js?v=6.5';
+import { toast, esc } from './ui.js?v=6.5';
 
-export const VERSION = '6.4';
+export const VERSION = '6.5';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';

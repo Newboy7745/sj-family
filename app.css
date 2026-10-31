@@ -317,3 +317,23 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
   body.printing #printpage img{max-width:100%;max-height:195mm;width:auto;height:auto}
   @page{size:A4 landscape;margin:6mm}
 }
+
+/* ───── v6.5 : sélection multiple, listes des vacances, mode test */
+.selbar{display:flex;align-items:center;gap:8px;width:100%;background:#fff;border-radius:16px;padding:8px;box-shadow:var(--sh)}
+.vl{margin-bottom:10px}
+.vi{background:#fff;border-radius:20px;box-shadow:var(--sh);padding:14px;margin-bottom:12px;border-left:6px solid #E3E8F0}
+.vi.done{border-left-color:var(--navy2)}.vi.got{border-left-color:var(--ok)}
+.vph{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.vp{position:relative;width:76px;height:76px}
+.vp-i{width:76px;height:76px;border-radius:14px;overflow:hidden;border:3px solid transparent;padding:0;display:block;position:relative}
+.vp-i img{width:100%;height:100%;object-fit:cover;display:block}
+.vp-i span{position:absolute;right:4px;bottom:4px;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.85);display:grid;place-items:center;font-weight:800;color:var(--ok);font-size:13px}
+.vp.on .vp-i{border-color:var(--ok)}.vp.on .vp-i span{background:var(--ok);color:#fff}
+.vp-z{position:absolute;left:3px;top:3px;width:24px;height:24px;border-radius:50%;background:rgba(15,27,45,.55);color:#fff;font-size:11px;display:grid;place-items:center}
+.vp.add{display:grid;place-items:center;border-radius:14px;border:2px dashed #CBD5E1;font-size:26px;cursor:pointer;background:var(--field)}
+.vrow{display:flex;align-items:center;gap:8px;margin:6px 0}
+.vlab{flex:1;font-size:13.5px;font-weight:800;color:#334}
+.in.sm{padding:9px 11px;font-size:15px;border-radius:12px;min-height:0}
+.vrow .in.sm{width:78px;text-align:center}
+.vi>.in.sm{margin:2px 0 4px}
+.testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF2D6;border:1.5px solid #F5D58A;border-radius:16px;padding:8px 12px;margin-bottom:12px;font-size:14px}

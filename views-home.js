@@ -1,8 +1,8 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.4';
-import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe } from './core.js?v=6.4';
+import * as E from './engine.js?v=6.5';
+import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe } from './core.js?v=6.5';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.4';
+import { esc, fmtAgo } from './ui.js?v=6.5';
 
 export function kidChips() {
   if (S.children.length < 1) return '';

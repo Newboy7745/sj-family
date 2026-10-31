@@ -25,7 +25,7 @@ export async function createBackend(mode) {
 
 // ─────────────────────────── Firebase ───────────────────────────
 async function createFirebase() {
-  const [{ initializeApp }, A, F] = await Promise.all([
+  const [{ initializeApp, deleteApp }, A, F] = await Promise.all([
     import(`${SDK}/firebase-app.js`), import(`${SDK}/firebase-auth.js`), import(`${SDK}/firebase-firestore.js`),
   ]);
   const app = initializeApp(FIREBASE_CONFIG);
@@ -52,6 +52,21 @@ async function createFirebase() {
       reset: e => A.sendPasswordResetEmail(auth, e),
       current: () => auth.currentUser ? { uid: auth.currentUser.uid, email: (auth.currentUser.email || '').toLowerCase(), emailVerified: !!auth.currentUser.emailVerified } : null,
       sendVerification: () => A.sendEmailVerification(auth.currentUser),
+      /** Crée (ou ouvre) un autre compte dans une session séparée, sans déconnecter l'utilisateur courant */
+      side: async (email, pw, fn) => {
+        const app2 = initializeApp(FIREBASE_CONFIG, 'side' + Date.now());
+        const a2 = A.getAuth(app2), f2 = F.getFirestore(app2);
+        try {
+          let cred;
+          try { cred = await A.createUserWithEmailAndPassword(a2, email, pw); }
+          catch (e) { if (String(e?.code || '').includes('email-already-in-use')) cred = await A.signInWithEmailAndPassword(a2, email, pw); else throw e; }
+          const db2 = {
+            set: (p, d, m = false) => F.setDoc(F.doc(f2, p), clean(d), { merge: m }), update: (p, d) => F.updateDoc(F.doc(f2, p), clean(d)),
+            get: async p => snap2obj(await F.getDoc(F.doc(f2, p))), arrayUnion: (...v) => F.arrayUnion(...v), newId: () => F.doc(F.collection(f2, '_')).id,
+          };
+          return await fn({ uid: cred.user.uid, db: db2 });
+        } finally { try { await A.signOut(a2); } catch (e) { /* */ } try { await deleteApp(app2); } catch (e) { /* */ } }
+      },
       refresh: async () => { const u = auth.currentUser; if (!u) return null; await u.reload(); await u.getIdToken(true); return { uid: u.uid, email: (u.email || '').toLowerCase(), emailVerified: !!auth.currentUser.emailVerified }; },
     },
     db: {
@@ -149,6 +164,11 @@ function createMock() {
       current: cur,
       sendVerification: async () => { },
       refresh: async () => cur(),
+      side: async (email, pw, fn) => {
+        email = email.trim().toLowerCase(); if (!store.users[email]) { store.users[email] = { uid: 'u_' + randomId(10), pw }; save(); }
+        const self = { set: async (p, d, m = false) => write(p, d, m ? 'merge' : 'replace'), update: async (p, d) => write(p, d, 'update'), get: async p => store.docs[p] ? { id: p.split('/').pop(), ...structuredClone(store.docs[p]) } : null, arrayUnion: (...v) => ({ [AU]: v }), newId: () => randomId(20) };
+        return fn({ uid: store.users[email].uid, db: self });
+      },
     },
     db: {
       newId: () => randomId(20),

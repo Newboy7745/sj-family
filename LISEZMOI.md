@@ -103,7 +103,19 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   compte à rebours à la minute, widget Android **Pleine page**, cases des widgets qui ouvrent le jour dans l'agenda.
 - Les règles Firestore ont changé : recoller `REGLES-FIRESTORE.txt` et **Publier**.
 
-## 9. Nettoyer les comptes de test (console Firebase)
+## 9. Nouveautés 6.5
+
+- **Sac** : sélection multiple (☑️ Sélectionner › Tout / un par un) pour retirer des affaires d'un relais (la liste type est
+  conservée, « Remettre » possible) ou les supprimer de la liste type.
+- **Listes des vacances** (Sac › Vacances) : par période de vacances, créées par un parent, soit « je demande à l'autre parent
+  de fournir », soit « je fournis ». Aller (début des vacances) puis Retour (fin) : celui qui donne coche chaque élément,
+  indique le nombre exact et ce qu'il met ; l'autre confirme la réception (écarts signalés). Autant de photos que voulu
+  par élément, chacune se coche séparément. Sélection multiple pour supprimer.
+- **Mode test** (Réglages › Mode test) : cercle « 🧪 Famille TEST » avec un compte Maman TEST (adresse fictive) pour tout
+  essayer sans toucher au vrai cercle ; « Passer en Maman TEST » / « Revenir à mon compte ».
+- Widget Pleine page : 5 colonnes par défaut, légende « RDV ».
+
+## 10. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.
 - *Firestore Database › Données* : menu ⋮ de chaque collection (`users`, `families`, `joinCodes`, `widgets`, `stats`, anciennes `circles`/`admin`) › **Supprimer la collection**.
