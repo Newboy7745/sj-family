@@ -1,25 +1,27 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.3';
-import { createBackend } from './backend.js?v=6.3';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat } from './core.js?v=6.3';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet } from './ui.js?v=6.3';
-import * as Home from './views-home.js?v=6.3';
-import * as Agenda from './views-agenda.js?v=6.3';
-import * as Plan from './views-planning.js?v=6.3';
-import * as Exch from './views-exchange.js?v=6.3';
-import * as Fam from './views-family.js?v=6.3';
-import * as Bud from './views-budget.js?v=6.3';
-import * as More from './views-more.js?v=6.3';
-import * as Admin from './views-admin.js?v=6.3';
-import * as Install from './install.js?v=6.3';
+import * as E from './engine.js?v=6.4';
+import { createBackend } from './backend.js?v=6.4';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily } from './core.js?v=6.4';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.4';
+import * as Home from './views-home.js?v=6.4';
+import * as Agenda from './views-agenda.js?v=6.4';
+import * as Plan from './views-planning.js?v=6.4';
+import * as Exch from './views-exchange.js?v=6.4';
+import * as Fam from './views-family.js?v=6.4';
+import * as Bud from './views-budget.js?v=6.4';
+import * as More from './views-more.js?v=6.4';
+import * as Admin from './views-admin.js?v=6.4';
+import * as Install from './install.js?v=6.4';
+import * as Sac from './views-sac.js?v=6.4';
+import * as Print from './print.js?v=6.4';
 
-const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install];
+const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
 const AFTER = Object.assign({}, ...MODS.map(m => m.after || {}));
 const ACTIONS = Object.assign({}, ...MODS.map(m => m.actions || {}));
-const TAB_OF = { home: 'home', agenda: 'agenda', exchanges: 'echange', family: 'cercle', notifs: 'notifs' };
+const TAB_OF = { home: 'home', agenda: 'agenda', exchanges: 'echange', family: 'cercle', sac: 'sac', memories: 'souvenirs', liaison: 'liaison' };
 
 // ───── Actions communes
 Object.assign(ACTIONS, {
@@ -31,7 +33,10 @@ Object.assign(ACTIONS, {
   },
   'close-sheet': () => closeSheet(),
   back() { if (S.nav > 0) { S.nav--; history.back(); } else go(S.backTo || 'home'); },
-  logout: async () => { await guard(() => S.be.auth.signOut()); location.hash = ''; },
+  logout: async () => {
+    if (!(await confirmBox('Se déconnecter ?', 'Vous devrez saisir à nouveau votre e-mail et votre mot de passe.', 'Se déconnecter', true))) return;
+    await guard(() => S.be.auth.signOut()); location.hash = '';
+  },
 });
 
 // ───── Clics délégués
@@ -83,28 +88,39 @@ function applyColors() {
   st.setProperty('--pa-d', darken(p.A.color, .45)); st.setProperty('--pb-d', darken(p.B.color, .4));
 }
 
+function tabsHtml() {
+  // Parents : Accueil · Agenda · Échange · Cercle · Sac — Proches : Accueil · Agenda · Souvenirs · Liaison · Cercle
+  if (isParent()) return `
+      <button class="tab" data-go="home" data-tab="home"><span class="ti">🏠</span>Accueil</button>
+      <button class="tab" data-go="agenda" data-tab="agenda"><span class="ti">📅</span>Agenda</button>
+      <button class="tab fab" data-go="exchanges" data-tab="echange"><span class="ti">🔄</span>Échange<span class="badge hide" id="bx"></span></button>
+      <button class="tab" data-go="family" data-tab="cercle"><span class="ti">👨‍👩‍👧‍👦</span>Cercle</button>
+      <button class="tab" data-go="sac" data-tab="sac"><span class="ti">🎒</span>Sac<span class="badge hide" id="bs"></span></button>`;
+  return `
+      <button class="tab" data-go="home" data-tab="home"><span class="ti">🏠</span>Accueil</button>
+      <button class="tab" data-go="agenda" data-tab="agenda"><span class="ti">📅</span>Agenda</button>
+      <button class="tab fab" data-go="memories" data-tab="souvenirs"><span class="ti">📸</span>Souvenirs</button>
+      <button class="tab" data-go="liaison" data-tab="liaison"><span class="ti">📒</span>Liaison<span class="badge hide" id="bl"></span></button>
+      <button class="tab" data-go="family" data-tab="cercle"><span class="ti">👨‍👩‍👧‍👦</span>Cercle</button>`;
+}
 function shell(withTabs = true) {
-  const app = $('#app');
-  if (!app.querySelector('.top') || !app.querySelector('#view') || app.dataset.shell !== String(withTabs)) {
-    app.innerHTML = `<header class="top"><div class="top-l"></div><div class="top-t"></div><div class="top-r"></div></header><main id="view"></main>${withTabs ? `
-      <nav class="tabs">
-        <button class="tab" data-go="home" data-tab="home"><span class="ti">🏠</span>Accueil</button>
-        <button class="tab" data-go="agenda" data-tab="agenda"><span class="ti">📅</span>Agenda</button>
-        <button class="tab fab" data-go="exchanges" data-tab="echange"><span class="ti">🔄</span>Échange<span class="badge hide" id="bx"></span></button>
-        <button class="tab" data-go="family" data-tab="cercle"><span class="ti">👨‍👩‍👧‍👦</span>Cercle</button>
-        <button class="tab" data-go="notifs" data-tab="notifs"><span class="ti">🔔</span>Notifs<span class="badge hide" id="bn"></span></button>
-      </nav>` : ''}`;
-    app.dataset.shell = String(withTabs);
+  const app = $('#app'), key = withTabs ? (isParent() ? 'P' : 'R') : 'none';
+  if (!app.querySelector('.top') || !app.querySelector('#view') || app.dataset.shell !== key) {
+    app.innerHTML = `<header class="top"><div class="top-l"></div><div class="top-t"></div><div class="top-r"></div></header><main id="view"></main>${withTabs ? `<nav class="tabs">${tabsHtml()}</nav>` : ''}`;
+    app.dataset.shell = key;
   }
 }
+/** Barre du haut identique sur toutes les pages : Notifications · Réglages · Profil · Déconnexion */
 function header({ title = '', back = null, actions = true } = {}) {
   const l = $('.top-l'), t = $('.top-t'), r = $('.top-r');
   S.backTo = back;
   l.innerHTML = back ? `<button class="tb" data-act="back" aria-label="Retour">${IC.back}</button>` : `<img class="logo-top" src="logo-top.png" alt="SJ Family" data-go="home">`;
   t.textContent = title;
+  $('.top').classList.toggle('sub', !!back);
   const unread = More.unreadCount ? More.unreadCount() : 0;
-  const bell = `<button class="tb" data-go="notifs" aria-label="Notifications">🔔${unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>`;
-  r.innerHTML = !actions ? '' : back ? bell : `${bell}<button class="tb" data-go="settings" aria-label="Réglages">⚙️</button><button class="tb" data-go="profile" aria-label="Profil">👤</button>`;
+  r.innerHTML = !actions ? '' : `<button class="tb" data-go="notifs" aria-label="Notifications">🔔${unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>
+    <button class="tb" data-go="settings" aria-label="Réglages">⚙️</button><button class="tb" data-go="profile" aria-label="Profil">👤</button>
+    <button class="tb lo" data-act="logout" aria-label="Se déconnecter">${IC.logout}</button>`;
 }
 function doRender() {
   if (!S.ready) return;
@@ -133,14 +149,15 @@ function doRender() {
   const v = $('#view'); v.innerHTML = out.html; S.lastView = r.view;
   const tab = TAB_OF[r.view];
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
-  const bn = $('#bn'), bx = $('#bx'), un = More.unreadCount ? More.unreadCount() : 0, px = Exch.pendingForMe ? Exch.pendingForMe() : 0;
-  if (bn) { bn.textContent = un > 99 ? '99+' : un; bn.classList.toggle('hide', !un); }
+  const bx = $('#bx'), bs = $('#bs'), bl = $('#bl'), px = Exch.pendingForMe ? Exch.pendingForMe() : 0, ps = Sac.pendingCount ? Sac.pendingCount() : 0, pl = More.unreadNotes ? More.unreadNotes() : 0;
   if (bx) { bx.textContent = px; bx.classList.toggle('hide', !px); }
+  if (bs) { bs.textContent = ps; bs.classList.toggle('hide', !ps); }
+  if (bl) { bl.textContent = pl; bl.classList.toggle('hide', !pl); }
   try { AFTER[r.view]?.(v, r.params || {}); } catch (e) { console.error(e); }
 }
 function renderAdmin() {
   shell(false); header({ title: 'Administration', actions: false });
-  $('.top-r').innerHTML = `<button class="tb" data-act="logout" aria-label="Déconnexion">${IC.logout}</button>`;
+  $('.top-r').innerHTML = `<button class="tb lo" data-act="logout" aria-label="Déconnexion">${IC.logout}</button>`;
   $('#view').innerHTML = Admin.adminHtml(); S.lastView = 'admin';
 }
 function renderSetup() {
@@ -172,7 +189,7 @@ function renderAuth() {
     <div class="sw2"><a href="#" data-act="auth-mode" data-m="login">Retour à la connexion</a></div>`;
   app.innerHTML = `<div class="auth"><img class="logo-full" src="logo-full.png" alt="SJ Family"><div class="tag">La garde partagée, simple et sereine</div>
     <form class="box" autocomplete="off" onsubmit="return false">${body}</form>${Install.installButtons({ dark: true })}
-    <div class="ver">SJ Family ${VERSION}${S.be?.mode === 'demo' ? ' · mode démo' : ''}</div></div>`;
+    ${S.be?.mode === 'demo' ? '<div class="ver">mode démo</div>' : ''}</div>`;
 }
 const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const isAlias = e => ADMIN_ALIASES.includes(String(e || '').trim().toLowerCase());
@@ -222,29 +239,105 @@ Object.assign(ACTIONS, {
   },
 });
 
-// ───── Abonnements Firestore
-const SUBS = ['members', 'invites', 'children', 'plannings', 'exchanges', 'events', 'tasks', 'notes', 'expenses', 'docs', 'contacts', 'memories'];
-const FEED_SUBS = new Set(['children', 'plannings', 'exchanges', 'events', 'tasks', 'notes']);
-let unUser = null, unFam = [];
+// ───── Abonnements Firestore (selon le rôle : parent = tout le cercle, proche = agenda, souvenirs, ses notes + rubriques autorisées)
+const SUBS = ['members', 'invites', 'children', 'childInfo', 'plannings', 'exchanges', 'events', 'tasks', 'notes', 'expenses', 'docs', 'contacts', 'memories', 'sac', 'sacRuns'];
+const FEED_SUBS = new Set(['children', 'childInfo', 'plannings', 'exchanges', 'events', 'tasks', 'notes']);
+let unUser = null, unFam = [], unData = [];
+function stopData() { unData.forEach(f => { try { f(); } catch (e) { /* */ } }); unData = []; S.dataKey = ''; }
 function resetFamily() {
+  stopData();
   unFam.forEach(f => { try { f(); } catch (e) { /* */ } }); unFam = [];
-  for (const s of SUBS) S[s] = []; S.activity = []; S.family = null; S.loaded = {}; S.familyGone = false;
+  for (const s of SUBS) S[s] = []; S.activity = []; S.legacy = []; S.family = null; S.meMember = null; S.priv = null; S.loaded = {}; S.familyGone = false; S.migrated = false;
+}
+function sortKids(rows) { return rows.sort((a, b) => (a.birth || '9').localeCompare(b.birth || '9') || (a.createdAt || 0) - (b.createdAt || 0)); }
+function listenSub(sub, path, opts = null, into = null) {
+  unData.push(S.be.db.listenCol(path, rows => {
+    if (into) { into(rows); } else { S[sub] = sub === 'children' ? sortKids(rows) : rows; }
+    S.loaded[sub] = true; S.render();
+    if (FEED_SUBS.has(sub)) queueFeed();
+    if (sub === 'members' && !S.remindersDone && S.loaded.plannings) { S.remindersDone = true; setTimeout(scheduleReminders, 4000); }
+    if (isParent()) scheduleMigrate();
+  }, opts, err => { console.warn(sub, err?.code || err); S.loaded[sub] = true; S.render(); }));
+}
+/** (Ré)abonne les données quand le rôle ou les autorisations changent */
+function ensureData() {
+  if (!S.family || !S.fid) return;
+  const par = isParent(), perms = S.meMember?.perms || {};
+  if (!par && !S.loaded.me) return; // attendre sa fiche membre (autorisations)
+  const key = par ? 'P' : 'R' + JSON.stringify(perms);
+  if (key === S.dataKey) return;
+  stopData(); S.dataKey = key;
+  const fid = S.fid, me = uid(), P = sub => `families/${fid}/${sub}`;
+  for (const sub of SUBS) S[sub] = [];
+  if (par) {
+    for (const sub of SUBS) listenSub(sub, P(sub));
+    unData.push(S.be.db.listenDoc(`families/${fid}/private/main`, d => { S.priv = d; S.loaded.priv = true; S.render(); queueFeed(); scheduleMigrate(); }, err => { console.warn('private', err?.code || err); S.loaded.priv = true; }));
+    // ancien journal commun (avant les historiques personnels)
+    unData.push(S.be.db.listenCol(P('activity'), rows => { S.legacy = rows; S.render(); }, { where: [['at', '<', LEGACY_T0]], orderBy: ['at', 'desc'], limit: 150 }, err => console.warn('legacy', err?.code || err)));
+  } else {
+    for (const sub of ['children', 'plannings', 'events', 'memories']) listenSub(sub, P(sub));
+    listenSub('exchanges', P('exchanges'), { where: [['state', '==', 'accepted']] });
+    let toMe = [], byMe = [];
+    const mergeNotes = () => { const m = new Map(); for (const n of [...toMe, ...byMe]) m.set(n.id, n); S.notes = [...m.values()]; };
+    listenSub('notes', P('notes'), { where: [['to', 'array-contains', me]] }, rows => { toMe = rows; mergeNotes(); });
+    listenSub('notesMine', P('notes'), { where: [['createdBy', '==', me]] }, rows => { byMe = rows; mergeNotes(); });
+    for (const sub of ['docs', 'tasks', 'contacts', 'expenses']) if (perms[sub]) listenSub(sub, P(sub));
+    if (perms.sac) { listenSub('sac', P('sac')); listenSub('sacRuns', P('sacRuns')); }
+  }
 }
 function attachFamily(fid) {
   resetFamily(); S.fid = fid; if (!fid) return;
-  const db = S.be.db;
+  const db = S.be.db, me = uid();
   unFam.push(db.listenDoc(`families/${fid}`, f => {
     S.family = f; S.familyGone = !f;
-    if (f) applyColors();
+    if (f) { applyColors(); ensureData(); }
     S.render(); queueFeed();
   }, err => { console.warn('famille', err); S.familyGone = true; S.render(); }));
-  for (const sub of SUBS) unFam.push(db.listenCol(`families/${fid}/${sub}`, rows => {
-    if (sub === 'children') rows.sort((a, b) => (a.birth || '9').localeCompare(b.birth || '9') || (a.createdAt || 0) - (b.createdAt || 0));
-    S[sub] = rows; S.loaded[sub] = true; S.render();
-    if (FEED_SUBS.has(sub)) queueFeed();
-    if (sub === 'members' && !S.remindersDone && S.loaded.plannings) { S.remindersDone = true; setTimeout(scheduleReminders, 4000); }
-  }, null, err => console.warn(sub, err)));
-  unFam.push(db.listenCol(`families/${fid}/activity`, rows => { S.activity = rows; S.loaded.activity = true; S.render(); }, { orderBy: ['at', 'desc'], limit: 300 }, err => console.warn('activity', err)));
+  unFam.push(db.listenDoc(`families/${fid}/members/${me}`, m => { S.meMember = m; S.loaded.me = true; ensureData(); S.render(); }, err => { console.warn('membre', err?.code || err); S.loaded.me = true; ensureData(); }));
+  unFam.push(db.listenCol(`families/${fid}/inbox/${me}/items`, rows => { S.activity = rows; S.loaded.activity = true; S.render(); }, { orderBy: ['at', 'desc'], limit: 300 }, err => console.warn('inbox', err?.code || err)));
+}
+
+/** Mises à niveau ponctuelles faites par un parent (une fois les données chargées) */
+let migT = null;
+function scheduleMigrate() { clearTimeout(migT); migT = setTimeout(migrate, 2500); }
+async function migrate() {
+  if (!isParent() || S.migrating) return;
+  const f = S.family; if (!f) return;
+  S.migrating = true;
+  const db = S.be.db, fid = S.fid;
+  try {
+    // 1) jeton des widgets → document privé des parents
+    if (f.widgetToken && S.loaded.priv) {
+      if (!S.priv?.widgetToken) await db.set(`families/${fid}/private/main`, { widgetToken: f.widgetToken, widgetHealth: !!f.widgetHealth }, true);
+      await db.update(`families/${fid}`, { widgetToken: db.deleteField(), widgetHealth: db.deleteField() });
+    }
+    // 2) fiches détaillées des enfants (école, santé…) → childInfo (parents uniquement)
+    if (S.loaded.children && S.loaded.childInfo) for (const c of S.children) {
+      const det = {}; for (const k of CHILD_DETAIL_KEYS) if (c[k] !== undefined) det[k] = c[k];
+      if (!Object.keys(det).length) continue;
+      await db.set(`families/${fid}/childInfo/${c.id}`, det, true);
+      const del = {}; for (const k of Object.keys(det)) del[k] = db.deleteField();
+      await db.update(`families/${fid}/children/${c.id}`, del);
+    }
+    // 3) liste des membres (identifiants seulement) lisible par tout le cercle
+    if (S.loaded.members && S.members.length) {
+      const ids = [...new Set(S.members.map(m => m.uid))].sort();
+      if (JSON.stringify(ids) !== JSON.stringify([...(f.memberUids || [])].sort())) await db.update(`families/${fid}`, { memberUids: ids });
+    }
+    // 4) invitations : marquées « rejointes » quand la personne est dans le cercle
+    if (S.loaded.invites && S.loaded.members) for (const i of S.invites.filter(x => x.state === 'pending')) {
+      const ph = (i.phone || '').replace(/\D/g, '').slice(-9);
+      const m = S.members.find(x => (i.email && (x.email || '').toLowerCase() === i.email) || (ph && (x.phone || '').replace(/\D/g, '').slice(-9) === ph));
+      if (m) await db.update(`families/${fid}/invites/${i.id}`, { state: 'joined', joinedUid: m.uid, joinedAt: Date.now() });
+    }
+    // 5) photos des souvenirs : visibles des proches
+    if (S.loaded.memories) for (const m of S.memories.filter(x => x.blobId && !x.bk)) {
+      try { await db.update(`families/${fid}/blobs/${m.blobId}`, { kind: 'mem' }); } catch (e) { /* */ }
+      await db.update(`families/${fid}/memories/${m.id}`, { bk: 1 });
+    }
+    S.migrated = true;
+  } catch (e) { console.warn('migration', e?.code || e); }
+  S.migrating = false;
 }
 async function loadFamilyNames(ids = []) {
   for (const id of ids) if (!S.families[id]) {
@@ -294,4 +387,15 @@ async function start() {
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw', e));
 }
 start();
+// ───── Accueil : glisser à gauche / à droite pour passer d'un enfant à l'autre (Tous → Selman → Jandal…)
+let sw = null;
+document.addEventListener('touchstart', e => {
+  if (S.route.view !== 'home' || sheetDepth() || e.touches.length !== 1 || e.target.closest('.chips.scroll,.week,input,textarea')) { sw = null; return; }
+  sw = { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() };
+}, { passive: true });
+document.addEventListener('touchend', e => {
+  if (!sw) return; const t = e.changedTouches[0], dx = t.clientX - sw.x, dy = t.clientY - sw.y; const ok = Date.now() - sw.t < 600; sw = null;
+  if (!ok || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6 || S.children.length < 2) return;
+  Home.cycleKid(dx < 0 ? 1 : -1);
+}, { passive: true });
 window.SJF = { S, E, go, syncFeed, version: VERSION, APP_URL };

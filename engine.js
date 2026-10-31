@@ -154,7 +154,10 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
     for (const c of x.childIds || []) {
       if (!ov.has(c)) { ov.set(c, new Map()); tov.set(c, new Map()); }
       for (const ch of x.changes || []) { ov.get(c).set(ch.d, ch.to); ovSrc.set(c + '|' + ch.d, x.id); }
-      if (x.timeChange && x.timeChange.d) tov.get(c).set(x.timeChange.d, { time: x.timeChange.time, place: x.timeChange.place || '', midday: !!x.timeChange.midday });
+      if (x.timeChange && x.timeChange.d) {
+        if (x.timeChange.reset) tov.get(c).delete(x.timeChange.d); // retour à l'horaire habituel
+        else tov.get(c).set(x.timeChange.d, { time: x.timeChange.time, place: x.timeChange.place || '', midday: !!x.timeChange.midday });
+      }
     }
   });
   const comments = {}, feries = {};
@@ -163,6 +166,28 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
     for (const f of p.feries || []) feries[f] = (p.comments && p.comments[f]) || ferieName(f) || 'Férié';
   }
   const holidays = schoolHolidays(settings.zone || 'B', settings.customHolidays || []);
+  const rules = (settings.relayRules || []).filter(r => r && r.time);
+  const ruleCache = new Map();
+  /** Horaire régulier applicable à un relais du soir le jour iso vers le parent « to » (le plus précis l'emporte) */
+  function ruleFor(iso, to) {
+    const key = iso + to; if (ruleCache.has(key)) return ruleCache.get(key);
+    let best = null, rank = -1;
+    for (const r of rules) {
+      if (r.to && r.to !== to) continue;
+      let ok = false, rk = 0;
+      if (r.kind === 'date') { ok = r.date === iso; rk = 3; }
+      else if (r.kind === 'vacStart') { ok = holidays.some(h => h.kind !== 'pont' && addDays(h.s, -1) === iso); rk = 2; }
+      else if (r.kind === 'vacEnd') { ok = holidays.some(h => h.kind !== 'pont' && h.e === iso); rk = 2; }
+      else if (r.kind === 'dow') {
+        ok = dow(iso) === +r.dow && (+r.every !== 2 || ((isoWeek(iso).week % 2 === 0) === (r.parity === 'pair')))
+          && (!r.school || !holidays.some(h => h.s <= iso && iso <= h.e));
+        rk = 1;
+      }
+      if (ok && rk > rank) { best = r; rank = rk; }
+    }
+    ruleCache.set(key, best);
+    return best;
+  }
 
   function planningAt(child, iso) {
     const n = d2n(iso);
@@ -178,7 +203,15 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
     return baseCode(child, iso);
   }
   function isOverridden(child, iso) { const o = ov.get(child); return !!(o && o.has(iso)); }
-  function handoverMin(child, iso) { const t = tov.get(child)?.get(iso); return t && !t.midday && t.time ? t2m(t.time) : HT; }
+  /** Relais du soir du jour iso : horaire convenu (échange) > horaire régulier (règle) > horaire habituel */
+  function handoverInfo(child, iso) {
+    const t = tov.get(child)?.get(iso);
+    if (t && !t.midday && t.time) return { min: t2m(t.time), place: t.place || '', custom: true, rule: null };
+    const a = last(code(child, iso)), b = first(code(child, addDays(iso, 1)));
+    if (a && b && a !== b) { const r = ruleFor(iso, b); if (r) return { min: t2m(r.time), place: r.place || '', custom: false, rule: r }; }
+    return { min: HT, place: '', custom: false, rule: null };
+  }
+  function handoverMin(child, iso) { return handoverInfo(child, iso).min; }
   function middayMin(child, iso) { const t = tov.get(child)?.get(iso); return t && t.midday && t.time ? t2m(t.time) : MID; }
   /** Parent ('A'|'B'|null) qui a l'enfant à un instant donné */
   function presence(child, iso, min) {
@@ -198,17 +231,17 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
         if (isHalf(c)) push(out, iso, m2t(middayMin(ch, iso)), first(c), last(c), ch, 'midi', !!tov.get(ch)?.get(iso)?.midday);
         const a = last(c), b = first(n);
         if (a && b && a !== b) {
-          const t = tov.get(ch)?.get(iso);
-          push(out, iso, m2t(handoverMin(ch, iso)), a, b, ch, 'soir', !!(t && !t.midday), t && !t.midday ? t.place : '');
+          const info = handoverInfo(ch, iso);
+          push(out, iso, m2t(info.min), a, b, ch, 'soir', info.custom, info.place, !!info.rule);
         }
       }
     }
     return [...out.values()].sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
   }
-  function push(out, date, time, from, to, ch, kind, custom, place = '') {
+  function push(out, date, time, from, to, ch, kind, custom, place = '', regular = false) {
     const k = `${date}|${time}|${from}|${to}`;
-    if (!out.has(k)) out.set(k, { date, time, from, to, childIds: [], kind, custom, place });
-    const h = out.get(k); h.childIds.push(ch); if (custom) h.custom = true; if (place) h.place = place;
+    if (!out.has(k)) out.set(k, { date, time, from, to, childIds: [], kind, custom, place, regular });
+    const h = out.get(k); h.childIds.push(ch); if (custom) h.custom = true; if (place) h.place = place; if (regular) h.regular = true;
   }
   function nextHandovers(childIds, iso = todayISO(), min = nowMin(), count = 3, horizon = 120) {
     return handovers(childIds, iso, addDays(iso, horizon)).filter(h => h.date > iso || t2m(h.time) > min).slice(0, count);
@@ -250,7 +283,7 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
     const ps = byChild.get(child) || []; if (!ps.length) return null;
     return { from: n2d(Math.min(...ps.map(p => p.n0))), to: n2d(Math.max(...ps.map(p => p.nEnd))) };
   }
-  return { code, baseCode, isOverridden, planningAt, presence, handovers, nextHandovers, blocks, stats, dayInfo, coverage, holidays, HT, MID, ovSrc };
+  return { code, baseCode, isOverridden, planningAt, presence, handovers, nextHandovers, blocks, stats, dayInfo, coverage, holidays, HT, MID, ovSrc, handoverInfo, ruleFor };
 }
 
 // ───────────── Générateur de rythmes (assistant planning) ─────────────
@@ -433,7 +466,7 @@ export function buildFeed({ engine, family, children, parents, events = [], task
       if (includeHealth) Object.assign(info, { doctor: c.doctor || '', doctorPhone: c.doctorPhone || '', allergies: c.allergies || '', treatments: c.treatments || '', blood: c.blood || '' });
       return { id: c.id, name: c.prenom, emoji: c.emoji || '🧒', color: c.color || '', days, info };
     }),
-    handovers: engine.handovers(ids, addDays(today, -1), addDays(today, 60)).slice(0, 40).map(h => ({ d: h.date, t: h.time, f: h.from, to: h.to, k: h.childIds, p: h.place || '', m: h.kind === 'midi' ? 1 : 0 })),
+    handovers: engine.handovers(ids, from, to).map(h => ({ d: h.date, t: h.time, f: h.from, to: h.to, k: h.childIds, p: h.place || '', m: h.kind === 'midi' ? 1 : 0 })),
     events: expandEvents(events, today, addDays(today, 45)).slice(0, 40).map(e => ({ d: e.occ, t: e.time || '', t2: e.endTime || '', n: e.title, i: e.icon || '📌', k: e.childIds || [], w: e.place || '' })),
     tasks: tasks.filter(t => !t.done).slice(0, 10).map(t => ({ n: t.title, d: t.due || '', k: t.childIds || [] })),
     notes: notes.slice(0, 3).map(n => ({ x: String(n.text || '').slice(0, 140), at: n.at, by: n.byName || '', k: n.childIds || [] })),

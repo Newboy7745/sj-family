@@ -1,7 +1,7 @@
 // ═══════════════ Échanges de garde & horaires de relais (avec validation de l'autre parent) ═══════════════
-import * as E from './engine.js?v=6.3';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.3';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.3';
+import * as E from './engine.js?v=6.4';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.4';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.4';
 
 const ST = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'], cancelled: ['', 'Annulée'] };
 export function pendingForMe() { return isParent() ? S.exchanges.filter(x => x.state === 'pending' && x.proposedBy !== uid()).length : 0; }
@@ -58,7 +58,7 @@ function sheetHtml(o) {
     <div class="${type === 'days' ? '' : 'hide'}" data-part="days">
       <div class="two"><div><label class="lbl">Du</label><input class="in" type="date" name="from" value="${d}"></div><div><label class="lbl">Au (inclus)</label><input class="in" type="date" name="to" value="${o.to || d}"></div></div>
       <label class="lbl">Les enfants seront chez</label>${chips('who', [{ v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [who])}
-      <div class="hint">Récupération la veille du 1er jour à ${E.fmtTime(settings().handoverTime)}, retour le dernier jour à ${E.fmtTime(settings().handoverTime)} (sauf horaire convenu).</div>
+      <div class="hint">Récupération la veille du 1er jour, retour le dernier jour, aux horaires habituels (${E.fmtTime(settings().handoverTime)} ou horaire régulier), sauf horaire convenu.</div>
       <label class="lbl">En compensation (facultatif) — jours rendus à l'autre parent</label>
       <div class="two"><div><input class="in" type="date" name="cfrom" value=""></div><div><input class="in" type="date" name="cto" value=""></div></div>
       <div class="mt" data-part="preview"></div>
@@ -151,7 +151,7 @@ export const actions = {
     for (const c of x.changes || []) { const b = eng.baseCode(x.childIds[0], c.d); if (E.first(b)) ch.push({ d: c.d, to: b }); }
     if (!ch.length && !x.timeChange) return toast('Rien à rétablir.', 'warn');
     const nv = needsValidation();
-    const data = { type: x.type, childIds: x.childIds, changes: ch, timeChange: x.timeChange ? { ...x.timeChange, time: x.timeChange.midday ? settings().middayTime : settings().handoverTime, place: '' } : null,
+    const data = { type: x.type, childIds: x.childIds, changes: ch, timeChange: x.timeChange ? { d: x.timeChange.d, midday: !!x.timeChange.midday, reset: true, time: '', place: '' } : null,
       summary: `Annulation : ${x.summary}`, reason: 'Retour au planning initial', proposedBy: uid(), proposedByName: myName(), proposedAt: Date.now(), state: nv ? 'pending' : 'accepted' };
     if (!nv) Object.assign(data, { decidedBy: uid(), decidedByName: myName() + ' (auto)', decidedAt: Date.now() });
     await guard(async () => { await addItem('exchanges', data); await log('echange', data.summary); }, nv ? 'Demande envoyée' : 'Planning rétabli');

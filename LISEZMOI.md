@@ -1,6 +1,6 @@
-# SJ Family 6 — mise en service
+# SJ Family 6.4 — mise en service
 
-Application web (PWA) hébergée sur GitHub Pages : **https://newboy7745.github.io/sj-family/**
+Adresse à partager : **https://tinyurl.com/sj-family** (redirige vers l'application hébergée sur GitHub Pages).
 Données : Firebase (projet `sj-family-dd337`, offre gratuite Spark).
 
 ---
@@ -85,7 +85,25 @@ clics « Télécharger », téléchargements de l'APK des widgets). Les statisti
 Ce compte correspond au compte Firebase **khalid.ajdid@gmail.com** (mot de passe oublié → lien envoyé à cette adresse) ;
 l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de passe n'est écrit dans le code.
 
-## 8. Nettoyer les comptes de test (console Firebase)
+## 8. Nouveautés 6.4
+
+- **Barre du haut** sur toutes les pages : Notifications, Réglages, Profil, Déconnexion (avec confirmation).
+- **Onglets** — parents : Accueil, Agenda, Échange, Cercle, Sac ; proches : Accueil, Agenda, Souvenirs, Liaison, Cercle.
+- **Droits des proches** : agenda à jour, souvenirs, notes de liaison qui leur sont adressées. Les parents peuvent ouvrir Documents,
+  Tâches, Répertoire, Budget (lecture) ou Sac à un proche (Cercle › Membres) ; avec deux parents, l'autre parent doit valider.
+  Les informations école / santé des enfants restent réservées aux parents (collection `childInfo`).
+- **Historique personnel** : chacun a le sien (`inbox`). Réglages personnels → seulement son historique ; tout ajout partagé
+  → historique des deux parents + notification de l'autre parent ; nouveaux souvenirs → tout le cercle.
+- **Relais programmés** (Réglages › Relais) : horaire par défaut + horaires réguliers (jour, une semaine sur deux, veille / fin des
+  vacances, date) avec lieu ; un échange « horaire de relais » reste possible au cas par cas.
+  Préréglage vendredi 16h30 à l'école : ouvrir `#/settings?preset=vendredi`.
+- **Note de liaison** : destinataires au choix, pièce jointe PDF/photo rangée dans Documents (copie indépendante).
+- **Documents** avec miniatures, **photos des enfants** et photo de groupe, **Voir ensemble** (plusieurs enfants côte à côte),
+  **Sac du relais** (affaires avec photo et description, préparé puis reçu), **calendrier annuel imprimable** (Agenda ou Réglages),
+  compte à rebours à la minute, widget Android **Pleine page**, cases des widgets qui ouvrent le jour dans l'agenda.
+- Les règles Firestore ont changé : recoller `REGLES-FIRESTORE.txt` et **Publier**.
+
+## 9. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.
 - *Firestore Database › Données* : menu ⋮ de chaque collection (`users`, `families`, `joinCodes`, `widgets`, `stats`, anciennes `circles`/`admin`) › **Supprimer la collection**.

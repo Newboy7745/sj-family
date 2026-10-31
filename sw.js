@@ -1,7 +1,7 @@
 // SJ Family — service worker : réseau d'abord (toujours la dernière version), cache en secours hors-ligne
-const CACHE = 'sjfamily-v6.3';
+const CACHE = 'sjfamily-v6.4';
 const SHELL = ['./', './index.html', './app.css', './app.js', './core.js', './engine.js', './ui.js', './backend.js', './sj-data.js',
-  './views-home.js', './views-agenda.js', './views-planning.js', './views-exchange.js', './views-family.js', './views-budget.js', './views-more.js', './views-admin.js', './install.js',
+  './views-home.js', './views-agenda.js', './views-planning.js', './views-exchange.js', './views-family.js', './views-budget.js', './views-more.js', './views-admin.js', './install.js', './views-sac.js', './print.js',
   './logo-top.png', './logo-full.png', './icon-192.png', './favicon.png', './manifest.json'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).catch(() => {})); self.skipWaiting(); });
 self.addEventListener('activate', e => {
@@ -13,7 +13,7 @@ self.addEventListener('fetch', e => {
   // Firebase / Google APIs : jamais interceptés
   if (/googleapis\.com|firebaseio|firebaseapp|identitytoolkit|securetoken|ntfy\.sh|github\.com/.test(url.host)) return;
   const sameOrigin = url.origin === self.location.origin;
-  const cacheable = sameOrigin || /gstatic\.com|fonts\.googleapis\.com|fonts\.gstatic\.com/.test(url.host);
+  const cacheable = sameOrigin || /gstatic\.com|fonts\.googleapis\.com|fonts\.gstatic\.com|cdnjs\.cloudflare\.com/.test(url.host);
   if (!cacheable) return;
   e.respondWith((async () => {
     if (sameOrigin) {

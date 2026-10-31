@@ -1,7 +1,7 @@
 // ═══════════════ Budget : dépenses partagées (jamais supprimées : terminées puis archivées) ═══════════════
-import * as E from './engine.js?v=6.3';
-import { S, parents, pName, uid, myName, myCode, isParent, childNames, addItem, updItem, log, guard, fpath, go, selIds } from './core.js?v=6.3';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtMoney, parseAmount, compressImage, fileToDataURL, dataURLtoBlob, download, fmtStamp } from './ui.js?v=6.3';
+import * as E from './engine.js?v=6.4';
+import { S, parents, pName, uid, myName, myCode, isParent, childNames, addItem, updItem, log, guard, fpath, go, selIds } from './core.js?v=6.4';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtMoney, parseAmount, compressImage, fileToDataURL, dataURLtoBlob, download, fmtStamp } from './ui.js?v=6.4';
 
 export const CATS = [
   { v: 'ecole', i: '🎒', l: 'Scolarité' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activités' }, { v: 'vetements', i: '👕', l: 'Vêtements' },
@@ -40,7 +40,7 @@ export const views = {
     return {
       title: 'Budget', back: 'home',
       html: `<div class="bal"><div class="bs">Solde des dépenses en cours</div><div class="bv">${esc(msg)}</div><div class="bs mt">${act.length} dépense${act.length > 1 ? 's' : ''} en cours · total ${fmtMoney(total)}</div></div>
-      <div class="row gap mb"><button class="btn primary f1" data-act="exp-new">${IC.plus} Nouvelle dépense</button><button class="btn soft" data-act="exp-csv" title="Exporter">${IC.download}</button></div>
+      ${isParent() ? `<div class="row gap mb"><button class="btn primary f1" data-act="exp-new">${IC.plus} Nouvelle dépense</button><button class="btn soft" data-act="exp-csv" title="Exporter">${IC.download}</button></div>` : '<div class="hint mb">Lecture seule : seuls les parents saisissent les dépenses.</div>'}
       ${byCat.length ? `<div class="card"><h3>📊 ${y} par catégorie</h3>${byCat.map(c => `<div class="row gap" style="margin:7px 0"><span style="width:26px">${c.i}</span><span class="f1"><div class="row between small"><b>${c.l}</b><span class="amt">${fmtMoney(c.s)}</span></div><div class="bar" style="height:8px"><span style="width:${c.s / maxC * 100}%;background:var(--navy2)"></span></div></span></div>`).join('')}</div>` : ''}
       <div class="seg"><button class="${tab === 'cours' ? 'on' : ''}" data-go="budget" data-params='{"tab":"cours"}'>En cours (${act.length})</button><button class="${tab === 'arch' ? 'on' : ''}" data-go="budget" data-params='{"tab":"arch"}'>Terminées (${arc.length})</button></div>
       <div class="card">${list.length ? list.map(row).join('') : `<div class="empty"><div class="e-i">💰</div>${tab === 'cours' ? 'Aucune dépense en cours.' : 'Aucune dépense terminée.'}</div>`}</div>
@@ -126,7 +126,7 @@ export const actions = {
       ${e.note ? `<div class="note mt"><div class="nx">${esc(e.note)}</div></div>` : ''}
       <div class="small muted mt">Ajoutée par ${esc(e.createdByName || '—')} le ${fmtStamp(e.createdAt)}${e.okBy ? ` · validée par ${esc(e.okByName)} le ${fmtStamp(e.okAt)}` : ''}${archived ? ` · terminée par ${esc(e.archivedByName)} le ${fmtStamp(e.archivedAt)}` : ''}</div>
       <div data-part="rc">${e.receiptId ? '<div class="boot" style="height:80px"><div class="spin"></div></div>' : ''}</div>
-      <div class="sh-actions">${!archived ? `${isParent() && !e.okBy && e.createdBy !== uid() ? `<button class="btn ok f1" data-act="exp-ok" data-id="${e.id}">✓ Valider</button>` : ''}<button class="btn soft f1" data-act="exp-edit" data-id="${e.id}">${IC.edit} Modifier</button><button class="btn primary f1" data-act="exp-close" data-id="${e.id}">${IC.archive} Terminer</button>`
+      <div class="sh-actions">${!isParent() ? '<button class="btn primary f1" data-act="close-sheet">Fermer</button>' : !archived ? `${isParent() && !e.okBy && e.createdBy !== uid() ? `<button class="btn ok f1" data-act="exp-ok" data-id="${e.id}">✓ Valider</button>` : ''}<button class="btn soft f1" data-act="exp-edit" data-id="${e.id}">${IC.edit} Modifier</button><button class="btn primary f1" data-act="exp-close" data-id="${e.id}">${IC.archive} Terminer</button>`
         : `<button class="btn soft f1" data-act="exp-reopen" data-id="${e.id}">↩️ Rouvrir</button><button class="btn primary f1" data-act="close-sheet">Fermer</button>`}</div>`);
     if (e.receiptId) showReceipt(e, sh.querySelector('[data-part="rc"]'));
   },

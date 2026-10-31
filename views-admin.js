@@ -1,9 +1,9 @@
 // ═══════════════ Mode administrateur (statistiques anonymes) & installation express par lien ═══════════════
-import * as E from './engine.js?v=6.3';
-import { SJ_PLANNINGS } from './sj-data.js?v=6.3';
-import { S, VERSION, REPO, ADMIN_EMAIL, STAT_KEYS, stat, errMsg, LS } from './core.js?v=6.3';
-import { esc, toast, IC } from './ui.js?v=6.3';
-import { createFamily } from './views-family.js?v=6.3';
+import * as E from './engine.js?v=6.4';
+import { SJ_PLANNINGS } from './sj-data.js?v=6.4';
+import { S, VERSION, REPO, ADMIN_EMAIL, STAT_KEYS, stat, errMsg, LS } from './core.js?v=6.4';
+import { esc, toast, IC } from './ui.js?v=6.4';
+import { createFamily } from './views-family.js?v=6.4';
 
 const FB = 'https://console.firebase.google.com/project/sj-family-dd337';
 
@@ -140,8 +140,9 @@ async function runSetup() {
       const ex = kidsNow.find(x => (x.prenom || '').toLowerCase() === k.prenom.toLowerCase());
       if (ex) { ids.push(ex.id); continue; }
       const id = db.newId();
-      await db.set(`families/${fid}/children/${id}`, { prenom: k.prenom, nom: (k.nom || '').toUpperCase(), birth: k.birth || '', emoji: k.emoji || '🧒', cls: k.cls || '', school: k.school || '', createdAt: Date.now(), createdBy: uid, createdByName: prof.prenom });
-      await db.set(`families/${fid}/activity/${db.newId()}`, { cat: 'cercle', title: `Nouvel enfant : ${k.prenom}`, body: '', icon: '👨‍👩‍👧‍👦', by: uid, byName: prof.prenom, at: Date.now() });
+      await db.set(`families/${fid}/children/${id}`, { prenom: k.prenom, nom: (k.nom || '').toUpperCase(), birth: k.birth || '', emoji: k.emoji || '🧒', createdAt: Date.now(), createdBy: uid, createdByName: prof.prenom });
+      if (k.cls || k.school) await db.set(`families/${fid}/childInfo/${id}`, { cls: k.cls || '', school: k.school || '' }, true);
+      await db.set(`families/${fid}/inbox/${uid}/items/${db.newId()}`, { cat: 'cercle', title: `Nouvel enfant : ${k.prenom}`, body: '', icon: '👨‍👩‍👧‍👦', by: uid, byName: prof.prenom, at: Date.now() });
       ids.push(id);
     }
     l.s = 'ok'; l.m = d.kids.map(k => k.prenom).join(' & ');
@@ -155,7 +156,7 @@ async function runSetup() {
         title: `Garde ${y} (officiel)`, icon: src.icon, childIds: ids, start: src.start, days: E.mapKJ(src.days, 'A'), comments: src.comments, feries: src.feries,
         source: `sj-${y}`, rhythm: null, state: 'active', createdAt: Date.now(), createdBy: uid, createdByName: prof.prenom, validatedAt: Date.now(), validatedBy: uid, validatedByName: prof.prenom + ' (auto)',
       });
-      await db.set(`families/${fid}/activity/${db.newId()}`, { cat: 'garde', title: `Nouveau planning : Garde ${y} (officiel)`, body: d.kids.map(k => k.prenom).join(' & '), icon: '📅', by: uid, byName: prof.prenom, at: Date.now() });
+      await db.set(`families/${fid}/inbox/${uid}/items/${db.newId()}`, { cat: 'garde', title: `Nouveau planning : Garde ${y} (officiel)`, body: d.kids.map(k => k.prenom).join(' & '), icon: '📅', by: uid, byName: prof.prenom, at: Date.now() });
     }
     l.s = 'ok'; l.m = `${(d.import || []).join(' & ')} · Khalid = parent A, jours d'école chez ${d.family.other.prenom}`;
     // 7. Activation

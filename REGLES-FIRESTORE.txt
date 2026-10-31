@@ -1,5 +1,7 @@
 rules_version = '2';
-// SJ Family v6.1 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// SJ Family v6.4 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// Parents : tout le cercle. Proches : agenda à jour, souvenirs, notes qui leur sont adressées, et les rubriques
+// ouvertes par les parents (validées par l'autre parent). Historique personnel pour chacun (inbox).
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
@@ -7,40 +9,153 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && request.auth.token.email == 'khalid.ajdid@gmail.com' && request.auth.token.email_verified == true;
     }
+    function famDoc(fid) { return get(/databases/$(database)/documents/families/$(fid)).data; }
+    function pUid(fid, c) { return famDoc(fid).get('parents', {}).get(c, {}).get('uid', null); }
     function isMember(fid) {
       return signedIn() && exists(/databases/$(database)/documents/families/$(fid)/members/$(request.auth.uid));
     }
+    function isParent(fid) { return signedIn() && (pUid(fid, 'A') == request.auth.uid || pUid(fid, 'B') == request.auth.uid); }
+    function bothParents(fid) { return pUid(fid, 'A') != null && pUid(fid, 'B') != null; }
+    function perm(fid, k) {
+      return isMember(fid) && get(/databases/$(database)/documents/families/$(fid)/members/$(request.auth.uid)).data.get('perms', {}).get(k, false) == true;
+    }
+    function byMe() { return request.resource.data.get('createdBy', '') == request.auth.uid; }
+    function mine() { return resource.data.get('createdBy', '') == request.auth.uid; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
     // Profil : chacun le sien
     match /users/{uid} {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
-    // Codes d'invitation : lisibles un par un (jamais listables)
+    // Codes d'invitation : lisibles un par un (jamais listables), gérés par les parents
     match /joinCodes/{code} {
       allow get: if signedIn();
       allow list: if false;
-      allow create, update: if signedIn() && isMember(request.resource.data.fid);
-      allow delete: if signedIn() && isMember(resource.data.fid);
+      allow create, update: if isParent(request.resource.data.fid);
+      allow delete: if isParent(resource.data.fid);
     }
 
     // Cercles familiaux
     match /families/{fid} {
       allow read: if isMember(fid);
-      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if isMember(fid);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.parents.A.uid == request.auth.uid;
+      // parents : tout (sans changer qui sont les parents) ; 2e parent qui rejoint ; un membre qui s'ajoute à la liste
+      allow update: if (isParent(fid)
+          && request.resource.data.parents.A.uid == resource.data.parents.A.uid
+          && (resource.data.parents.B.uid == null || request.resource.data.parents.B.uid == resource.data.parents.B.uid))
+        || (isMember(fid) && changed().hasOnly(['parents'])
+          && resource.data.parents.B.uid == null && request.resource.data.parents.B.uid == request.auth.uid
+          && request.resource.data.parents.A == resource.data.parents.A)
+        || (isMember(fid) && changed().hasOnly(['memberUids'])
+          && request.resource.data.memberUids.hasAll(resource.data.get('memberUids', []))
+          && request.auth.uid in request.resource.data.memberUids
+          && request.resource.data.memberUids.size() <= resource.data.get('memberUids', []).size() + 1);
       allow delete: if false;
 
-      // Adhésion : le créateur, ou toute personne possédant le code du cercle
-      match /members/{uid} {
-        allow create: if signedIn() && request.auth.uid == uid && (
-          get(/databases/$(database)/documents/families/$(fid)).data.ownerUid == request.auth.uid ||
-          get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.fid == fid);
+      // Membres : chacun sa fiche ; les parents voient tout le monde et règlent les accès des proches
+      match /members/{mid} {
+        allow get: if isParent(fid) || (signedIn() && request.auth.uid == mid);
+        allow list: if isParent(fid);
+        allow create: if signedIn() && request.auth.uid == mid
+          && !('perms' in request.resource.data) && !('pendingPerms' in request.resource.data)
+          && (famDoc(fid).ownerUid == request.auth.uid
+            || get(/databases/$(database)/documents/joinCodes/$(request.resource.data.joinCode)).data.fid == fid)
+          && (request.resource.data.get('parentCode', null) == null
+            || (request.resource.data.parentCode == 'A' && famDoc(fid).ownerUid == request.auth.uid));
+        allow update: if (signedIn() && request.auth.uid == mid
+            && !changed().hasAny(['perms', 'pendingPerms', 'joinCode'])
+            && (request.resource.data.get('parentCode', null) == resource.data.get('parentCode', null)
+              || (request.resource.data.get('parentCode', null) != null && pUid(fid, request.resource.data.parentCode) == request.auth.uid)))
+          || (isParent(fid) && request.auth.uid != mid
+            && changed().hasOnly(['perms', 'pendingPerms', 'updatedAt', 'updatedBy'])
+            && (!changed().hasAny(['perms']) || !bothParents(fid)
+              || (resource.data.get('pendingPerms', null) != null
+                && resource.data.pendingPerms.by != request.auth.uid
+                && request.resource.data.perms == resource.data.pendingPerms.perms)));
+        allow delete: if isParent(fid) && request.auth.uid != mid && resource.data.get('parentCode', null) == null;
       }
 
-      // Toutes les données du cercle : réservées aux membres
-      match /{sub}/{docId} {
-        allow read, write: if isMember(fid);
+      // Historique personnel : chacun lit le sien ; tout membre peut y déposer une notification
+      match /inbox/{owner}/items/{id} {
+        allow read, delete: if signedIn() && request.auth.uid == owner;
+        allow create: if isMember(fid) && request.resource.data.by == request.auth.uid;
+        allow update: if false;
+      }
+
+      // Réservé aux parents
+      match /private/{d} { allow read, write: if isParent(fid); }
+      match /childInfo/{id} { allow read, write: if isParent(fid); }
+      match /invites/{id} { allow read, write: if isParent(fid); }
+      match /reminders/{id} { allow read, write: if isParent(fid); }
+
+      // Agenda à jour (visible de tout le cercle, modifié par les parents)
+      match /children/{id} { allow read: if isMember(fid); allow write: if isParent(fid); }
+      match /plannings/{id} { allow read: if isMember(fid); allow write: if isParent(fid); }
+      match /exchanges/{id} {
+        allow read: if isParent(fid) || (isMember(fid) && resource.data.state == 'accepted');
+        allow write: if isParent(fid);
+      }
+      // Événements et souvenirs : tout le cercle ; chacun modifie les siens, les parents tout
+      match /events/{id} {
+        allow read: if isMember(fid);
+        allow create: if isMember(fid) && byMe();
+        allow update, delete: if isParent(fid) || (isMember(fid) && mine());
+      }
+      match /memories/{id} {
+        allow read: if isMember(fid);
+        allow create: if isMember(fid) && byMe();
+        allow update, delete: if isParent(fid) || (isMember(fid) && mine());
+      }
+      // Notes de liaison : les parents voient tout ; un proche voit celles qui lui sont adressées et les siennes
+      match /notes/{id} {
+        allow read: if isParent(fid) || (isMember(fid) && (request.auth.uid in resource.data.to || resource.data.createdBy == request.auth.uid));
+        allow create: if isMember(fid) && byMe()
+          && (isParent(fid) || (request.resource.data.to.size() > 0 && request.resource.data.to.hasOnly([pUid(fid, 'A'), pUid(fid, 'B')])));
+        allow update: if isParent(fid) || (isMember(fid) && mine())
+          || (isMember(fid) && request.auth.uid in resource.data.to && changed().hasOnly(['ackBy', 'updatedAt', 'updatedBy']));
+        allow delete: if isMember(fid) && mine();
+      }
+      // Fichiers (photos de souvenirs, pièces jointes, documents)
+      match /blobs/{id} {
+        allow read: if isParent(fid) || (isMember(fid) && (resource.data.get('kind', '') == 'mem'
+          || resource.data.get('by', '') == request.auth.uid
+          || request.auth.uid in resource.data.get('to', [])
+          || (resource.data.get('kind', '') == 'doc' && perm(fid, 'docs'))));
+        allow create: if isMember(fid) && request.resource.data.by == request.auth.uid;
+        allow update: if isParent(fid);
+        allow delete: if isParent(fid) || (isMember(fid) && resource.data.get('by', '') == request.auth.uid);
+      }
+      // Rubriques ouvertes aux proches sur autorisation des parents
+      match /docs/{id} {
+        allow read: if isParent(fid) || perm(fid, 'docs');
+        allow create: if (isParent(fid) || perm(fid, 'docs')) && byMe();
+        allow update: if isParent(fid) || perm(fid, 'docs');
+        allow delete: if isParent(fid) || (perm(fid, 'docs') && mine());
+      }
+      match /tasks/{id} {
+        allow read: if isParent(fid) || perm(fid, 'tasks');
+        allow create: if (isParent(fid) || perm(fid, 'tasks')) && byMe();
+        allow update: if isParent(fid) || perm(fid, 'tasks');
+        allow delete: if isParent(fid) || (perm(fid, 'tasks') && mine());
+      }
+      match /contacts/{id} {
+        allow read: if isParent(fid) || perm(fid, 'contacts');
+        allow create: if (isParent(fid) || perm(fid, 'contacts')) && byMe();
+        allow update: if isParent(fid) || perm(fid, 'contacts');
+        allow delete: if isParent(fid) || (perm(fid, 'contacts') && mine());
+      }
+      match /expenses/{id} {
+        allow read: if isParent(fid) || perm(fid, 'expenses');
+        allow write: if isParent(fid);
+      }
+      match /sac/{id} { allow read, write: if isParent(fid) || perm(fid, 'sac'); }
+      match /sacRuns/{id} { allow read, write: if isParent(fid) || perm(fid, 'sac'); }
+      // Ancien journal commun (avant le 1er novembre 2026) : lecture par les parents
+      match /activity/{id} {
+        allow read: if isParent(fid) && resource.data.at < 1793491200000;
+        allow create: if isMember(fid);
       }
     }
 
@@ -63,11 +178,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Flux des widgets : lecture publique d'un document précis (lien secret), écriture par les membres
+    // Flux des widgets : lecture publique d'un document précis (lien secret), écriture par les membres du cercle
     match /widgets/{token} {
       allow get: if true;
       allow list: if false;
-      allow create, update: if signedIn() && isMember(request.resource.data.fid);
+      allow create: if signedIn() && isMember(request.resource.data.fid);
+      allow update: if signedIn() && isMember(resource.data.fid) && request.resource.data.fid == resource.data.fid;
       allow delete: if signedIn() && isMember(resource.data.fid);
     }
   }

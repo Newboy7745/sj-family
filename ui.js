@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — utilitaires d'interface
 // ═══════════════════════════════════════════════════════════════
-import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.3';
+import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.4';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -133,6 +133,32 @@ export async function compressImage(file, maxSide = 1400, quality = 0.72) {
   let q = quality, out = c.toDataURL('image/jpeg', q);
   while (out.length > 900000 && q > 0.35) { q -= 0.1; out = c.toDataURL('image/jpeg', q); }
   return out;
+}
+/** Photo carrée recadrée au centre (portraits d'enfants, photo de groupe) */
+export async function squarePhoto(file, size = 360, quality = 0.8) {
+  const url = await fileToDataURL(file);
+  const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+  const side = Math.min(img.width, img.height), sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+  const c = document.createElement('canvas'); c.width = c.height = Math.min(size, side);
+  c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', quality);
+}
+/** Miniature : photo réduite, ou 1re page d'un PDF (pdf.js chargé à la demande) */
+let pdfjs = null;
+export async function makeThumb(file, max = 260) {
+  if (file.type !== 'application/pdf') return compressImage(file, max, 0.6);
+  try {
+    if (!pdfjs) {
+      await new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); });
+      pdfjs = window.pdfjsLib; pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    const page = await doc.getPage(1), v0 = page.getViewport({ scale: 1 }), k = max / Math.max(v0.width, v0.height);
+    const vp = page.getViewport({ scale: k }), c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+    const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    return c.toDataURL('image/jpeg', 0.65);
+  } catch (e) { console.warn('miniature PDF', e); return null; }
 }
 export function dataURLtoBlob(d) {
   const [h, b] = d.split(','); const mime = h.match(/:(.*?);/)[1]; const bin = atob(b);

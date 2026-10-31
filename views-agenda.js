@@ -1,8 +1,9 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.3';
-import { S, engine, parents, pName, pShort, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS } from './core.js?v=6.3';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen } from './ui.js?v=6.3';
-import { kidChips, cellBg } from './views-home.js?v=6.3';
+import * as E from './engine.js?v=6.4';
+import { S, engine, parents, pName, pShort, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS } from './core.js?v=6.4';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen } from './ui.js?v=6.4';
+import { kidChips, cellBg } from './views-home.js?v=6.4';
+import { openPrint } from './print.js?v=6.4';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
@@ -94,8 +95,9 @@ function listView() {
 }
 export const views = {
   agenda(p) {
-    const mode = p.mode || S.ui.agMode || 'mois';
-    const m = p.m || S.ui.agM || ym(E.todayISO()); S.ui.agM = m; S.ui.agMode = mode;
+    if (p.d && /^\d{4}-\d{2}-\d{2}$/.test(p.d)) { S.ui.agM = ym(p.d); S.ui.agMode = 'mois'; S.ui.openDay = p.d; } // lien depuis un widget : ce jour-là
+    const mode = p.d ? 'mois' : p.mode || S.ui.agMode || 'mois';
+    const m = p.d ? ym(p.d) : p.m || S.ui.agM || ym(E.todayISO()); S.ui.agM = m; S.ui.agMode = mode;
     const y = +(p.y || m.slice(0, 4));
     const [yy, mo] = m.split('-').map(Number);
     const head = mode === 'annee'
@@ -107,9 +109,9 @@ export const views = {
       <div class="seg mt"><button class="${mode === 'mois' ? 'on' : ''}" data-act="ag-mode" data-m="mois">Mois</button><button class="${mode === 'annee' ? 'on' : ''}" data-act="ag-mode" data-m="annee">Année</button><button class="${mode === 'liste' ? 'on' : ''}" data-act="ag-mode" data-m="liste">Relais à venir</button></div>
       ${head}
       ${mode === 'mois' ? `<div class="card tight">${monthGrid(m)}${legend()}</div>
-        <div class="row gap mb"><button class="btn primary f1" data-act="ev-new">${IC.plus} Événement</button><button class="btn soft" data-act="ag-today">Aujourd'hui</button><button class="btn soft" data-act="ics-sheet" title="Exporter">${IC.download}</button></div>
+        <div class="row gap6 mb"><button class="btn primary f1 sm" data-act="ev-new">${IC.plus} Événement</button><button class="btn soft sm" data-act="ag-today">Aujourd'hui</button><button class="btn soft sm" data-act="print-year" title="Imprimer le calendrier annuel">${IC.print}</button><button class="btn soft sm" data-act="ics-sheet" title="Exporter">${IC.download}</button></div>
         ${monthLists(m)}` : ''}
-      ${mode === 'annee' ? yearView(y) : ''}
+      ${mode === 'annee' ? `<button class="btn soft block mb" data-act="print-year" data-y="${y}">${IC.print} Imprimer le calendrier ${y}</button>${yearView(y)}` : ''}
       ${mode === 'liste' ? listView() : ''}`,
     };
   },
@@ -181,7 +183,7 @@ export function openDay(d) {
   openSheet(`<h3 class="sh-title">${E.fmtDate(d, 'wdmy')}</h3>${tags ? `<div class="row wrap gap6 mb">${tags}</div>` : ''}
     ${kids || '<p class="muted">Aucun enfant.</p>'}
     ${hs.length ? `<div class="lbl">Relais</div>${hs.map(h => `<div class="tile"><span style="font-size:24px">🔁</span><div class="f1"><b>${E.fmtTime(h.time)}</b> · ${esc(pName(h.from))} → ${esc(pName(h.to))}<div class="small muted">${esc(childNames(h.childIds))}${h.custom ? ' · horaire convenu' : ''}${h.place ? ' · ' + esc(h.place) : ''}</div></div>
-      ${isParent() ? `<button class="btn soft sm" data-act="x-time" data-d="${d}" data-kind="${h.kind}" data-time="${h.time}">${IC.clock}</button>` : ''}</div>`).join('')}` : ''}
+      ${isParent() ? `<button class="btn soft sm" data-act="x-time" data-d="${d}" data-kind="${h.kind}" data-time="${h.time}" title="Changer l'horaire de ce relais">${IC.clock}</button>` : ''}</div>`).join('')}` : ''}
     <div class="lbl">Événements</div>${evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${d}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${e.time ? E.fmtTime(e.time) + (e.endTime ? '–' + E.fmtTime(e.endTime) : '') : 'Journée'}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.place ? ' · ' + esc(e.place) : ''}</div></div></button>`).join('') : '<p class="muted small">Aucun événement.</p>'}
     <div class="row gap mt"><button class="btn primary f1" data-act="ev-new" data-d="${d}">${IC.plus} Événement</button>${isParent() ? `<button class="btn ghost f1" data-act="x-new" data-d="${d}">🔄 Échange</button>` : ''}</div>`);
 }
@@ -189,6 +191,7 @@ export function openDay(d) {
 // ───── Événements
 function eventSheet(ev = null, date = E.todayISO()) {
   const e = ev || { date, cat: 'activite', childIds: selIds(), repeat: 'none', who: 'custodian' };
+  const ro = !!ev && !isParent() && ev.createdBy !== uid();
   const p = parents();
   const sh = openSheet(`<h3 class="sh-title">${ev ? '✏️ Modifier' : '🗓️ Nouvel'} événement</h3>
     <label class="lbl">Titre</label><input class="in" name="title" value="${esc(e.title || '')}" placeholder="Ex. Dentiste, Foot, Réunion parents-profs" autofocus>
@@ -202,10 +205,14 @@ function eventSheet(ev = null, date = E.todayISO()) {
     <label class="lbl">Qui accompagne / s'en occupe ?</label>${chips('who', [{ v: 'custodian', l: '👪 Parent de garde' }, { v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }, { v: 'both', l: 'Les deux' }], [e.who || 'custodian'])}
     <label class="lbl">Lieu</label><input class="in" name="place" value="${esc(e.place || '')}" placeholder="Adresse, salle…">
     <label class="lbl">Notes</label><textarea class="in" name="notes" rows="3">${esc(e.notes || '')}</textarea>
-    <div class="sh-actions">${ev ? `<button class="btn danger" data-act="ev-del" data-id="${ev.id}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="ev-save" data-id="${ev?.id || ''}">Enregistrer</button></div>`);
+    <div class="sh-actions">${ro ? '<button class="btn primary f1" data-act="close-sheet">Fermer</button>' : `${ev ? `<button class="btn danger" data-act="ev-del" data-id="${ev.id}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="ev-save" data-id="${ev?.id || ''}">Enregistrer</button>`}</div>`);
   return sh;
 }
+export const after = {
+  agenda() { const d = S.ui.openDay; if (d) { S.ui.openDay = null; S.route = { view: 'agenda', params: { mode: 'mois', m: ym(d) } }; history.replaceState(null, '', `#/agenda?mode=mois&m=${ym(d)}`); setTimeout(() => openDay(d), 150); } },
+};
 export const actions = {
+  'print-year': el => openPrint(el.dataset.y ? +el.dataset.y : null),
   'open-day': el => openDay(el.dataset.d),
   'ag-mode': el => { S.ui.agMode = el.dataset.m; go('agenda', { mode: el.dataset.m, m: S.ui.agM }); },
   'ag-shift': el => go('agenda', { mode: 'mois', m: shiftMonth(S.ui.agM || ym(E.todayISO()), +el.dataset.k) }),

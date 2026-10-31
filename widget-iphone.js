@@ -25,6 +25,7 @@ function rel(d, today) {
   if (k > 1 && k < 7) return JOURS[dow(d)];
   return `${JC[dow(d)]} ${+d.slice(8)} ${MOC[+d.slice(5, 7) - 1]}`;
 }
+function dimC(c) { const h = c.hex.replace('#', ''), n = parseInt(h.slice(0, 6), 16); const f = (x, y) => Math.round(x * 0.8 + y * 0.2); const r = f(n >> 16, 0x5A), g = f((n >> 8) & 255, 0x6B), b = f(n & 255, 0x80); return new Color('#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join(''), c.alpha); }
 function mix(hex, k) { const n = parseInt(hex.replace('#', ''), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = x => Math.round(x + (255 - x) * k); return new Color('#' + [f(r), f(g), f(b)].map(x => x.toString(16).padStart(2, '0')).join('')); }
 
 async function loadFeed() {
@@ -103,11 +104,21 @@ else {
     return h;
   };
   const dot = (stack, color, size = 12) => { const d = stack.addStack(); d.size = new Size(size, size); d.cornerRadius = size / 2; d.backgroundColor = color; return d; };
-  const nextLine = (stack, size = 12) => {
+  const appUrl = feed.app || 'https://newboy7745.github.io/sj-family/';
+  const dayUrl = d => `${appUrl}#/agenda?d=${d}`;
+  /** compte à rebours qui avance tout seul (heures:minutes:secondes) */
+  const timer = (stack, size = 12) => {
+    if (!nextDate) return;
+    const r = stack.addStack(); r.layoutHorizontally(); r.centerAlignContent();
+    txt(r, '⏱', size - 1, { color: new Color('#FFE3B0') }); r.addSpacer(3);
+    const d = r.addDate(nextDate); d.applyTimerStyle(); d.font = Font.boldMonospacedSystemFont(size); d.textColor = new Color('#FFE3B0'); d.lineLimit = 1;
+  };
+  const nextLine = (stack, size = 12, withTimer = true) => {
     if (!next) { txt(stack, 'Aucun relais prévu', size, { op: 0.8 }); return; }
     const r = stack.addStack(); r.layoutHorizontally(); r.centerAlignContent();
     txt(r, `🔁 ${cap(rel(next.d, today))} ${fmtT(next.t)} → ${short(next.to)}`, size, { bold: true });
     if (next.p) { r.addSpacer(4); txt(r, `(${next.p})`, size - 1, { op: 0.8 }); }
+    if (withTimer && nextDate) { r.addSpacer(6); timer(r, size); }
   };
   const view2 = view || (family === 'small' ? 'garde' : family === 'large' || family === 'extraLarge' ? 'mois' : family.startsWith('accessory') ? 'garde' : 'semaine');
 
@@ -133,8 +144,8 @@ else {
       txt(r, nowWho ? short(nowWho) : '—', 26, { bold: true, min: 0.5 });
     }
     W.addSpacer();
-    nextLine(W, 12);
-    if (nextDate) { const d = W.addDate(nextDate); d.applyRelativeStyle(); d.font = Font.systemFont(11); d.textColor = WHITE; d.textOpacity = 0.8; }
+    nextLine(W, 12, false);
+    timer(W, 13);
   } else if (view2 === 'semaine') {
     W.setPadding(12, 12, 10, 12);
     header(`${label} · semaine`, nowWho ? `Chez ${short(nowWho)}` : '');
@@ -144,7 +155,8 @@ else {
     for (let i = 0; i < 7; i++) {
       const d = addDays(mon, i), c = code(K[0], d);
       const cell = row.addStack(); cell.layoutVertically(); cell.size = new Size(40, 46); cell.cornerRadius = 9; cell.backgroundColor = colorOf(c);
-      if (d < today) cell.backgroundImage = pastCell(colorOf(c), 40, 46);
+      if (d < today) { cell.backgroundColor = dimC(colorOf(c)); cell.backgroundImage = pastCell(dimC(colorOf(c)), 40, 46); }
+      if (family !== 'small') cell.url = dayUrl(d);
       if (d === today) { cell.borderWidth = 2.5; cell.borderColor = WHITE; }
       cell.addSpacer(4);
       const l1 = cell.addStack(); l1.addSpacer(); txt(l1, JL[i], 10, { bold: true, color: INK }); l1.addSpacer();
@@ -160,7 +172,9 @@ else {
   } else if (view2 === 'mois') {
     W.setPadding(12, 12, 10, 12);
     const [y, m] = today.split('-').map(Number);
-    header(`${cap(MOIS[m - 1])} ${y} · ${label}`, nowWho ? `Chez ${short(nowWho)}` : '');
+    { const h = W.addStack(); h.layoutHorizontally(); h.centerAlignContent();
+      const tt = h.addStack(); tt.layoutVertically(); txt(tt, `${cap(MOIS[m - 1])} ${y}`, 15, { bold: true }); txt(tt, label, 11, { bold: true, color: new Color('#F1DFA8') });
+      h.addSpacer(); if (nowWho) txt(h, `Chez ${short(nowWho)}`, 12, { bold: true }); }
     W.addSpacer(6);
     const hr = W.addStack(); hr.layoutHorizontally();
     JL.forEach((j, i) => { const s = hr.addStack(); s.size = new Size(40, 14); s.addSpacer(); txt(s, j, 9, { bold: true, op: 0.7 }); s.addSpacer(); if (i < 6) hr.addSpacer(4); });
@@ -173,7 +187,8 @@ else {
         const d = addDays(start, wk * 7 + i), inM = +d.slice(5, 7) === m, c = code(K[0], d);
         const cell = r.addStack(); cell.size = new Size(40, weeks > 5 ? 24 : 28); cell.cornerRadius = 6; cell.centerAlignContent();
         cell.backgroundColor = inM ? colorOf(c) : new Color('#ffffff', 0.06);
-        if (inM && d < today) cell.backgroundImage = pastCell(colorOf(c), 40, weeks > 5 ? 24 : 28);
+        if (inM && d < today) { cell.backgroundColor = dimC(colorOf(c)); cell.backgroundImage = pastCell(dimC(colorOf(c)), 40, weeks > 5 ? 24 : 28); }
+        if (inM) cell.url = dayUrl(d);
         if (d === today) { cell.borderWidth = 2; cell.borderColor = WHITE; }
         cell.addSpacer(); txt(cell, String(+d.slice(8)), 11, { bold: true, color: inM ? ((feed.off || {})[d] ? new Color('#C0392B') : INK) : new Color('#ffffff', 0.35) }); cell.addSpacer();
         if (i < 6) r.addSpacer(4);

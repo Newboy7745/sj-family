@@ -1,0 +1,3 @@
+tests/rules/firestore.rules
+tests/rules/result.txt
+tests/rules/node_modules/
