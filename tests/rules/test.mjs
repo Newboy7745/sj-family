@@ -85,6 +85,23 @@ await t('proche ne lit plus Documents', getDocs(collection(pr, `families/${F}/do
 await t('proche lit Tâches', getDocs(collection(pr, `families/${F}/tasks`)));
 await t('jeton widgets : parent écrit', setDoc(doc(pa, 'widgets/tok'), { fid: F, payload: '{}' }));
 await t('jeton widgets : lecture publique', getDoc(doc(env.unauthenticatedContext().firestore(), 'widgets/tok')));
+// Création d'un nouveau cercle (comme l'application ou l'installation express)
+const pz = as('pz');
+await t('nouveau parent crée son cercle', setDoc(doc(pz, 'families/fam2'), { name: 'F2', ownerUid: 'pz', joinCode: 'ZZZ999', memberUids: ['pz'], parents: { A: { uid: 'pz', name: 'Z' }, B: { uid: null, name: 'Y' } }, settings: {} }));
+await t('nouveau parent crée sa fiche', setDoc(doc(pz, 'families/fam2/members/pz'), { uid: 'pz', parentCode: 'A', role: 'parent' }));
+await t('nouveau parent crée le code', setDoc(doc(pz, 'joinCodes/ZZZ999'), { fid: 'fam2' }));
+await t('nouveau parent écrit son historique', setDoc(doc(pz, 'families/fam2/inbox/pz/items/a'), { by: 'pz', at: 3 }));
+await t('nouveau parent ajoute un enfant', setDoc(doc(pz, 'families/fam2/children/c1'), { prenom: 'A', photo: null }));
+await t('nouveau parent écrit childInfo', setDoc(doc(pz, 'families/fam2/childInfo/c1'), { cls: 'CM1' }));
+await t('nouveau parent importe un planning', setDoc(doc(pz, 'families/fam2/plannings/p1'), { state: 'active' }));
+await t('un inconnu ne lit pas le cercle', getDoc(doc(pr, 'families/fam2')), false);
+// Accusé de lecture, sac, souvenirs
+await t('parent écrit au proche', setDoc(doc(pa, `families/${F}/notes/n3`), { text: 'Merci', to: ['pr'], createdBy: 'pa' }));
+await t('proche marque la note lue', updateDoc(doc(pr, `families/${F}/notes/n3`), { 'ackBy.pr': 5 }));
+await t('proche ne modifie pas le texte', updateDoc(doc(pr, `families/${F}/notes/n3`), { text: 'x' }), false);
+await t('parent remplit le sac', setDoc(doc(pa, `families/${F}/sac/s1`), { name: 'Doudou', createdBy: 'pa' }));
+await t('proche sans accès ne voit pas le sac', getDocs(collection(pr, `families/${F}/sac`)), false);
+await t('parent supprime le souvenir du proche', deleteDoc(doc(pa, `families/${F}/memories/m1`)));
 await env.cleanup();
 console.log(`\n${n - fails}/${n} tests réussis`); console.log(`::notice title=Règles::${n - fails}/${n} tests réussis`);
 process.exit(fails ? 1 : 0);
