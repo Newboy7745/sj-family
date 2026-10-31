@@ -1,8 +1,8 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.5';
-import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe } from './core.js?v=6.5';
+import * as E from './engine.js?v=6.6';
+import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove } from './core.js?v=6.6';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.5';
+import { esc, fmtAgo } from './ui.js?v=6.6';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -68,6 +68,9 @@ export function pendingItems() {
   if (xs.length) out.push({ i: '🔄', t: `${xs.length} demande${xs.length > 1 ? 's' : ''} d'échange à traiter`, s: xs.map(x => x.summary || '').slice(0, 2).join(' · '), go: 'exchanges' });
   const f = S.family;
   if (f?.pendingSettings && f.pendingSettings.by !== me) out.push({ i: '⏰', t: 'Modification des horaires de relais à valider', s: `Par ${f.pendingSettings.byName}`, go: 'settings' });
+  const am = S.memories.filter(canApprove).length, ad = S.docs.filter(canApprove).length;
+  if (am) out.push({ i: '📸', t: `${am} souvenir${am > 1 ? 's' : ''} à valider`, s: 'Visibles par les proches après votre accord (48 h max)', go: 'memories' });
+  if (ad) out.push({ i: '📁', t: `${ad} document${ad > 1 ? 's' : ''} à valider`, s: 'Ajouté(s) par l\'autre parent', go: 'docs' });
   for (const m of S.members.filter(x => x.pendingPerms && x.pendingPerms.by !== me)) out.push({ i: '🔐', t: `Accès de ${m.prenom || m.name} à valider`, s: `Proposé par ${m.pendingPerms.byName || memberName(m.pendingPerms.by)}`, go: 'family' });
   return out;
 }

@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.5';
-import { createBackend } from './backend.js?v=6.5';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily } from './core.js?v=6.5';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.5';
-import * as Home from './views-home.js?v=6.5';
-import * as Agenda from './views-agenda.js?v=6.5';
-import * as Plan from './views-planning.js?v=6.5';
-import * as Exch from './views-exchange.js?v=6.5';
-import * as Fam from './views-family.js?v=6.5';
-import * as Bud from './views-budget.js?v=6.5';
-import * as More from './views-more.js?v=6.5';
-import * as Admin from './views-admin.js?v=6.5';
-import * as Install from './install.js?v=6.5';
-import * as Sac from './views-sac.js?v=6.5';
-import * as Print from './print.js?v=6.5';
+import * as E from './engine.js?v=6.6';
+import { createBackend } from './backend.js?v=6.6';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.6';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.6';
+import * as Home from './views-home.js?v=6.6';
+import * as Agenda from './views-agenda.js?v=6.6';
+import * as Plan from './views-planning.js?v=6.6';
+import * as Exch from './views-exchange.js?v=6.6';
+import * as Fam from './views-family.js?v=6.6';
+import * as Bud from './views-budget.js?v=6.6';
+import * as More from './views-more.js?v=6.6';
+import * as Admin from './views-admin.js?v=6.6';
+import * as Install from './install.js?v=6.6';
+import * as Sac from './views-sac.js?v=6.6';
+import * as Print from './print.js?v=6.6';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -282,13 +282,18 @@ function ensureData() {
     // ancien journal commun (avant les historiques personnels)
     unData.push(S.be.db.listenCol(P('activity'), rows => { S.legacy = rows; S.render(); }, { where: [['at', '<', LEGACY_T0]], orderBy: ['at', 'desc'], limit: 150 }, err => console.warn('legacy', err?.code || err)));
   } else {
-    for (const sub of ['children', 'plannings', 'events', 'memories']) listenSub(sub, P(sub));
+    for (const sub of ['children', 'plannings', 'events']) listenSub(sub, P(sub));
+    // souvenirs et documents : publiés (validés) + les siens en attente
+    const pubMine = (sub) => { let a = [], b = []; const m = () => { const x = new Map(); for (const r of [...a, ...b]) x.set(r.id, r); S[sub] = [...x.values()]; };
+      listenSub(sub, P(sub), { where: [['pub', '==', true]] }, rows => { a = rows; m(); }); listenSub(sub + 'Mine', P(sub), { where: [['createdBy', '==', me]] }, rows => { b = rows; m(); }); };
+    pubMine('memories');
     listenSub('exchanges', P('exchanges'), { where: [['state', '==', 'accepted']] });
     let toMe = [], byMe = [];
     const mergeNotes = () => { const m = new Map(); for (const n of [...toMe, ...byMe]) m.set(n.id, n); S.notes = [...m.values()]; };
     listenSub('notes', P('notes'), { where: [['to', 'array-contains', me]] }, rows => { toMe = rows; mergeNotes(); });
     listenSub('notesMine', P('notes'), { where: [['createdBy', '==', me]] }, rows => { byMe = rows; mergeNotes(); });
-    for (const sub of ['docs', 'tasks', 'contacts', 'expenses']) if (perms[sub]) listenSub(sub, P(sub));
+    if (perms.docs) pubMine('docs');
+    for (const sub of ['tasks', 'contacts', 'expenses']) if (perms[sub]) listenSub(sub, P(sub));
     if (perms.sac) { listenSub('sac', P('sac')); listenSub('sacRuns', P('sacRuns')); }
   }
 }
@@ -341,6 +346,15 @@ async function migrate() {
     if (S.loaded.memories) for (const m of S.memories.filter(x => x.blobId && !x.bk)) {
       try { await db.update(`families/${fid}/blobs/${m.blobId}`, { kind: 'mem' }); } catch (e) { /* */ }
       await db.update(`families/${fid}/memories/${m.id}`, { bk: 1 });
+    }
+    // 6) importations : anciennes = publiées ; sans refus 48 h après l'ajout = publiées automatiquement
+    for (const sub of ['memories', 'docs']) if (S.loaded[sub]) {
+      const now = Date.now(); let auto = 0;
+      for (const it of S[sub]) {
+        if (it.pub === undefined) await db.update(`families/${fid}/${sub}/${it.id}`, { pub: true });
+        else if (it.pub === false && !it.refused && (it.createdAt || 0) + 48 * 3600000 < now) { await db.update(`families/${fid}/${sub}/${it.id}`, { pub: true, okAuto: true, okAt: now }); auto++; }
+      }
+      if (auto && sub === 'memories') await log('souvenirs', `📸 ${auto} souvenir${auto > 1 ? 's' : ''} publié${auto > 1 ? 's' : ''} (48 h sans refus)`, { to: 'all', icon: '📸' });
     }
     S.migrated = true;
   } catch (e) { console.warn('migration', e?.code || e); }

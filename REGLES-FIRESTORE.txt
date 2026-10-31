@@ -1,5 +1,5 @@
 rules_version = '2';
-// SJ Family v6.4 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// SJ Family v6.6 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
 // Parents : tout le cercle. Proches : agenda à jour, souvenirs, notes qui leur sont adressées, et les rubriques
 // ouvertes par les parents (validées par l'autre parent). Historique personnel pour chacun (inbox).
 service cloud.firestore {
@@ -103,10 +103,12 @@ service cloud.firestore {
         allow create: if isMember(fid) && byMe();
         allow update, delete: if isParent(fid) || (isMember(fid) && mine());
       }
+      // Souvenirs : les proches ne voient que ceux validés par un parent (pub) et les leurs
       match /memories/{id} {
-        allow read: if isMember(fid);
-        allow create: if isMember(fid) && byMe();
-        allow update, delete: if isParent(fid) || (isMember(fid) && mine());
+        allow read: if isParent(fid) || (isMember(fid) && (resource.data.pub == true || resource.data.createdBy == request.auth.uid));
+        allow create: if isMember(fid) && byMe() && (isParent(fid) || request.resource.data.pub == false);
+        allow update: if isParent(fid) || (isMember(fid) && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false));
+        allow delete: if isParent(fid) || (isMember(fid) && mine());
       }
       // Notes de liaison : les parents voient tout ; un proche voit celles qui lui sont adressées et les siennes
       match /notes/{id} {
@@ -129,9 +131,9 @@ service cloud.firestore {
       }
       // Rubriques ouvertes aux proches sur autorisation des parents
       match /docs/{id} {
-        allow read: if isParent(fid) || perm(fid, 'docs');
-        allow create: if (isParent(fid) || perm(fid, 'docs')) && byMe();
-        allow update: if isParent(fid) || perm(fid, 'docs');
+        allow read: if isParent(fid) || (perm(fid, 'docs') && (resource.data.pub == true || resource.data.createdBy == request.auth.uid));
+        allow create: if (isParent(fid) || (perm(fid, 'docs') && request.resource.data.pub == false)) && byMe();
+        allow update: if isParent(fid) || (perm(fid, 'docs') && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false));
         allow delete: if isParent(fid) || (perm(fid, 'docs') && mine());
       }
       match /tasks/{id} {

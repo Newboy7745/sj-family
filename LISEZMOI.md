@@ -115,7 +115,17 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   essayer sans toucher au vrai cercle ; « Passer en Maman TEST » / « Revenir à mon compte ».
 - Widget Pleine page : 5 colonnes par défaut, légende « RDV ».
 
-## 10. Nettoyer les comptes de test (console Firebase)
+## 10. Nouveautés 6.6
+
+- **Vidéos** dans les souvenirs : filmer ou importer (3 min max), compressées sur le téléphone (480p, MP4) et rangées
+  en morceaux dans Firestore (offre gratuite, 15 Mo max par vidéo).
+- **Validation des importations** : chaque souvenir (photo/vidéo) ou document ajouté est validé par l'autre parent ;
+  sans refus, publication automatique 48 h après l'ajout. Les proches ne voient que ce qui est publié.
+- Sac : retirer une affaire d'un relais ne la supprime jamais de la liste type ni des listes des vacances.
+- Lien d'import de listes préparées : `#/import?k=…` (outil `mklists.py`).
+- Règles Firestore v6.6 à republier.
+
+## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.
 - *Firestore Database › Données* : menu ⋮ de chaque collection (`users`, `families`, `joinCodes`, `widgets`, `stats`, anciennes `circles`/`admin`) › **Supprimer la collection**.

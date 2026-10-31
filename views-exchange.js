@@ -1,7 +1,7 @@
 // ═══════════════ Échanges de garde & horaires de relais (avec validation de l'autre parent) ═══════════════
-import * as E from './engine.js?v=6.5';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.5';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.5';
+import * as E from './engine.js?v=6.6';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.6';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.6';
 
 const ST = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'], cancelled: ['', 'Annulée'] };
 export function pendingForMe() { return isParent() ? S.exchanges.filter(x => x.state === 'pending' && x.proposedBy !== uid()).length : 0; }

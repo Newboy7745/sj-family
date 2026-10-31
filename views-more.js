@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.5';
-import { randomId } from './backend.js?v=6.5';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe } from './core.js?v=6.5';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet } from './ui.js?v=6.5';
-import { kidChips, countdown, pendingItems } from './views-home.js?v=6.5';
-import { createFamily } from './views-family.js?v=6.5';
-import { openPrint } from './print.js?v=6.5';
+import * as E from './engine.js?v=6.6';
+import { randomId } from './backend.js?v=6.6';
+import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche } from './core.js?v=6.6';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.6';
+import { kidChips, countdown, pendingItems } from './views-home.js?v=6.6';
+import { createFamily } from './views-family.js?v=6.6';
+import { openPrint } from './print.js?v=6.6';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -86,7 +86,7 @@ async function saveBlob(data, mime, name, kind = 'doc', extra = {}) { const id =
 async function fileDoc(file, { title, cat, childIds, fromNote = null }) {
   const db = S.be.db, bid = db.newId(), id = db.newId(), now = Date.now();
   await Promise.all([
-    db.set(fpath('docs', id), { title, cat: cat || 'autre', childIds: childIds || [], blobId: bid, mime: file.mime, size: (file.data || '').length, thumb: file.thumb || null, fromNote, createdAt: now, createdBy: uid(), createdByName: myName() }),
+    db.set(fpath('docs', id), { title, cat: cat || 'autre', childIds: childIds || [], blobId: bid, mime: file.mime, size: (file.data || '').length, thumb: file.thumb || null, fromNote, pub: !needApproval(), createdAt: now, createdBy: uid(), createdByName: myName() }),
     db.set(fpath('blobs', bid), { data: file.data, mime: file.mime, name: file.name || '', kind: 'doc', at: now, by: uid() }),
   ]);
   return id;
@@ -150,7 +150,8 @@ export const views = {
       title: 'Documents', back: 'home',
       html: `${kidChips()}${can('docs') ? `<button class="btn primary block mb mt" data-act="doc-new">${IC.plus} Ajouter un document</button>` : ''}
       <div class="chips scroll mb"><button class="chip sm ${!cat ? 'on' : ''}" data-go="docs">Tous</button>${DCATS.map(c => `<button class="chip sm ${cat === c.v ? 'on' : ''}" data-go="docs" data-params='{"cat":"${c.v}"}'>${c.l}</button>`).join('')}</div>
-      <div class="card">${list.length ? list.map(d => `<div class="li"><button data-act="doc-open" data-id="${d.id}">${thumbHtml(d.thumb, d.mime)}</button><button class="f1" style="text-align:left" data-act="doc-open" data-id="${d.id}"><div class="lt">${esc(d.title)}</div><div class="ls">${DCATS.find(c => c.v === d.cat)?.l || ''}${d.childIds?.length ? ' · ' + esc(childNames(d.childIds)) : ''} · ${E.fmtDate(E.todayISO(new Date(d.createdAt || Date.now())), 'num')} · ${esc(d.createdByName || '')}${d.fromNote ? ' · 📒 note' : ''}</div></button>
+      <div class="card">${list.length ? list.map(d => `<div class="li"><button data-act="doc-open" data-id="${d.id}">${thumbHtml(d.thumb, d.mime)}</button><button class="f1" style="text-align:left" data-act="doc-open" data-id="${d.id}"><div class="lt">${esc(d.title)}</div>${d.pub === false ? `<div class="ls" style="color:var(--warn)">${esc(approvalText(d))}</div>` : ''}<div class="ls">${DCATS.find(c => c.v === d.cat)?.l || ''}${d.childIds?.length ? ' · ' + esc(childNames(d.childIds)) : ''} · ${E.fmtDate(E.todayISO(new Date(d.createdAt || Date.now())), 'num')} · ${esc(d.createdByName || '')}${d.fromNote ? ' · 📒 note' : ''}</div></button>
+        ${canApprove(d) ? `<button class="ib" style="background:var(--ok-l);color:var(--ok)" data-act="appr-ok" data-c="docs" data-id="${d.id}">✓</button><button class="ib" style="background:var(--err-l);color:var(--err)" data-act="appr-no" data-c="docs" data-id="${d.id}">✗</button>` : ''}
         ${isParent() || d.createdBy === uid() ? `<button class="ib" data-act="doc-del" data-id="${d.id}">${IC.trash}</button>` : ''}</div>`).join('') : '<div class="empty"><div class="e-i">📁</div>Coffre-fort vide. Ajoutez carnet de santé, certificats, jugement…</div>'}</div>
       <div class="hint center">Photos compressées automatiquement · PDF jusqu'à 700 Ko.</div>`,
     };
@@ -167,10 +168,14 @@ export const views = {
   },
   memories() {
     const list = S.memories.filter(matchKids).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.createdAt - a.createdAt);
+    const todo = list.filter(canApprove);
     return {
       title: 'Souvenirs', back: isParent() ? 'home' : null,
-      html: `${kidChips()}<button class="btn primary block mb mt" data-act="mem-new">📸 Ajouter des photos</button>
-      ${list.length ? `<div class="grid3">${list.map(m => `<button class="ph" data-act="mem-open" data-id="${m.id}">${m.thumb ? `<img src="${m.thumb}" alt="">` : '📷'}<span>${esc(m.title || E.fmtDate(m.date, 'short'))}</span></button>`).join('')}</div>` : '<div class="card empty"><div class="e-i">📸</div>Partagez les beaux moments avec l\'autre parent.</div>'}`,
+      html: `${kidChips()}<button class="btn primary block mb mt" data-act="mem-new">📸 Ajouter des photos ou des vidéos</button>
+      ${todo.length ? `<div class="alert"><div class="ai">⏳</div><div class="f1"><div class="at">${todo.length} souvenir${todo.length > 1 ? 's' : ''} à valider</div><div class="small">Visibles par tout le cercle après votre accord (publiés automatiquement 48 h après l'ajout sans refus).</div>
+        <div class="row gap mt"><button class="btn ok sm" data-act="appr-all" data-c="memories">✓ Tout valider</button></div></div></div>` : ''}
+      ${list.length ? `<div class="grid3">${list.map(m => `<button class="ph ${m.pub === false ? 'pend' : ''}" data-act="mem-open" data-id="${m.id}">${m.thumb ? `<img src="${m.thumb}" alt="">` : '📷'}${m.type === 'video' ? '<i class="play">▶</i>' : ''}${m.pub === false ? `<b class="pb">${m.refused ? '❌' : '⏳'}</b>` : ''}<span>${esc(m.title || E.fmtDate(m.date, 'short'))}</span></button>`).join('')}</div>` : '<div class="card empty"><div class="e-i">📸</div>Partagez les beaux moments avec l\'autre parent.</div>'}
+      <div class="hint center">Chaque photo ou vidéo ajoutée est validée par l'autre parent (sous 48 h) avant d'être visible par les proches.</div>`,
     };
   },
   notifs(p) {
@@ -377,30 +382,100 @@ export const actions = {
   'ct-del': async el => { const c = S.contacts.find(x => x.id === el.dataset.id); if (!c) return; if (!(await confirmBox('Supprimer ce contact ?', esc(c.name), 'Supprimer', true))) return; await guard(() => S.be.db.del(fpath('contacts', c.id)), 'Contact supprimé'); closeSheet(); },
   // souvenirs
   'mem-new': () => {
-    const sh = openSheet(`<h3 class="sh-title">📸 Nouveaux souvenirs</h3><label class="btn soft block">${IC.camera} Choisir des photos<input type="file" accept="image/*" multiple class="hide" data-m="1"></label><div class="grid3 mt" data-part="pv"></div>
+    const sh = openSheet(`<h3 class="sh-title">📸 Nouveaux souvenirs</h3>
+      <div class="row gap wrap"><label class="btn soft f1">${IC.camera} Photo<input type="file" accept="image/*" capture="environment" class="hide" data-m="1"></label>
+        <label class="btn soft f1">🎥 Filmer<input type="file" accept="video/*" capture="environment" class="hide" data-m="1"></label></div>
+      <label class="btn soft block mt">🖼️ Galerie : photos et vidéos<input type="file" accept="image/*,video/*" multiple class="hide" data-m="1"></label>
+      <div class="grid3 mt" data-part="pv"></div><div class="hint" data-part="st"></div>
       <label class="lbl">Titre</label><input class="in" name="title" placeholder="Ex. Anniversaire de Jandal"><label class="lbl">Date</label><input class="in" type="date" name="date" value="${E.todayISO()}">
       <label class="lbl">Texte</label><textarea class="in" name="text" rows="3"></textarea><label class="lbl">Enfants</label>${kidChipsForm()}
+      <div class="hint">${needApproval() ? "L'autre parent valide sous 48 h avant que les proches les voient." : 'Visibles tout de suite par le cercle.'} Vidéos : 3 minutes maximum, compressées automatiquement.</div>
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="mem-save">Enregistrer</button></div>`);
-    sh.querySelector('[data-m]').addEventListener('change', async e => {
-      sh._photos = [];
-      for (const file of [...e.target.files].slice(0, 12)) { try { sh._photos.push({ full: await compressImage(file, 1400, 0.72), thumb: await compressImage(file, 320, 0.6) }); } catch (x) { /* */ } }
-      sh.querySelector('[data-part="pv"]').innerHTML = sh._photos.map(p => `<div class="ph"><img src="${p.thumb}"></div>`).join('');
-    });
+    sh._media = [];
+    const render = () => { sh.querySelector('[data-part="pv"]').innerHTML = sh._media.map(p => `<div class="ph">${p.thumb ? `<img src="${p.thumb}">` : ''}${p.type === 'video' ? '<i class="play">▶</i>' : ''}</div>`).join(''); };
+    sh.querySelectorAll('[data-m]').forEach(inp => inp.addEventListener('change', async e => {
+      const st = sh.querySelector('[data-part="st"]'), save = sh.querySelector('[data-act="mem-save"]');
+      save.disabled = true;
+      for (const file of [...e.target.files].slice(0, 12)) {
+        try {
+          if ((file.type || '').startsWith('video')) {
+            st.textContent = '🎥 Préparation de la vidéo… 0 %';
+            const v = await compressVideo(file, k => { st.textContent = `🎥 Préparation de la vidéo… ${Math.round(k * 100)} % (gardez l'écran allumé)`; });
+            sh._media.push({ type: 'video', blob: v.blob, mime: v.mime, thumb: v.poster, dur: v.dur });
+          } else sh._media.push({ type: 'photo', full: await compressImage(file, 1400, 0.72), thumb: await compressImage(file, 320, 0.6) });
+          render();
+        } catch (x) { toast(x.message || 'Fichier illisible', 'err', 5000); }
+      }
+      st.textContent = sh._media.length ? `${sh._media.length} élément${sh._media.length > 1 ? 's' : ''} prêt${sh._media.length > 1 ? 's' : ''}` : '';
+      save.disabled = false;
+    }));
   },
   'mem-save': async el => {
-    const sh = el.closest('.sheet'), f = readForm(sh); if (!sh._photos?.length) return toast('Choisissez au moins une photo.', 'warn');
-    el.disabled = true; toast('Envoi des photos…', 'ok', 1500);
-    const ok = await guard(async () => { for (const p of sh._photos) { const bid = await saveBlob(p.full, 'image/jpeg', 'photo.jpg', 'mem'); await addItem('memories', { title: f.title, date: f.date, text: f.text, childIds: f.childIds, thumb: p.thumb, blobId: bid, bk: 1 }); } await log('souvenirs', `${sh._photos.length} nouveau${sh._photos.length > 1 ? 'x' : ''} souvenir${sh._photos.length > 1 ? 's' : ''}${f.title ? ' : ' + f.title : ''}`, { to: 'all', icon: '📸' }); return true; }, 'Souvenirs enregistrés');
+    const sh = el.closest('.sheet'), f = readForm(sh); if (!sh._media?.length) return toast('Choisissez au moins une photo ou une vidéo.', 'warn');
+    el.disabled = true; toast('Envoi…', 'ok', 1500);
+    const pub = !needApproval();
+    const ok = await guard(async () => {
+      const db = S.be.db;
+      for (const p of sh._media) {
+        const id = db.newId(), base = { title: f.title, date: f.date, text: f.text, childIds: f.childIds, thumb: p.thumb, bk: 1, pub, createdAt: Date.now(), createdBy: uid(), createdByName: myName() };
+        if (p.type === 'video') {
+          const b64 = await blobToBase64(p.blob), CH = 700000, n = Math.ceil(b64.length / CH);
+          for (let i = 0; i < n; i++) await db.set(fpath('blobs', `${id}_v${i}`), { data: b64.slice(i * CH, (i + 1) * CH), i, kind: 'mem', at: Date.now(), by: uid() });
+          await db.set(fpath('memories', id), { ...base, type: 'video', mime: p.mime, chunks: n, size: p.blob.size, dur: Math.round(p.dur || 0) });
+        } else {
+          const bid = await saveBlob(p.full, 'image/jpeg', 'photo.jpg', 'mem');
+          await db.set(fpath('memories', id), { ...base, type: 'photo', blobId: bid });
+        }
+      }
+      const n = sh._media.length, what = `${n} nouveau${n > 1 ? 'x' : ''} souvenir${n > 1 ? 's' : ''}${f.title ? ' : ' + f.title : ''}`;
+      if (pub) await log('souvenirs', what, { to: 'all', icon: '📸' });
+      else await log('souvenirs', `${what} — à valider`, { icon: '⏳', body: 'Visible par les proches après validation (48 h max)' });
+      return true;
+    }, pub ? 'Souvenirs enregistrés' : 'Souvenirs envoyés pour validation');
     if (ok) closeSheet(); else el.disabled = false;
   },
   'mem-open': async el => {
     const m = S.memories.find(x => x.id === el.dataset.id); if (!m) return;
     const sh = openSheet(`<h3 class="sh-title">${esc(m.title || 'Souvenir')}</h3><div class="muted small">${E.fmtDate(m.date)} · ${esc(m.createdByName || '')}${m.childIds?.length ? ' · ' + esc(childNames(m.childIds)) : ''}</div>
-      <div data-part="b"><img class="receipt" src="${m.thumb}"></div>${m.text ? `<p>${esc(m.text)}</p>` : ''}
+      ${m.pub === false ? `<div class="alert mt"><div class="ai">${m.refused ? '❌' : '⏳'}</div><div class="f1 small">${esc(approvalText(m))}${canApprove(m) ? `<div class="row gap mt"><button class="btn ok sm" data-act="appr-ok" data-c="memories" data-id="${m.id}">✓ Valider</button><button class="btn danger sm" data-act="appr-no" data-c="memories" data-id="${m.id}">✗ Refuser</button></div>` : ''}</div></div>` : ''}
+      <div data-part="b">${m.type === 'video' ? `<div class="vidwait"><img class="receipt" src="${m.thumb}"><div class="small muted center">Chargement de la vidéo…</div></div>` : `<img class="receipt" src="${m.thumb}">`}</div>${m.text ? `<p>${esc(m.text)}</p>` : ''}
       <div class="sh-actions">${m.createdBy === uid() || isParent() ? `<button class="btn danger" data-act="mem-del" data-id="${m.id}">${IC.trash}</button>` : ''}<button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
-    const b = await S.be.db.get(fpath('blobs', m.blobId)); if (b) sh.querySelector('[data-part="b"]').innerHTML = `<img class="receipt" style="max-height:70vh" src="${b.data}">`;
+    const box = sh.querySelector('[data-part="b"]');
+    if (m.type === 'video') {
+      try {
+        const parts = []; for (let i = 0; i < (m.chunks || 0); i++) { const c = await S.be.db.get(fpath('blobs', `${m.id}_v${i}`)); if (!c) throw new Error('morceau manquant'); parts.push(c.data); }
+        const url = URL.createObjectURL(base64ToBlob(parts, m.mime || 'video/mp4'));
+        box.innerHTML = `<video class="receipt" style="max-height:70vh;background:#000" src="${url}" poster="${m.thumb}" controls playsinline></video>`;
+      } catch (e) { box.innerHTML = '<p class="muted">Vidéo indisponible.</p>'; }
+    } else { const b = await S.be.db.get(fpath('blobs', m.blobId)).catch(() => null); if (b) box.innerHTML = `<img class="receipt" style="max-height:70vh" src="${b.data}">`; }
   },
-  'mem-del': async el => { const m = S.memories.find(x => x.id === el.dataset.id); if (!m) return; if (!(await confirmBox('Supprimer ce souvenir ?', '', 'Supprimer', true))) return; await guard(async () => { await S.be.db.del(fpath('memories', m.id)); await S.be.db.del(fpath('blobs', m.blobId)); }, 'Souvenir supprimé'); closeSheet(); },
+  'mem-del': async el => {
+    const m = S.memories.find(x => x.id === el.dataset.id); if (!m) return; if (!(await confirmBox('Supprimer ce souvenir ?', '', 'Supprimer', true))) return;
+    await guard(async () => {
+      await S.be.db.del(fpath('memories', m.id));
+      if (m.type === 'video') { for (let i = 0; i < (m.chunks || 0); i++) await S.be.db.del(fpath('blobs', `${m.id}_v${i}`)).catch(() => { }); }
+      else if (m.blobId) await S.be.db.del(fpath('blobs', m.blobId)).catch(() => { });
+    }, 'Souvenir supprimé'); closeSheet();
+  },
+  // ───── validation des importations par l'autre parent (souvenirs, documents)
+  'appr-ok': async el => {
+    const c = el.dataset.c, it = S[c].find(x => x.id === el.dataset.id); if (!canApprove(it)) return;
+    await guard(async () => {
+      await updItem(c, it.id, { pub: true, okBy: uid(), okByName: myName(), okAt: Date.now() });
+      await log(c === 'memories' ? 'souvenirs' : 'documents', c === 'memories' ? `📸 Nouveau souvenir${it.title ? ' : ' + it.title : ''}` : `Document validé : ${it.title}`, { to: c === 'memories' ? 'all' : 'parents', icon: c === 'memories' ? '📸' : '✅', body: `ajouté par ${it.createdByName || ''}` });
+    }, 'Validé ✓');
+    if (el.closest('.sheet')) closeSheet();
+  },
+  'appr-no': async el => {
+    const c = el.dataset.c, it = S[c].find(x => x.id === el.dataset.id); if (!canApprove(it)) return;
+    if (!(await confirmBox('Refuser ?', 'Il ne sera pas visible par les proches. La personne qui l\'a ajouté pourra le supprimer.', 'Refuser', true))) return;
+    await guard(async () => { await updItem(c, it.id, { refused: true, refusedBy: uid(), refusedByName: myName(), refusedAt: Date.now() }); await log(c === 'memories' ? 'souvenirs' : 'documents', `${c === 'memories' ? 'Souvenir' : 'Document'} refusé${it.title ? ' : ' + it.title : ''}`, { icon: '❌' }); }, 'Refusé');
+    if (el.closest('.sheet')) closeSheet();
+  },
+  'appr-all': async el => {
+    const c = el.dataset.c, items = S[c].filter(canApprove); if (!items.length) return;
+    await guard(async () => { for (const it of items) await updItem(c, it.id, { pub: true, okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('souvenirs', `📸 ${items.length} nouveau${items.length > 1 ? 'x' : ''} souvenir${items.length > 1 ? 's' : ''}`, { to: 'all', icon: '📸' }); }, 'Tout est validé ✓');
+  },
   // réglages
   'set-relais': () => relaisEditor(),
   'rl-add': () => ruleSheet(),

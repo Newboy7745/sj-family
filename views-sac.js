@@ -1,8 +1,8 @@
 // ═══════════════ Sac : affaires de chaque relais + listes des vacances (demandées ou envoyées, aller / retour) ═══════════════
-import * as E from './engine.js?v=6.5';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go } from './core.js?v=6.5';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.5';
-import { kidChips } from './views-home.js?v=6.5';
+import * as E from './engine.js?v=6.6';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go } from './core.js?v=6.6';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.6';
+import { kidChips } from './views-home.js?v=6.6';
 
 const runKey = h => `${h.date}_${h.time.replace(':', '')}_${h.to}`;
 const relaisItems = () => S.sac.filter(i => !i.kind);
@@ -197,7 +197,8 @@ function itemSheet(i = null, o = {}) {
     <div class="two"><div><label class="lbl">Quantité</label><input class="in" type="number" min="1" name="qty" value="${x.qty || 1}"></div><div></div></div>
     <label class="lbl">Enfants</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: `${kidAvatar(c, 20)} ${esc(c.prenom)}` })), x.childIds || [], { multi: true })}
     <label class="row gap mt"><span class="sw"><input type="checkbox" name="perm" ${x.perm ? 'checked' : ''}><span></span></span><span class="f1">À chaque relais (liste type)</span></label>
-    <div class="sh-actions">${i ? `<button class="btn danger" data-act="sac-del" data-id="${i.id}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="sac-save" data-id="${i?.id || ''}" data-k="${o.k || i?.runKey || ''}">Enregistrer</button></div>`);
+    ${i && o.relais && i.perm ? '<div class="hint">Cette affaire vient de la liste type : la retirer de ce relais ne la supprime ni de la liste type, ni des listes des vacances.</div>' : ''}
+    <div class="sh-actions">${i ? (o.relais && i.perm ? `<button class="btn danger" data-act="sac-out-one" data-id="${i.id}" title="Retirer de ce relais">${IC.trash}</button>` : `<button class="btn danger" data-act="sac-del" data-id="${i.id}">${IC.trash}</button>`) : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="sac-save" data-id="${i?.id || ''}" data-k="${o.k || i?.runKey || ''}">Enregistrer</button></div>`);
   sh._photo = x.photo || null;
   sh.querySelectorAll('[data-ph]').forEach(inp => inp.addEventListener('change', async () => {
     const f = inp.files[0]; if (!f) return;
@@ -241,7 +242,11 @@ export const actions = {
   'sac-sel-one': el => { const s = sel(); s.has(el.dataset.id) ? s.delete(el.dataset.id) : s.add(el.dataset.id); S.render(); },
   'sac-sel-all': el => { const ids = el.dataset.ids.split(',').filter(Boolean), s = sel(), all = ids.every(id => s.has(id)); s.clear(); if (!all) ids.forEach(id => s.add(id)); S.render(); },
   'sac-new': el => itemSheet(null, { perm: el.dataset.perm === '1', k: el.dataset.k || '' }),
-  'sac-item': el => { if (S.ui.sacSelOn) { actions['sac-sel-one'](el); return; } const i = S.sac.find(x => x.id === el.dataset.id); if (i) itemSheet(i); },
+  'sac-item': el => { if (S.ui.sacSelOn) { actions['sac-sel-one'](el); return; } const i = S.sac.find(x => x.id === el.dataset.id); if (i) itemSheet(i, { relais: (S.ui.sacTab || 'relais') === 'relais' }); },
+  'sac-out-one': async el => {
+    const h = S.ui.sacPick, i = S.sac.find(x => x.id === el.dataset.id); if (!h || !i) return;
+    await guard(() => setRun(runKey(h), { excluded: { [i.id]: true } }), 'Retiré de ce relais'); closeSheet();
+  },
   'sac-ph-del': el => { const sh = el.closest('.sheet'); sh._photo = null; sh.querySelector('[data-part="ph"]').innerHTML = '<span>🎒</span>'; },
   'sac-save': async el => {
     const sh = el.closest('.sheet'), f = readForm(sh), id = el.dataset.id;
@@ -408,4 +413,46 @@ export const actions = {
     const miss = ids.filter(i => !st[i]?.got).map(i => l.items[i].name);
     await guard(async () => { await vupd(l.id, { [`phase.${ph}.gotAt`]: Date.now(), [`phase.${ph}.gotByName`]: myName() }); await log('sac', `📥 ${l.title} (${ph}) : réception ${gaps.length || miss.length ? 'avec écarts' : 'complète ✓'}`, { body: [...gaps, ...(miss.length ? ['non reçus : ' + miss.join(', ')] : [])].join(' · ').slice(0, 180), icon: gaps.length || miss.length ? '⚠️' : '📥' }); }, 'Réception confirmée');
   },
+};
+
+// ───── Import de listes préparées (lien #/import?k=…) : crée les listes des vacances dans le cercle ouvert
+function readImport(k) {
+  try { let b = String(k).replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '='; return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), c => c.charCodeAt(0)))); }
+  catch (e) { return null; }
+}
+function findPeriod(id) { const st = settings(); return E.schoolHolidays(st.zone || 'B', st.customHolidays || []).find(p => p.id === id) || null; }
+views.import = p => {
+  const d = p.k ? readImport(p.k) : S.ui.importData;
+  if (p.k && d) { S.ui.importData = d; history.replaceState(null, '', '#/import'); S.route = { view: 'import', params: {} }; }
+  if (!d?.lists?.length) return { title: 'Importer', back: 'sac', html: '<div class="card empty">Lien d\'import invalide ou déjà utilisé.</div>' };
+  if (!isParent()) return { title: 'Importer', back: 'home', html: '<div class="card empty">Réservé aux parents.</div>' };
+  const pr = parents(), me = myCode() || 'A';
+  return {
+    title: 'Importer des listes', back: 'sac',
+    html: `<div class="card"><h3>🧳 ${d.lists.length} listes des vacances</h3><p class="small muted" style="margin-top:0">Elles seront ajoutées au cercle <b>${esc(S.family?.name || '')}</b>, pour ${esc(childNames(S.children.map(c => c.id)))}.</p>
+      ${d.lists.map(l => { const per = findPeriod(l.per); return `<div class="per" style="align-items:flex-start"><div class="pi">${per?.i || '🏖️'}</div><div class="f1"><div class="pn">${esc(l.title)} · ${esc(per ? pLabel(per) : l.per)}</div>
+        <div class="pd">${l.dir === 'request' ? `${esc(pr[other(me)].name)} fournit` : `${esc(pr[me].name)} fournit`} · ${l.items.length} éléments</div>
+        <div class="tiny muted mt6">${l.items.map(i => `${esc(i[0])}${i[1] > 1 ? ' ×' + i[1] : ''}`).join(' · ')}</div></div></div>`; }).join('')}
+      <button class="btn primary block mt" data-act="import-go">✅ Ajouter ces listes</button></div>
+      ${S.ui.testHint ? '' : '<div class="hint center">Astuce : ouvrez d\'abord le cercle de test (Réglages › Mode test) pour essayer sans toucher au vrai cercle.</div>'}`,
+  };
+};
+actions['import-go'] = async el => {
+  const d = S.ui.importData; if (!d) return; el.disabled = true;
+  const me = myCode() || 'A', kids = S.children.map(c => c.id);
+  const ok = await guard(async () => {
+    let n = 0;
+    for (const l of d.lists) {
+      const per = findPeriod(l.per); if (!per) continue;
+      const items = {}; l.items.forEach((it, k) => { items[nid()] = { name: it[0], qty: Math.max(1, +it[1] || 1), desc: it[2] || '', order: k, photos: [] }; });
+      await S.be.db.set(fpath('sac', S.be.db.newId()), { kind: 'vlist', title: l.title, period: { id: per.id, n: per.n, i: per.i || '🏖️', s: per.s, e: per.e }, dir: l.dir || 'request', ownerCode: me, giver: (l.dir || 'request') === 'request' ? other(me) : me, childIds: kids, items, st: { aller: {}, retour: {} }, phase: {}, createdAt: Date.now(), createdBy: uid(), createdByName: myName() });
+      n++;
+    }
+    await log('sac', `🧳 ${n} listes des vacances ajoutées`, { body: d.lists.map(l => l.title).join(' · ').slice(0, 160), icon: '🧳' });
+    return n;
+  }, 'Listes ajoutées ✓');
+  if (ok) {
+    const first = d.lists.map(l => findPeriod(l.per)).filter(p => p && p.e >= E.todayISO()).sort((a, b) => a.s.localeCompare(b.s))[0];
+    S.ui.importData = null; S.ui.sacTab = 'vac'; if (first) S.ui.sacPer = first.id; go('sac');
+  } else el.disabled = false;
 };

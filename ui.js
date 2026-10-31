@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — utilitaires d'interface
 // ═══════════════════════════════════════════════════════════════
-import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.5';
+import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.6';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -159,6 +159,56 @@ export async function makeThumb(file, max = 260) {
     await page.render({ canvasContext: ctx, viewport: vp }).promise;
     return c.toDataURL('image/jpeg', 0.65);
   } catch (e) { console.warn('miniature PDF', e); return null; }
+}
+/**
+ * Vidéo : réencodage léger (480p, ~1 Mbit/s, MP4 si possible) pour tenir dans la base gratuite.
+ * onProgress(0..1). Renvoie { blob, mime, poster, dur }. Si le navigateur ne sait pas réencoder, renvoie l'original (≤ 15 Mo).
+ */
+export const VIDEO_MAX = 15 * 1024 * 1024;
+export async function compressVideo(file, onProgress = () => { }) {
+  const url = URL.createObjectURL(file);
+  const v = document.createElement('video'); v.src = url; v.playsInline = true; v.preload = 'auto'; v.crossOrigin = 'anonymous';
+  await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error('Vidéo illisible')); setTimeout(() => rej(new Error('Vidéo illisible')), 15000); });
+  const dur = v.duration || 0;
+  if (dur > 180.5) { URL.revokeObjectURL(url); throw new Error('Vidéo trop longue : 3 minutes maximum.'); }
+  const k = Math.min(1, 854 / Math.max(v.videoWidth || 854, v.videoHeight || 480));
+  const W = Math.max(2, Math.round((v.videoWidth || 854) * k / 2) * 2), H = Math.max(2, Math.round((v.videoHeight || 480) * k / 2) * 2);
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H; const g = cv.getContext('2d');
+  // image d'aperçu (1re image)
+  v.currentTime = Math.min(0.5, dur / 2); await new Promise(r => { v.onseeked = r; setTimeout(r, 2500); });
+  g.drawImage(v, 0, 0, W, H);
+  const pc = document.createElement('canvas'), pk = 320 / Math.max(W, H); pc.width = Math.round(W * pk); pc.height = Math.round(H * pk);
+  pc.getContext('2d').drawImage(cv, 0, 0, pc.width, pc.height); const poster = pc.toDataURL('image/jpeg', 0.6);
+  const types = ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp8,opus', 'video/webm'];
+  const type = window.MediaRecorder ? types.find(t => MediaRecorder.isTypeSupported(t)) : null;
+  if (!type || !cv.captureStream) {
+    URL.revokeObjectURL(url);
+    if (file.size > VIDEO_MAX) throw new Error('Vidéo trop lourde (15 Mo maximum) et impossible à compresser sur ce téléphone.');
+    return { blob: file, mime: file.type || 'video/mp4', poster, dur };
+  }
+  const stream = cv.captureStream(30);
+  let ac = null;
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); const src = ac.createMediaElementSource(v), dest = ac.createMediaStreamDestination(); src.connect(dest); dest.stream.getAudioTracks().forEach(t => stream.addTrack(t)); } catch (e) { /* vidéo sans son */ }
+  const rec = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 900000, audioBitsPerSecond: 64000 });
+  const parts = []; rec.ondataavailable = e => { if (e.data && e.data.size) parts.push(e.data); };
+  const done = new Promise(r => { rec.onstop = r; });
+  v.currentTime = 0; await new Promise(r => { v.onseeked = r; setTimeout(r, 1500); });
+  let live = true;
+  const draw = () => { if (!live) return; g.drawImage(v, 0, 0, W, H); onProgress(dur ? Math.min(1, v.currentTime / dur) : 0); (v.requestVideoFrameCallback ? v.requestVideoFrameCallback(draw) : requestAnimationFrame(draw)); };
+  rec.start(1000);
+  await v.play(); draw();
+  await new Promise(r => { v.onended = r; });
+  live = false; rec.stop(); await done;
+  try { ac && ac.close(); } catch (e) { /* */ }
+  URL.revokeObjectURL(url); onProgress(1);
+  const blob = new Blob(parts, { type: type.split(';')[0] });
+  if (blob.size > VIDEO_MAX) throw new Error('Vidéo trop lourde même compressée : raccourcissez-la (3 min max).');
+  return { blob, mime: type.split(';')[0], poster, dur };
+}
+export function blobToBase64(b) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1]); r.onerror = rej; r.readAsDataURL(b); }); }
+export function base64ToBlob(parts, mime) {
+  const chunks = parts.map(p => { const bin = atob(p), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; });
+  return new Blob(chunks, { type: mime });
 }
 export function dataURLtoBlob(d) {
   const [h, b] = d.split(','); const mime = h.match(/:(.*?);/)[1]; const bin = atob(b);

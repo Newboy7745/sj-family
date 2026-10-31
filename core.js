@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.5';
-import { toast, esc } from './ui.js?v=6.5';
+import * as E from './engine.js?v=6.6';
+import { toast, esc } from './ui.js?v=6.6';
 
-export const VERSION = '6.5';
+export const VERSION = '6.6';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';
@@ -252,6 +252,16 @@ export async function guard(fn, okMsg) {
   catch (e) { console.error(e); toast(errMsg(e), 'err', 4500); return undefined; }
 }
 export function needsValidation() { return isParent() && hasOtherParent(); }
+/** Importations (souvenirs, documents) : validées par l'autre parent sous 48 h avant d'être visibles de tout le cercle */
+export const APPROVE_MS = 48 * 3600000;
+export const needApproval = () => isParent() ? hasOtherParent() : true;
+export const canApprove = it => isParent() && it && it.pub === false && !it.refused && it.createdBy !== uid();
+export function approvalText(it) {
+  if (!it || it.pub !== false) return '';
+  if (it.refused) return `❌ Refusé par ${it.refusedByName || "l'autre parent"}`;
+  const left = Math.max(0, (it.createdAt || it.at || Date.now()) + APPROVE_MS - Date.now()), h = Math.ceil(left / 3600000);
+  return `⏳ À valider${isParent() && it.createdBy !== uid() ? '' : " par l'autre parent"} · publié automatiquement dans ${h} h sans refus`;
+}
 /** Note de liaison qui m'est adressée (les anciennes notes sans destinataires concernent les parents) */
 export const noteForMe = n => !n.to || n.to.includes(uid()) || (!n.to.length && n.createdBy === uid());
 /** Compte à rebours détaillé à la minute : « dans 1 j 21 h 12 min » */

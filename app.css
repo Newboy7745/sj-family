@@ -337,3 +337,9 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .vrow .in.sm{width:78px;text-align:center}
 .vi>.in.sm{margin:2px 0 4px}
 .testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF2D6;border:1.5px solid #F5D58A;border-radius:16px;padding:8px 12px;margin-bottom:12px;font-size:14px}
+
+/* ───── v6.6 : vidéos et validation des souvenirs */
+.grid3 .ph .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(15,27,45,.6);color:#fff;font-style:normal;display:grid;place-items:center;font-size:14px}
+.grid3 .ph .pb{position:absolute;right:5px;top:5px;font-size:15px;background:#fff;border-radius:50%;width:24px;height:24px;display:grid;place-items:center}
+.grid3 .ph.pend img{opacity:.6}
+.vidwait img{opacity:.6}
