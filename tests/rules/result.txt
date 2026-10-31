@@ -1,0 +1,111 @@
+[33m[1m⚠  emulators:[22m[39m You are not currently authenticated so some features may not work correctly. Please run [1mfirebase login[22m to authenticate the CLI.
+[36m[1mi  emulators:[22m[39m Starting emulators: firestore
+[36m[1mi  emulators:[22m[39m Detected demo project ID "demo-sjf", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+[33m[1m⚠ [22m[39m It appears you are running in a CI environment. You can avoid downloading the Firestore Emulator repeatedly by caching the /home/runner/.cache/firebase/emulators directory.
+[36m[1mi  firestore:[22m[39m downloading cloud-firestore-emulator-v1.19.8.jar...
+
+[36m[1mi  firestore:[22m[39m Firestore Emulator logging to [1mfirestore-debug.log[22m
+[32m[1m✔  firestore:[22m[39m Firestore Emulator UI websocket is running on 9150.
+[36m[1mi [22m[39m Running script: [1mnode test.mjs[22m
+✓ parent lit le cercle
+✓ parent liste les membres
+✓ parent lit childInfo
+✓ parent écrit private
+✓ parent migre le jeton
+✓ parent lit l'ancien journal
+✓ parent écrit son historique
+[2026-10-31T22:46:21.305Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c34 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L45
+✓ parent ne change pas le parent A
+✓ proche crée sa fiche avec le code
+[2026-10-31T22:46:21.368Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c35 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
+✓ proche ne peut pas se donner des droits
+[2026-10-31T22:46:21.388Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c36 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
+✓ proche ne peut pas devenir parent
+✓ proche s'ajoute à memberUids
+[2026-10-31T22:46:21.440Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c37 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L45
+✓ proche ne modifie pas les réglages
+✓ proche lit sa fiche
+✓ proche ne liste pas les membres
+✓ proche lit les enfants
+✓ proche ne lit pas childInfo
+✓ proche lit les plannings
+✓ proche lit les échanges acceptés
+✓ proche ne liste pas tous les échanges
+✓ proche ne lit pas private
+✓ proche écrit aux parents
+[2026-10-31T22:46:21.609Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c39 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L116:26 for 'create' @ L116, evaluation error at L118:26 for 'update' @ L118, false for 'create' @ L116
+✓ proche n'écrit pas à un autre proche
+✓ proche lit ses notes (créées)
+✓ proche lit les notes qui lui sont adressées
+✓ proche ne liste pas toutes les notes
+✓ proche lit une photo souvenir
+✓ proche ne lit pas un document
+✓ proche ne lit pas Documents
+✓ proche ajoute un souvenir (à valider)
+[2026-10-31T22:46:21.728Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c3a error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L109:26 for 'create' @ L109, evaluation error at L110:26 for 'update' @ L110, false for 'create' @ L109
+✓ proche ne publie pas lui-même
+✓ proche lit ses souvenirs en attente
+✓ proche lit les souvenirs publiés
+✓ proche ne liste pas tous les souvenirs
+[2026-10-31T22:46:21.793Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c3b error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L110:26 for 'update' @ L110, false for 'update' @ L110
+✓ proche ne valide pas son souvenir
+✓ parent valide le souvenir
+✓ proche ajoute un événement
+✓ proche notifie un parent
+✓ proche ne lit pas l'historique d'un parent
+✓ proche ne lit pas l'ancien journal
+✓ parent seul ouvre Documents
+✓ proche lit Documents publiés (autorisé)
+✓ proche ne liste pas tous les Documents
+✓ proche lit un document (autorisé)
+✓ parent B crée sa fiche
+✓ parent B prend la place B
+✓ parent B se déclare parent B
+✓ parent B lit childInfo
+[2026-10-31T22:46:21.978Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c3d error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L45:24 for 'update' @ L45, false for 'update' @ L45
+✓ un proche ne peut plus prendre la place B
+[2026-10-31T22:46:21.992Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c3c error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
+✓ parent A ne change plus seul les accès
+✓ parent A propose
+[2026-10-31T22:46:22.025Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c40 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L67:26 for 'update' @ L67, false for 'update' @ L67
+✓ parent A ne valide pas sa propre proposition
+✓ parent B valide
+✓ proche ne lit plus Documents
+✓ proche lit Tâches
+✓ jeton widgets : parent écrit
+✓ jeton widgets : lecture publique
+✓ nouveau parent crée son cercle
+✓ nouveau parent crée sa fiche
+✓ nouveau parent crée le code
+✓ nouveau parent écrit son historique
+✓ nouveau parent ajoute un enfant
+✓ nouveau parent écrit childInfo
+✓ nouveau parent importe un planning
+✓ un inconnu ne lit pas le cercle
+✓ parent écrit au proche
+✓ proche marque la note lue
+[2026-10-31T22:46:22.265Z]  @firebase/firestore: Firestore (10.12.0): GrpcConnection RPC 'Write' stream 0x81b92c44 error. Code: 7 Message: 7 PERMISSION_DENIED: 
+evaluation error at L118:26 for 'update' @ L118, false for 'update' @ L118
+✓ proche ne modifie pas le texte
+✓ parent remplit le sac
+✓ proche sans accès ne voit pas le sac
+✓ parent supprime le souvenir du proche
+
+71/71 tests réussis
+::notice title=Règles::71/71 tests réussis
+[32m[1m✔ [22m[39m Script exited successfully (code 0)
+[36m[1mi  emulators:[22m[39m Shutting down emulators.
+[36m[1mi  firestore:[22m[39m Stopping Firestore Emulator
+[36m[1mi  hub:[22m[39m Stopping emulator hub
+[36m[1mi  logging:[22m[39m Stopping Logging Emulator
+EXIT=0
