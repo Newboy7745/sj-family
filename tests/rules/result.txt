@@ -1,0 +1,8 @@
+[33m[1m⚠  emulators:[22m[39m You are not currently authenticated so some features may not work correctly. Please run [1mfirebase login[22m to authenticate the CLI.
+[36m[1mi  emulators:[22m[39m Starting emulators: firestore
+[36m[1mi  emulators:[22m[39m Detected demo project ID "demo-sjf", emulated services will use a demo configuration and attempts to access non-emulated services for this project will fail.
+[36m[1mi  emulators:[22m[39m Shutting down emulators.
+[36m[1mi  hub:[22m[39m Stopping emulator hub
+
+[1m[31mError:[39m[22m [1m../../firestore.rules[22m is outside of project directory
+EXIT=1
