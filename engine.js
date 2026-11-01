@@ -156,10 +156,12 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
     for (const c of x.childIds || []) {
       if (!ov.has(c)) { ov.set(c, new Map()); tov.set(c, new Map()); tovM.set(c, new Map()); }
       for (const ch of x.changes || []) { ov.get(c).set(ch.d, ch.to); ovSrc.set(c + '|' + ch.d, x.id); }
-      if (x.timeChange && x.timeChange.d) {
-        const m = x.timeChange.morning ? tovM.get(c) : tov.get(c); // relais du matin (jour même) ou du soir / de mi-journée
-        if (x.timeChange.reset) m.delete(x.timeChange.d); // retour à l'horaire habituel
-        else m.set(x.timeChange.d, { time: x.timeChange.time, place: x.timeChange.place || '', midday: !!x.timeChange.midday });
+      // horaires convenus : un seul (échange d'horaire) ou plusieurs (début et fin d'un échange de jours)
+      for (const tc of [...(x.timeChange?.d ? [x.timeChange] : []), ...(x.timeChanges || [])]) {
+        if (!tc?.d) continue;
+        const m = tc.morning ? tovM.get(c) : tov.get(c); // relais du matin (jour même) ou du soir / de mi-journée
+        if (tc.reset) m.delete(tc.d); // retour à l'horaire habituel
+        else m.set(tc.d, { time: tc.time, place: tc.place || '', midday: !!tc.midday });
       }
     }
   });
@@ -468,7 +470,7 @@ export function buildICS({ engine, childIds, children, parents, from, to, events
 }
 
 // ───────────── Flux des widgets (lu par l'app Android et Scriptable) ─────────────
-export function buildFeed({ engine, family, children, parents, events = [], tasks = [], notes = [], includeHealth = false, today = todayISO(), appUrl }) {
+export function buildFeed({ engine, family, children, parents, events = [], tasks = [], notes = [], includeHealth = false, today = todayISO(), appUrl, apk = 0 }) {
   const prevMonth = (() => { let [y, m] = today.split('-').map(Number); m--; if (m < 1) { m = 12; y--; } return `${y}-${pad(m)}-01`; })();
   // début du flux : jusqu'à un an en arrière (navigation ‹ › dans les widgets), au moins le mois précédent
   let from = mondayOf(prevMonth);
@@ -478,7 +480,7 @@ export function buildFeed({ engine, family, children, parents, events = [], task
   const to = maxTo > addDays(today, 400) ? addDays(today, 400) : maxTo;
   const ids = children.map(c => c.id);
   const feed = {
-    v: 2, gen: Date.now(), app: appUrl, family: family.name || 'SJ Family', start: from,
+    v: 2, gen: Date.now(), app: appUrl, apk, family: family.name || 'SJ Family', start: from,
     ht: family.settings?.handoverTime || '18:30', mid: family.settings?.middayTime || '14:00',
     parents: { A: pick(parents.A), B: pick(parents.B) },
     children: children.map(c => {

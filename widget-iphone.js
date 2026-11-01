@@ -77,8 +77,12 @@ else {
   const hoOf = (c, d, mo) => (feed.handovers || []).find(x => x.d === d && !x.m && !!x.mo === mo && (x.k || []).includes(c.id));
   // relais du soir du jour d ; aucun si le relais a lieu le lendemain matin (ex. dépose à l'école à 8h20)
   const evening = (c, d) => { const h = hoOf(c, d, false); return h ? t2m(h.t) : hoOf(c, addDays(d, 1), true) ? 1e9 : t2m(feed.ht); };
+  // présence : le dernier relais passé (matin, mi-journée ou soir, calculé par l'application), sinon le code du jour
   const presence = (c, d, m) => {
-    const mo = hoOf(c, d, true); if (mo && m < t2m(mo.t)) return mo.f; // la garde de la veille continue jusqu'au relais du matin
+    if (code(c, d) === '.') return null;
+    let last = null; for (const h of feed.handovers || []) { if ((h.k || []).includes(c.id) && (h.d < d || (h.d === d && t2m(h.t) <= m))) last = h; }
+    if (last) return last.to;
+    const mo = hoOf(c, d, true); if (mo && m < t2m(mo.t)) return mo.f;
     if (m >= evening(c, d)) return first(code(c, addDays(d, 1)));
     const x = code(c, d), mid = t2m(feed.mid || '14:00');
     if (x === 'X') return m < mid ? 'A' : 'B'; if (x === 'Y') return m < mid ? 'B' : 'A';
@@ -164,8 +168,8 @@ else {
       cell.addSpacer(4);
       const l1 = cell.addStack(); l1.addSpacer(); txt(l1, JL[i], 10, { bold: true, color: INK }); l1.addSpacer();
       const l2 = cell.addStack(); l2.addSpacer(); txt(l2, String(+d.slice(8)), 15, { bold: true, color: INK }); l2.addSpacer();
-      const ho = hand.some(h => h.d === d) || (feed.handovers || []).some(h => h.d === d && (h.k || []).some(id => kidIds.includes(id)));
-      const l3 = cell.addStack(); l3.addSpacer(); txt(l3, ho ? '🔁' : ' ', 7, { color: INK }); l3.addSpacer();
+      const ho = (feed.handovers || []).find(h => h.d === d && (h.k || []).some(id => kidIds.includes(id)));
+      const l3 = cell.addStack(); l3.addSpacer(); txt(l3, ho ? '🔁' + fmtT(ho.t) : ' ', 7, { color: INK }); l3.addSpacer();
       if (i < 6) row.addSpacer(4);
     }
     W.addSpacer(8);

@@ -1,13 +1,15 @@
 // ═══════════════ Sac : affaires de chaque relais, listes des vacances (demande / envoi, aller / retour) et listes type ═══════════════
-import * as E from './engine.js?v=6.11';
-import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.11';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.11';
-import { kidChips } from './views-home.js?v=6.11';
-import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.11';
+import * as E from './engine.js?v=6.12';
+import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.12';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.12';
+import { kidChips } from './views-home.js?v=6.12';
+import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.12';
 
 const runKey = h => `${h.date}_${h.time.replace(':', '')}_${h.to}`;
 const relaisItems = () => S.sac.filter(i => !i.kind);
-const vlists = () => S.sac.filter(i => i.kind === 'vlist');
+/** Le Sac des vacances commence avec les vacances de Noël 26 (Toussaint 26 et avant : ignorées) */
+const SAC_FROM = '2026-12-01';
+const vlists = () => S.sac.filter(i => i.kind === 'vlist' && !(i.period?.s && i.period.s < SAC_FROM));
 const other = c => (c === 'A' ? 'B' : 'A');
 const nid = () => S.be.db.newId().slice(0, 12);
 const norm = s => String(s || '').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -115,7 +117,7 @@ function itemRow(i, run, h) {
 // ───── Listes des vacances : rôles, quantités, droits, étapes, alertes
 function periods() {
   const st = settings(), t = today(), withLists = new Set(vlists().map(l => l.period?.id));
-  return E.schoolHolidays(st.zone || 'B', st.customHolidays || []).filter(p => withLists.has(p.id) || (p.e >= E.addDays(t, -21) && p.s <= E.addDays(t, 400))).slice(-14);
+  return E.schoolHolidays(st.zone || 'B', st.customHolidays || []).filter(p => p.s >= SAC_FROM && (withLists.has(p.id) || (p.e >= E.addDays(t, -21) && p.s <= E.addDays(t, 400)))).slice(-14);
 }
 const ownerOf = l => l.giver; // propriétaire des affaires : il les fournit à l'aller et les récupère au retour
 const creatorCode = l => l.ownerCode || codeOfUid(l.createdBy);

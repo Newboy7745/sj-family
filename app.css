@@ -382,3 +382,13 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .sumline b{font-size:17px}
 .card.notif.unread{box-shadow:inset 0 0 0 2px var(--err),var(--sh)}
 .nu{display:inline-block;font-size:11px;font-weight:800;color:#fff;background:var(--err);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}
+
+/* 6.12 : relais (matin, mi-journée, soir) avec heure et lieu dans les cases */
+.cday .rl{display:block;width:100%;font-size:10px;line-height:1.1;font-weight:800;text-align:center;color:#0B3D6E;background:rgba(255,255,255,.55);border-radius:6px;margin-top:2px;padding:1px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cday .rl i{display:block;font-style:normal;font-weight:700;font-size:8.5px;overflow:hidden;text-overflow:ellipsis}
+.wd .hot{display:block;font-size:9.5px;font-weight:800;line-height:1;margin-top:1px}
+.card.testc{border:2px solid #E4C766;background:linear-gradient(180deg,#FFFBEA,#fff 60%)}
+.card.testc h3{color:#7A5B00}
+.xplan{background:#F4F7FB;border-radius:14px;padding:10px 12px;margin-top:10px}
+.xplan .xr{display:flex;gap:8px;align-items:baseline;font-size:14px;margin:2px 0}
+.card.xfocus{box-shadow:inset 0 0 0 2px var(--navy),var(--sh)}

@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.11';
-import { randomId } from './backend.js?v=6.11';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.11';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.11';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.11';
-import { createFamily } from './views-family.js?v=6.11';
-import { openPrint } from './print.js?v=6.11';
+import * as E from './engine.js?v=6.12';
+import { randomId } from './backend.js?v=6.12';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.12';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.12';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.12';
+import { createFamily } from './views-family.js?v=6.12';
+import { openPrint } from './print.js?v=6.12';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -13,9 +13,12 @@ const matchKids = item => { const ids = selIds(); return !item.childIds?.length 
 // ───────────── Notifications & historique
 const readMap = () => S.profile?.nread?.[S.fid] || {};
 const received = a => a.by !== uid() || !!a.auto;
+/** Arrivée dans le cercle : rien de ce qui précède (historique et notifications) */
+const joinedAt = () => S.meMember?.joinedAt || 0;
+const sinceJoin = a => (a.at || 0) >= joinedAt() - 60000;
 /** Non lue : reçue après la dernière remise à zéro et pas encore touchée */
 export const isUnread = a => !!a.id && received(a) && a.at > (S.profile?.lastSeen?.[S.fid] || 0) && !readMap()[a.id];
-export function unreadCount() { return S.activity.filter(isUnread).length; }
+export function unreadCount() { return S.activity.filter(a => sinceJoin(a) && isUnread(a)).length; }
 /** Marque une notification comme lue (toucher la notification, ou l'ouvrir depuis le téléphone) */
 export async function markRead(id) {
   if (!id || !S.fid || readMap()[id]) return;
@@ -212,7 +215,7 @@ export const views = {
   },
   notifs(p) {
     const tab = p.tab || 'notifs', cat = p.cat || '', me = uid(), nU = unreadCount();
-    const all = [...S.activity, ...S.legacy].sort((a, b) => b.at - a.at);
+    const all = [...S.activity, ...S.legacy].filter(sinceJoin).sort((a, b) => b.at - a.at);
     let list = tab === 'notifs' ? all.filter(received) : all;
     const counts = {}; for (const a of list) counts[a.cat] = (counts[a.cat] || 0) + 1;
     if (cat) list = list.filter(a => a.cat === cat);
@@ -238,12 +241,13 @@ export const views = {
   },
   settings() {
     const st = settings(), f = S.family, ps = f.pendingSettings, m = me(), u = uid(), par = isParent();
-    const rules = st.relayRules || [];
+    const rules = st.relayRules || [], nx = S.children.length ? engine().nextHandovers(S.children.map(c => c.id), E.todayISO(), E.nowMin(), 4) : [];
     return {
       title: 'Réglages', back: 'home',
-      html: `<div class="card"><h3>🔁 Relais ${par ? '<a class="act" data-act="set-relais">Modifier</a>' : ''}</h3>
-        <div class="prow"><span>Relais du soir (par défaut)</span><b>${E.fmtTime(st.handoverTime)}</b></div><div class="prow"><span>Relais de mi-journée (demi-journées)</span><b>${E.fmtTime(st.middayTime)}</b></div>
-        ${rules.length ? `<div class="lbl">Horaires réguliers</div>${rules.map(r => `<div class="per"><div class="pi">🕓</div><div class="f1 small b">${esc(ruleText(r))}</div></div>`).join('')}` : ''}
+      html: `${testOwner() ? testCard() : ''}<div class="card"><h3>🔁 Relais ${par ? '<a class="act" data-act="set-relais">Modifier</a>' : ''}</h3>
+        ${nx.length ? `<div class="lbl" style="margin-top:0">Prochains relais</div>${nx.map(h => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${h.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${esc(E.relDay(h.date))} · ${hoTime(h)}${h.kind === 'matin' ? ' · le matin' : h.kind === 'midi' ? ' · mi-journée' : ''}${h.custom ? ' <span class="pill warn">convenu</span>' : ''}</div><div class="ls">${esc(pName(h.from))} → ${esc(pName(h.to))} · ${esc(childNames(h.childIds))}${esc(hoPlace(h))}</div></div></button>`).join('')}<div class="lbl">Horaires</div>` : ''}
+        <div class="prow"><span>Relais (horaire habituel)</span><b>${E.fmtTime(st.handoverTime)}</b></div><div class="prow"><span>Relais de mi-journée (demi-journées)</span><b>${E.fmtTime(st.middayTime)}</b></div>
+        ${rules.length ? `<div class="lbl">Horaires réguliers</div>${rules.map(r => `<div class="per"><div class="pi">🔁</div><div class="f1 small b">${esc(ruleText(r))}</div></div>`).join('')}` : ''}
         <div class="hint">Une garde commençant un jour = récupération la veille ; le dernier jour, remise à l'autre parent. Heure : ${rules.length ? 'horaire régulier s’il s’applique, sinon ' : ''}${E.fmtTime(st.handoverTime)}. Pour un seul jour : un échange « horaire de relais » (au cas par cas).</div>
         ${ps ? `<div class="alert mt"><div class="ai">⏳</div><div class="f1"><div class="at">${esc(ps.byName)} propose : soir ${E.fmtTime(ps.handoverTime)} · mi-journée ${E.fmtTime(ps.middayTime)}</div>
           ${(ps.relayRules || []).map(r => `<div class="small">• ${esc(ruleText(r))}</div>`).join('')}
@@ -257,7 +261,6 @@ export const views = {
         <div class="hint">Gratuit, sans compte, sur iPhone et Samsung, via l'application « ntfy ». Vous n'êtes jamais notifié de vos propres actions.</div></div>
       <div class="card"><h3>📱 Widgets</h3><p class="small muted" style="margin-top:0">Garde du jour, semaine, mois, pleine page et programme sur l'écran d'accueil.</p><button class="btn ghost block" data-go="widgets">Configurer les widgets</button></div>
       <div class="card"><h3>📤 Exporter</h3><button class="btn soft block" data-act="print-year">🖨️ Imprimer le calendrier annuel</button><button class="btn soft block mt" data-act="ics-sheet">📅 Vers Google Agenda / Samsung / iPhone (.ics)</button>${can('expenses') ? '<button class="btn soft block mt" data-act="exp-csv">💰 Dépenses (tableur .csv)</button>' : ''}</div>
-      ${par ? testCard() : ''}
       ${par ? `<div class="card"><h3>🎒 Sac</h3><p class="small muted" style="margin-top:0">Repartir de zéro : efface les affaires, listes des vacances et relais du sac (ce cercle et le cercle de test), avec leurs notifications. Vos listes type sont gardées.</p><button class="btn soft block" style="color:var(--err)" data-act="sac-reset">🧹 Tout effacer et recommencer</button></div>` : ''}
       <div class="card"><h3>ℹ️ Application</h3>
         <button class="btn soft block" data-act="app-refresh">${IC.refresh} Mettre à jour / vider le cache</button>
@@ -695,7 +698,7 @@ function relaisEditor(init = null) {
   const st = init || settings();
   S.ui.relEdit = { rules: JSON.parse(JSON.stringify(st.relayRules || [])) };
   const sh = openSheet(`<h3 class="sh-title">🔁 Horaires de relais</h3>
-    <label class="lbl">Relais du soir — horaire par défaut</label><input class="in" type="time" name="ht" value="${st.handoverTime || '18:30'}">
+    <label class="lbl">Relais — horaire habituel</label><input class="in" type="time" name="ht" value="${st.handoverTime || '18:30'}">
     <label class="lbl">Relais de mi-journée (Aïd, demi-journées)</label><input class="in" type="time" name="mt" value="${st.middayTime || '14:00'}">
     <label class="lbl">Horaires réguliers (prioritaires sur l'horaire par défaut)</label><div data-part="rules"></div>
     <button class="btn soft block mt" data-act="rl-add">${IC.plus} Ajouter un horaire régulier</button>
@@ -765,9 +768,11 @@ function ruleFromForm(f, old = null) {
 
 // ───────────── Mode test : un cercle d'essai « 🧪 Famille TEST » avec une maman TEST (aucun lien avec le vrai cercle)
 const testAcc = () => LS.get('testAcc', null);
+/** Mode test : uniquement pour la personne qui a créé le cercle (jamais pour l'autre parent ni les proches) */
+export const testOwner = () => isParent() && !!S.family?.ownerUid && S.family.ownerUid === uid();
 function testCard() {
   const t = testAcc(), inTest = t && S.fid === t.fid;
-  return `<div class="card"><h3>🧪 Mode test</h3>
+  return `<div class="card testc"><h3>🧪 Mode test <span class="pill warn" style="font-size:11px">visible par vous seul</span></h3>
     <p class="small muted" style="margin-top:0">Un cercle d'essai séparé avec une <b>Maman TEST</b>, pour tout essayer (validations, listes des vacances, notes…) sans toucher à votre vrai cercle ni prévenir l'autre parent.</p>
     ${t ? `<div class="prow"><span>Compte Maman TEST</span><b class="small">${esc(t.email)}</b></div>
       <div class="row gap mt"><button class="btn primary f1" data-act="test-switch">👩 Passer en Maman TEST</button><button class="btn soft f1" data-act="test-creds">🔑 Identifiants</button></div>
@@ -781,6 +786,7 @@ function credsSheet(t) {
 }
 Object.assign(actions, {
   'test-create': async el => {
+    if (!testOwner()) return toast('Mode test réservé au créateur du cercle.', 'warn');
     if (!(await confirmBox('Créer le cercle de test ?', "Un cercle « 🧪 Famille TEST » est créé avec une copie de vos enfants, de leurs photos et plannings, et un compte « Maman TEST » (adresse fictive). Votre vrai cercle n'est pas modifié et personne n'est prévenu.", 'Créer'))) return;
     await new Promise(r => setTimeout(r, 400)); // laisse la fenêtre de confirmation se fermer
     el.disabled = true; toast('Création du cercle de test…', 'ok', 2500);
@@ -815,7 +821,7 @@ Object.assign(actions, {
   },
   'test-creds': () => { const t = testAcc(); if (t) credsSheet(t); },
   // Maman TEST tourne dans une session séparée : votre compte reste connecté
-  'test-switch': () => { if (!testAcc()) return; LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
+  'test-switch': () => { if (!testAcc() || (!testOwner() && S.acc !== 'test')) return; LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
   'test-back': async () => {
     if (S.acc === 'test') { LS.set('acc', 'main'); location.hash = '#/home'; location.reload(); return; }
     // ancienne bascule (avant 6.9) : la session principale avait été remplacée

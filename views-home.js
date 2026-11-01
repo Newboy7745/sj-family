@@ -1,8 +1,8 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.11';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.11';
+import * as E from './engine.js?v=6.12';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.12';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.11';
+import { esc, fmtAgo } from './ui.js?v=6.12';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -46,8 +46,8 @@ function gardeCard(kids) {
   const mon = E.mondayOf(today);
   const week = [...Array(7)].map((_, i) => {
     const d = E.addDays(mon, i), codes = ids.map(id => eng.code(id, d));
-    const ho = eng.handovers(ids, d, d).length;
-    return `<button class="wd ${d === today ? 'today' : ''} ${d < today ? 'past' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">${E.JOURS_L[i]}<b>${+d.slice(8)}</b>${ho ? '<span class="ho">🔁</span>' : ''}</button>`;
+    const ho = eng.handovers(ids, d, d)[0];
+    return `<button class="wd ${d === today ? 'today' : ''} ${d < today ? 'past' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">${E.JOURS_L[i]}<b>${+d.slice(8)}</b>${ho ? `<span class="ho">🔁</span><span class="hot">${E.fmtTime(ho.time)}</span>` : ''}</button>`;
   }).join('');
   return `<div class="garde"><div class="gt"><span class="gk">${kids.map(k => kidAvatar(k, 26)).join('')}</span>Garde du jour · ${esc(label)}</div>
     <div class="gw">${avatar(P.name, who === 'A' ? 'var(--pa-d)' : 'var(--pb-d)', 50)}<div class="f1"><div class="gn">Chez ${esc(P.name)}${P.short && P.short !== P.name ? ` <span class="muted" style="font-weight:700">(${esc(P.short)})</span>` : ''}</div>

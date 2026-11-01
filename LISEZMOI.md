@@ -218,6 +218,24 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
 - **Proches** : lien avec les enfants et côté (paternel / maternel) : « Grand-mère paternelle de Selman & Jandal ».
 - Widgets Android (nouvel APK) et iPhone : relais du matin, créneau, lieu de dépose, prénoms.
 
+## 10 septies. Nouveautés 6.12
+
+- **Widgets Android (nouvel APK, version 10)** : la présence (« Chez … ») et les relais des cases viennent directement de la
+  liste des relais calculée par l'application : un changement d'horaire, de lieu ou de règle apparaît après un simple
+  « ⟳ » (sans réinstaller). Le bouton ⟳ s'estompe pendant le téléchargement puis affiche « planning à jour ✓ » (ou l'erreur).
+  Chaque case indique **tous les relais** (matin, mi-journée, soir) avec l'heure et le lieu. Plus d'option de largeur : la
+  pleine page occupe 5 × 5 cases (5 × 4 pour le mois, 5 colonnes pour la semaine et le programme). Le flux annonce la
+  version minimale de l'APK (`WIDGETS_APK`) : au-dessous, le ⟳ propose la mise à jour.
+- **Agenda** et **accueil** : chaque relais (pas seulement le soir) est dans la case du jour avec l'heure et le lieu.
+  **Réglages › Relais** : les prochains relais (heure, lieu, matin / soir) et les horaires réguliers.
+- **Sac** : les vacances commencent à Noël 26 (Toussaint 26 et avant ne sont plus proposées).
+- **Mode test** : seulement pour la personne qui a créé le cercle, en tête des Réglages et mis en avant.
+- **Demande d'échange** : « Prévu chez … » / « Demande : chez … », relais de **début** et de **fin** (date, parents, heure
+  et lieu modifiables ; enregistrés comme horaires convenus) ; la fin ne peut plus précéder le début.
+- **Réponse à une demande** : la notification ouvre la demande ; une réponse reste dans « À traiter » / « Mes demandes »
+  (encadrée) tant qu'on n'a pas quitté l'écran, puis passe dans l'historique.
+- **Nouvel arrivant** : aucune notification ni historique d'avant son arrivée dans le cercle.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

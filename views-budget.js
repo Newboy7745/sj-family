@@ -1,7 +1,7 @@
 // ═══════════════ Budget : dépenses partagées (jamais supprimées : terminées puis archivées) ═══════════════
-import * as E from './engine.js?v=6.11';
-import { S, parents, pName, uid, myName, myCode, isParent, childNames, addItem, updItem, log, guard, fpath, go, selIds } from './core.js?v=6.11';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtMoney, parseAmount, compressImage, fileToDataURL, dataURLtoBlob, download, fmtStamp } from './ui.js?v=6.11';
+import * as E from './engine.js?v=6.12';
+import { S, parents, pName, uid, myName, myCode, isParent, childNames, addItem, updItem, log, guard, fpath, go, selIds } from './core.js?v=6.12';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtMoney, parseAmount, compressImage, fileToDataURL, dataURLtoBlob, download, fmtStamp } from './ui.js?v=6.12';
 
 export const CATS = [
   { v: 'ecole', i: '🎒', l: 'Scolarité' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activités' }, { v: 'vetements', i: '👕', l: 'Vêtements' },

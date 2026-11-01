@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.11';
-import { createBackend } from './backend.js?v=6.11';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.11';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.11';
-import * as Home from './views-home.js?v=6.11';
-import * as Agenda from './views-agenda.js?v=6.11';
-import * as Plan from './views-planning.js?v=6.11';
-import * as Exch from './views-exchange.js?v=6.11';
-import * as Fam from './views-family.js?v=6.11';
-import * as Bud from './views-budget.js?v=6.11';
-import * as More from './views-more.js?v=6.11';
-import * as Admin from './views-admin.js?v=6.11';
-import * as Install from './install.js?v=6.11';
-import * as Sac from './views-sac.js?v=6.11';
-import * as Print from './print.js?v=6.11';
+import * as E from './engine.js?v=6.12';
+import { createBackend } from './backend.js?v=6.12';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.12';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.12';
+import * as Home from './views-home.js?v=6.12';
+import * as Agenda from './views-agenda.js?v=6.12';
+import * as Plan from './views-planning.js?v=6.12';
+import * as Exch from './views-exchange.js?v=6.12';
+import * as Fam from './views-family.js?v=6.12';
+import * as Bud from './views-budget.js?v=6.12';
+import * as More from './views-more.js?v=6.12';
+import * as Admin from './views-admin.js?v=6.12';
+import * as Install from './install.js?v=6.12';
+import * as Sac from './views-sac.js?v=6.12';
+import * as Print from './print.js?v=6.12';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -132,6 +132,8 @@ function doRender() {
   const ae = document.activeElement, view = $('#view');
   if (ae && view && view.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && S.lastView === S.route.view) { deferred = true; return; }
   const r = S.route;
+  if (S.ui.xView && r.view !== 'exchanges') Exch.leaveExchanges(); // réponses vues : dans l'historique en quittant l'écran
+  S.ui.xView = r.view === 'exchanges';
   if (r.view === 'join' && r.params.code) { LS.set('pendingJoin', r.params.code.toUpperCase()); location.hash = '#/family'; return; }
   if (!S.fid || (!S.family && S.familyGone)) {
     shell(false); header({ title: '', actions: false });

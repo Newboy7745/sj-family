@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.11';
-import { toast, esc } from './ui.js?v=6.11';
+import * as E from './engine.js?v=6.12';
+import { toast, esc } from './ui.js?v=6.12';
 
-export const VERSION = '6.11';
+export const VERSION = '6.12';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
+/** Version minimale de l'appli Android des widgets (numéro de compilation) : au-dessous, le widget propose la mise à jour */
+export const WIDGETS_APK = 10;
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';
 /** Historique : les entrées antérieures à cette date restent dans l'ancien journal commun */
@@ -237,7 +239,7 @@ export async function syncFeed(force = false) {
     const feed = E.buildFeed({
       engine: engine(), family: S.family, children: S.children.map(kidFull), parents: parents(),
       events: S.events, tasks: par ? S.tasks : [], notes: par ? [...S.notes].sort((a, b) => b.at - a.at) : [],
-      includeHealth: par && !!(S.priv?.widgetHealth ?? S.family?.widgetHealth), appUrl: APP_URL,
+      includeHealth: par && !!(S.priv?.widgetHealth ?? S.family?.widgetHealth), appUrl: APP_URL, apk: WIDGETS_APK,
     });
     const sig = JSON.stringify({ ...feed, gen: 0 });
     const h = await hash(sig);

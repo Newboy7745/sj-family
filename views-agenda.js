@@ -1,11 +1,11 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.11';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.11';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.11';
-import { vacRecap } from './views-sac.js?v=6.11';
-import { kidChips, cellBg } from './views-home.js?v=6.11';
-import { altText } from './views-more.js?v=6.11';
-import { openPrint } from './print.js?v=6.11';
+import * as E from './engine.js?v=6.12';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.12';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.12';
+import { vacRecap } from './views-sac.js?v=6.12';
+import { kidChips, cellBg } from './views-home.js?v=6.12';
+import { altText } from './views-more.js?v=6.12';
+import { openPrint } from './print.js?v=6.12';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
@@ -19,7 +19,7 @@ function legend() {
   return `<div class="legend"><span><i style="background:var(--pa)"></i>${esc(p.A.name)}</span><span><i style="background:var(--pb)"></i>${esc(p.B.name)}</span>
     <span><i style="background:var(--pb-l)"></i>École (${esc(p.B.name)})</span><span><i style="background:var(--pa-l)"></i>École (${esc(p.A.name)})</span>
     <span><i style="background:linear-gradient(90deg,var(--pa) 50%,var(--pb) 50%)"></i>Demi-journée</span>
-    <span><i style="background:var(--gold);height:5px;vertical-align:2px"></i>Vacances scolaires</span><span><i style="background:var(--err);border-radius:50%;width:9px;height:9px"></i>Férié</span><span>🔁 Relais du soir</span><span><i style="border:2px dashed var(--navy);background:#fff"></i>Échange accepté</span></div>`;
+    <span><i style="background:var(--gold);height:5px;vertical-align:2px"></i>Vacances scolaires</span><span><i style="background:var(--err);border-radius:50%;width:9px;height:9px"></i>Férié</span><span>🔁 Relais : heure et lieu dans la case</span><span><i style="border:2px dashed var(--navy);background:#fff"></i>Échange accepté</span></div>`;
 }
 function monthGrid(m) {
   const eng = engine(), ids = selIds(), today = E.todayISO();
@@ -29,7 +29,8 @@ function monthGrid(m) {
   const evs = E.expandEvents(S.events, start, end).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
   const byDay = {}; for (const e of evs) (byDay[e.occ] ||= []).push(e);
   for (const c of S.children) if (c.birth && ids.includes(c.id)) for (const yy of [y - 1, y, y + 1]) { const d = `${yy}${c.birth.slice(4)}`; if (d >= start && d <= end) (byDay[d] ||= []).push({ icon: '🎂', title: `Anniversaire ${c.prenom}` }); }
-  const hoDays = new Set(eng.handovers(ids, start, end).filter(h => h.kind === 'soir').map(h => h.date));
+  const hoBy = {}; for (const h of eng.handovers(ids, start, end)) (hoBy[h.date] ||= []).push(h);
+  const hoCell = d => (hoBy[d] || []).length ? '<span class="rel">🔁</span>' + hoBy[d].map(h => { const pl = h.dropPlace || h.place || ''; return `<span class="rl">${E.fmtTime(h.time)}${pl ? `<i>${esc(pl.replace(/^Chez /, ''))}</i>` : ''}</span>`; }).join('') : '';
   let cells = E.JOURS_L.map(j => `<div class="dh">${j}</div>`).join('');
   for (const d of E.eachDay(start, end)) {
     const codes = ids.map(id => eng.code(id, d)), info = eng.dayInfo(d);
@@ -37,7 +38,7 @@ function monthGrid(m) {
     const ovr = ids.some(id => eng.isOverridden(id, d));
     const dots = (byDay[d] || []).slice(0, 4).map(e => `<span class="dot" title="${esc(e.title)}" style="background:${e.icon === '🎂' ? 'var(--coral)' : 'var(--navy)'}"></span>`).join('');
     cells += `<button class="cday ${ym(d) !== m ? 'out' : ''} ${d === today ? 'today' : ''} ${d < today ? 'past' : ''} ${ovr ? 'ovr' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">
-      ${info.ferie ? '<span class="fer"></span>' : ''}${hoDays.has(d) ? '<span class="rel">🔁</span>' : ''}<span class="dn">${+d.slice(8)}</span>
+      ${info.ferie ? '<span class="fer"></span>' : ''}<span class="dn">${+d.slice(8)}</span>${hoCell(d)}
       ${lbl ? `<span class="cm">${esc(lbl.length > 16 ? lbl.slice(0, 15) + '…' : lbl)}</span>` : ''}<span class="dots">${dots}</span>${info.holiday ? '<span class="hol"></span>' : ''}</button>`;
   }
   return `<div class="cal">${cells}</div>`;
@@ -152,7 +153,7 @@ export const views = {
       const parts = eng.blocks(ids[0], h.s, h.e).filter(b => b.key !== '.');
       const desc = parts.length ? parts.map(b => `<span class="pill" style="background:${b.code === 'A' || b.code === 'a' ? 'var(--pa)' : b.code === 'B' || b.code === 'b' ? 'var(--pb)' : '#eee'};color:#13233A">${esc(E.isHalf(b.code) ? '½ / ½' : pShort(E.first(b.code)))} · ${E.fmtDate(b.start, 'short')}${b.end !== b.start ? '→' + E.fmtDate(b.end, 'short') : ''}</span>`).join(' ') : '<span class="muted small">Pas de planning</span>';
       const ho = eng.handovers(ids, E.addDays(h.s, -1), E.addDays(h.e, 1)).filter(x => x.kind !== 'midi');
-      const nL = S.sac.filter(l => l.kind === 'vlist' && l.period?.id === h.id).length;
+      const nL = h.s >= '2026-12-01' ? S.sac.filter(l => l.kind === 'vlist' && l.period?.id === h.id).length : 0;
       return `<button class="per" style="align-items:flex-start;width:100%;text-align:left" data-go="vacp" data-params='${JSON.stringify({ id: h.id, zone })}'><div class="pi">${h.i}</div><div class="f1"><div class="pn">${esc(h.n)} ${h.s.slice(2, 4)} ${h.e < today ? '<span class="pill">passées</span>' : ''}</div>
         <div class="pd">Du ${E.fmtDate(h.s)} au ${E.fmtDate(h.e)}</div><div class="row wrap gap6 mt" style="margin-top:6px">${desc}</div>
         ${ho.length ? `<div class="tiny muted" style="margin-top:6px">🔁 ${ho.map(x => `${E.fmtDate(x.date, 'wdm')} ${hoTime(x)} → ${esc(pName(x.to))}`).join(' · ')}</div>` : ''}
