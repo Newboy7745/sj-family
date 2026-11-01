@@ -1,19 +1,29 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.10';
-import { randomId } from './backend.js?v=6.10';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.10';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.10';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.10';
-import { createFamily } from './views-family.js?v=6.10';
-import { openPrint } from './print.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { randomId } from './backend.js?v=6.11';
+import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.11';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.11';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.11';
+import { createFamily } from './views-family.js?v=6.11';
+import { openPrint } from './print.js?v=6.11';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
 
 // ───────────── Notifications & historique
-export function unreadCount() {
-  const last = S.profile?.lastSeen?.[S.fid] || 0, me = uid();
-  return S.activity.filter(a => a.by !== me && a.at > last).length;
+const readMap = () => S.profile?.nread?.[S.fid] || {};
+const received = a => a.by !== uid() || !!a.auto;
+/** Non lue : reçue après la dernière remise à zéro et pas encore touchée */
+export const isUnread = a => !!a.id && received(a) && a.at > (S.profile?.lastSeen?.[S.fid] || 0) && !readMap()[a.id];
+export function unreadCount() { return S.activity.filter(isUnread).length; }
+/** Marque une notification comme lue (toucher la notification, ou l'ouvrir depuis le téléphone) */
+export async function markRead(id) {
+  if (!id || !S.fid || readMap()[id]) return;
+  const m = readMap(), db = S.be.db;
+  try {
+    if (Object.keys(m).length > 400) { const keep = new Set(S.activity.map(a => a.id)), next = Object.fromEntries(Object.entries(m).filter(([k]) => keep.has(k))); next[id] = Date.now(); await db.update(`users/${uid()}`, { [`nread.${S.fid}`]: next }); }
+    else await db.update(`users/${uid()}`, { [`nread.${S.fid}.${id}`]: Date.now() });
+  } catch (e) { console.warn('lu', e); }
 }
 export function unreadNotes() { const me = uid(); return S.notes.filter(n => n.createdBy !== me && noteForMe(n) && !(n.ackBy || {})[me]).length; }
 // ───────────── Tâches
@@ -201,9 +211,9 @@ export const views = {
     };
   },
   notifs(p) {
-    const tab = p.tab || 'notifs', cat = p.cat || '', me = uid(), last = S.profile?.lastSeen?.[S.fid] || 0;
+    const tab = p.tab || 'notifs', cat = p.cat || '', me = uid(), nU = unreadCount();
     const all = [...S.activity, ...S.legacy].sort((a, b) => b.at - a.at);
-    let list = tab === 'notifs' ? all.filter(a => a.by !== me) : all;
+    let list = tab === 'notifs' ? all.filter(received) : all;
     const counts = {}; for (const a of list) counts[a.cat] = (counts[a.cat] || 0) + 1;
     if (cat) list = list.filter(a => a.cat === cat);
     let html = '', day = '';
@@ -211,13 +221,15 @@ export const views = {
       const d = new Date(a.at), iso = E.todayISO(d);
       if (iso !== day) { day = iso; html += `<div class="lbl">${E.fmtDate(iso, 'wdmy')}</div>`; }
       const lk = notifLink(a), [lv, lq] = lk.split('?'), lp = JSON.stringify(Object.fromEntries(new URLSearchParams(lq || ''))).replace(/'/g, '&#39;');
-      html += `<div class="card tight" data-go="${esc(lv)}" data-params='${lp}' style="cursor:pointer;margin-bottom:8px;${a.at > last && a.by !== me ? 'border-left:5px solid var(--coral)' : ''}"><div class="row gap"><div style="font-size:28px">${a.icon || CATS[a.cat]?.i || '🔔'}</div><div class="f1"><div class="b">${esc(a.title)}</div>
-        <div class="small muted">${esc(a.by === me ? 'Moi' : a.byName || '')}${a.body ? ' — ' + esc(a.body) : ''}</div><div class="tiny muted">${fmtStamp(a.at)}</div></div><span class="lnk">›</span></div></div>`;
+      const un = isUnread(a);
+      html += `<div class="card tight notif ${un ? 'unread' : ''}" data-act="notif-open" data-id="${esc(a.id || '')}" data-v="${esc(lv)}" data-p='${lp}' style="cursor:pointer;margin-bottom:8px"><div class="row gap"><div style="font-size:28px">${a.icon || CATS[a.cat]?.i || '🔔'}</div><div class="f1"><div class="b">${esc(a.title)}${un ? '<span class="nu">Non lue</span>' : ''}</div>
+        <div class="small muted">${esc(a.by === me && !a.auto ? 'Moi' : a.byName || '')}${a.body ? ' — ' + esc(a.body) : ''}</div><div class="tiny muted">${fmtStamp(a.at)}</div></div><span class="lnk">›</span></div></div>`;
     }
     const pend = pendingItems();
     return {
       title: 'Notifications', back: 'home',
       html: `${pend.length ? `<div class="lbl" style="margin-top:0">⏳ À traiter (${pend.length})</div>${pend.map(pendHtml).join('')}` : ''}
+      ${tab === 'notifs' && nU ? `<div class="row between mb"><span class="small b" style="color:var(--err)">${nU} non lue${nU > 1 ? 's' : ''} : touchez-les pour les lire</span><a class="act" data-act="notif-all">✓ Tout marquer comme lu</a></div>` : ''}
       <div class="seg"><button class="${tab === 'notifs' ? 'on' : ''}" data-go="notifs" data-params='{"tab":"notifs"}'>🔔 Reçues</button><button class="${tab === 'hist' ? 'on' : ''}" data-go="notifs" data-params='{"tab":"hist"}'>📜 Mon historique</button></div>
       <div class="chips scroll mb"><button class="chip sm ${!cat ? 'on' : ''}" data-go="notifs" data-params='{"tab":"${tab}"}'>Tout</button>${Object.entries(CATS).filter(([k]) => counts[k]).map(([k, c]) => `<button class="chip sm ${cat === k ? 'on' : ''}" data-go="notifs" data-params='{"tab":"${tab}","cat":"${k}"}'>${c.i} ${c.n} (${counts[k]})</button>`).join('')}</div>
       ${html || `<div class="card empty"><div class="e-i">🔕</div>${tab === 'notifs' ? 'Aucune notification. Vos propres actions apparaissent dans votre historique.' : 'Aucune activité.'}</div>`}
@@ -294,16 +306,20 @@ export const views = {
   },
 };
 export const after = {
-  notifs() {
-    clearTimeout(S._seenT);
-    S._seenT = setTimeout(() => { if (S.route.view === 'notifs' && unreadCount()) S.be.db.update(`users/${uid()}`, { [`lastSeen.${S.fid}`]: Date.now() }).catch(() => { }); }, 1500);
-  },
   settings(v, p) {
     if (p.preset === 'vendredi' && isParent()) {
       history.replaceState(null, '', '#/settings'); S.route = { view: 'settings', params: {} };
       const st = settings(), rules = [...(st.relayRules || [])];
       if (!rules.some(r => r.kind === 'dow' && +r.dow === 4)) rules.push({ id: 'rven', kind: 'dow', dow: 4, every: 1, parity: 'pair', school: true, date: '', to: '', time: '16:30', place: 'École' });
       setTimeout(() => relaisEditor({ handoverTime: '18:30', middayTime: st.middayTime, relayRules: rules }), 300);
+    }
+    // lundi après la garde de l'un : dépose à l'école 8h20–8h30 ; si impossible, la veille 18h30 chez l'autre parent
+    if (p.preset === 'lundi' && isParent()) {
+      history.replaceState(null, '', '#/settings'); S.route = { view: 'settings', params: {} };
+      const st = settings(), me = myCode(), o = E.other(me), rules = JSON.parse(JSON.stringify(st.relayRules || [])).filter(r => r.id !== 'rlun');
+      for (const r of rules) if (!r.pickAt && /^école$/i.test(r.place || '')) Object.assign(r, { pickAt: 'ecole', pickTxt: '', place: 'École' });
+      rules.push({ id: 'rlun', kind: 'dow', dow: 0, every: 1, parity: 'pair', school: true, date: '', year: '', time: '08:20', timeEnd: '08:30', from: me, dropAt: 'ecole', dropTxt: '', dropPlace: 'École', to: o, pickAt: 'ecole', pickTxt: '', place: 'École', alt: { on: true, when: 'veille', time: '18:30', by: me, at: o, txt: '', place: placeLabel(o) } });
+      setTimeout(() => relaisEditor({ handoverTime: st.handoverTime || '18:30', middayTime: st.middayTime, relayRules: rules }), 300);
     }
   },
   liaison() {
@@ -480,6 +496,8 @@ export const actions = {
   // ───── validation des importations par l'autre parent (souvenirs, documents)
   'appr-ok': async el => {
     const c = el.dataset.c, it = S[c].find(x => x.id === el.dataset.id); if (!canApprove(it)) return;
+    const mem = c === 'memories', what = `${mem ? 'Le souvenir' : 'Le document'}${it.title ? ' « ' + esc(it.title) + ' »' : ''}`;
+    if (!(await confirmInfo('Valider ?', `${what} devient visible ${mem ? 'par tout le cercle (proches compris)' : 'dans les Documents'}. Définitif.`, `« Validé par ${esc(myName())} », et une notification.`, it.createdByName || memberName(it.createdBy) || "l'autre parent"))) return;
     await guard(async () => {
       await updItem(c, it.id, { pub: true, okBy: uid(), okByName: myName(), okAt: Date.now() });
       await log(c === 'memories' ? 'souvenirs' : 'documents', c === 'memories' ? `📸 Nouveau souvenir${it.title ? ' : ' + it.title : ''}` : `Document validé : ${it.title}`, { to: c === 'memories' ? 'all' : 'parents', icon: c === 'memories' ? '📸' : '✅', body: `ajouté par ${it.createdByName || ''}` });
@@ -489,12 +507,13 @@ export const actions = {
   },
   'appr-no': async el => {
     const c = el.dataset.c, it = S[c].find(x => x.id === el.dataset.id); if (!canApprove(it)) return;
-    if (!(await confirmBox('Refuser ?', 'Il ne sera pas visible par les proches. La personne qui l\'a ajouté pourra le supprimer.', 'Refuser', true))) return;
+    if (!(await confirmInfo('Refuser ?', 'Il ne sera pas visible par les proches. Définitif.', `« Refusé par ${esc(myName())} » : la personne qui l'a ajouté pourra le supprimer. Une notification l'informe.`, it.createdByName || memberName(it.createdBy) || "l'autre parent", 'Refuser', true))) return;
     await guard(async () => { await updItem(c, it.id, { refused: true, refusedBy: uid(), refusedByName: myName(), refusedAt: Date.now() }); await log(c === 'memories' ? 'souvenirs' : 'documents', `${c === 'memories' ? 'Souvenir' : 'Document'} refusé${it.title ? ' : ' + it.title : ''}`, { icon: '❌' }); queueApprovals(300); }, 'Refusé');
     if (el.closest('.sheet')) closeSheet();
   },
   'appr-all': async el => {
     const c = el.dataset.c, items = S[c].filter(canApprove); if (!items.length) return;
+    if (!(await confirmInfo(`Tout valider (${items.length}) ?`, `${items.length} ${c === 'memories' ? 'souvenir' : 'document'}${items.length > 1 ? 's' : ''} ${c === 'memories' ? 'deviennent visibles par tout le cercle (proches compris)' : 'deviennent visibles dans les Documents'}. Définitif.`, `« Validé par ${esc(myName())} » sur chacun, et une notification.`, "l'autre parent"))) return;
     await guard(async () => { for (const it of items) await updItem(c, it.id, { pub: true, okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('souvenirs', `📸 ${items.length} nouveau${items.length > 1 ? 'x' : ''} souvenir${items.length > 1 ? 's' : ''}`, { to: 'all', icon: '📸' }); queueApprovals(300); }, 'Tout est validé ✓');
   },
   // sourdine : plus de rappels pour ce lot (validation toujours possible jusqu'à l'expiration)
@@ -522,13 +541,29 @@ export const actions = {
   'set-relais': () => relaisEditor(),
   'rl-add': () => ruleSheet(),
   'rl-del': el => { const ed = S.ui.relEdit; if (!ed) return; ed.rules.splice(+el.dataset.i, 1); renderRules(); },
+  'rl-edit': el => { const ed = S.ui.relEdit, r = ed?.rules[+el.dataset.i]; if (r) ruleSheet(r, +el.dataset.i); },
   'rl-save': el => {
     const f = readForm(el.closest('.sheet')), ed = S.ui.relEdit; if (!ed) return;
-    if (!f.time) return toast("Indiquez l'heure.", 'warn');
-    const kind = f.kind || 'dow';
-    if (kind === 'date' && !f.date) return toast('Choisissez la date.', 'warn');
-    ed.rules.push({ id: 'r' + Date.now().toString(36), kind: kind === 'dow2' ? 'dow' : kind, dow: +(f.dow ?? 4), every: kind === 'dow2' ? 2 : 1, parity: f.parity || 'pair', school: !!f.school, date: f.date || '', to: f.to || '', time: f.time, place: f.place || '' });
+    const i = el.dataset.i === '' ? null : +el.dataset.i, r = ruleFromForm(f, i != null ? ed.rules[i] : null);
+    if (typeof r === 'string') return toast(r, 'warn');
+    if (i != null) ed.rules[i] = r; else ed.rules.push(r);
     closeSheet(); setTimeout(renderRules, 50);
+  },
+  // relais du jour : solution de repli prévue par l'horaire régulier (demande d'échange d'horaire)
+  'x-alt': async el => {
+    const d = el.dataset.d, kids = el.dataset.kids.split(',').filter(Boolean), h = engine().handovers(kids, d, d).find(x => x.kind === el.dataset.kind && x.alt); if (!h || !isParent()) return;
+    const a = h.alt, mo = h.kind === 'matin', nd = a.when === 'veille' ? E.addDays(h.date, -1) : h.date, place = a.place || '';
+    let changes = [], tc;
+    if (mo) tc = a.when === 'veille' ? { d: nd, time: a.time, place, midday: false } : { d: h.date, time: a.time, place, morning: true };
+    else if (a.when === 'veille') { changes = [{ d: h.date, to: h.to }]; tc = { d: nd, time: a.time, place, midday: false }; }
+    else tc = { d: h.date, time: a.time, place, midday: false };
+    const p = parents(), o = p[E.other(myCode())]?.name || '', nv = needsValidation();
+    const summary = `Relais ${E.fmtDate(nd, 'wdm')} à ${E.fmtTime(a.time)}${place ? ' (' + place + ')' : ''} au lieu du ${E.fmtDate(h.date, 'wdm')} à ${E.fmtTime(h.time)}${h.place ? ' (' + h.place + ')' : ''}`;
+    if (!(await confirmInfo('Solution de repli ?', `${esc(summary)}${a.by ? `, déposés par ${esc(p[a.by]?.name || '')}` : ''}.`, nv ? 'Une demande à accepter : le relais change dès son accord. Une notification la prévient.' : 'Le relais modifié, et une notification.', o, nv ? 'Envoyer la demande' : 'Appliquer'))) return;
+    const data = { type: 'time', childIds: kids, changes, timeChange: tc, summary, reason: 'Solution de repli prévue', proposedBy: uid(), proposedByName: myName(), proposedAt: Date.now(), state: nv ? 'pending' : 'accepted' };
+    if (!nv) Object.assign(data, { decidedBy: uid(), decidedByName: myName() + ' (auto)', decidedAt: Date.now() });
+    const ok = await guard(async () => { await addItem('exchanges', data); await log('echange', nv ? `Demande d'échange : ${summary}` : `Échange appliqué : ${summary}`); return true; }, nv ? 'Demande envoyée' : 'Relais modifié');
+    if (ok) closeSheet();
   },
   'set-relais-save': async el => {
     const f = readForm(el.closest('.sheet')), ed = S.ui.relEdit; if (!f.ht || !f.mt) return toast('Horaires invalides.', 'warn');
@@ -629,14 +664,31 @@ function ctSheet(c = null) {
 
 // ───────────── Horaires de relais : horaire par défaut + horaires réguliers (jour, semaine paire/impaire, vacances, date)
 const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
+// ───── Lieux : chez chaque parent (prénom), école, autre (à préciser obligatoirement)
+export function placeLabel(code, txt = '') { const p = parents(); return code === 'A' || code === 'B' ? `Chez ${p[code].name}` : code === 'ecole' ? 'École' : code === 'autre' ? String(txt || '').trim() : ''; }
+export function placeSel(name, code = '', txt = '', none = '') {
+  const p = parents();
+  return `${chips(name, [...(none ? [{ v: '', l: none }] : []), { v: 'A', l: `🏠 Chez ${esc(p.A.name)}` }, { v: 'B', l: `🏠 Chez ${esc(p.B.name)}` }, { v: 'ecole', l: '🏫 École' }, { v: 'autre', l: '✏️ Autre' }], [code])}
+    <div data-pl="${name}" class="${code === 'autre' ? '' : 'hide'}"><input class="in mtx" name="${name}Txt" value="${esc(txt)}" placeholder="Précisez le lieu (obligatoire)"></div>`;
+}
+/** Affiche la case « Autre » quand ce lieu est choisi */
+export function placeToggle(sh) { const f = readForm(sh); sh.querySelectorAll('[data-pl]').forEach(b => b.classList.toggle('hide', f[b.dataset.pl] !== 'autre')); }
+const whoChips = (name, val) => { const p = parents(); return chips(name, [{ v: '', l: `${esc(p.A.name)} ou ${esc(p.B.name)}` }, { v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [val || '']); };
+const placeWord = l => (/^école$/i.test(l) ? "à l'école" : /^Chez /.test(l) ? 'c' + l.slice(1) : `(${l})`);
+/** Solution de repli : « la veille à 18h30, déposés par Khalid chez Jounayda » */
+export function altText(a) { const p = parents(); return `${a.when === 'veille' ? 'la veille' : 'le jour même'} à ${E.fmtTime(a.time)}${a.by ? ', déposés par ' + (p[a.by]?.name || '') : ''}${a.place ? ' ' + placeWord(a.place) : ''}`; }
+const schoolYear = iso => (+iso.slice(5, 7) >= 8 ? +iso.slice(0, 4) : +iso.slice(0, 4) - 1);
 export function ruleText(r) {
-  const p = parents(), who = r.to ? ` · ${p[r.to]?.short || ''} récupère` : '';
+  const p = parents(), N = c => p[c]?.name || '';
   let when;
   if (r.kind === 'date') when = E.fmtDate(r.date, 'wdmy');
   else if (r.kind === 'vacStart') when = 'veille des vacances scolaires';
   else if (r.kind === 'vacEnd') when = 'dernier jour des vacances scolaires';
-  else when = `${+r.every === 2 ? 'un ' : 'chaque '}${E.JOURS[+r.dow]}${+r.every === 2 ? ` sur deux (semaines ${r.parity === 'pair' ? 'paires' : 'impaires'})` : ''}${r.school ? ' en période scolaire' : ''}`;
-  return `${cap(when)} · ${E.fmtTime(r.time)}${r.place ? ' · 📍 ' + r.place : ''}${who}`;
+  else when = `${+r.every === 2 ? 'le ' : 'chaque '}${E.JOURS[+r.dow]}${+r.every === 2 ? ` des semaines ${r.parity === 'pair' ? 'paires' : 'impaires'}` : ''}${r.school ? ' en période scolaire' : ''}`;
+  const yr = r.year ? ` (année ${r.year}-${+r.year + 1})` : '';
+  const drop = r.from || r.dropPlace ? ` · déposés${r.from ? ' par ' + N(r.from) : ''}${r.dropPlace ? ' ' + placeWord(r.dropPlace) : ''}` : '';
+  const pick = r.to || r.place ? ` · récupérés${r.to ? ' par ' + N(r.to) : ''}${r.place ? ' ' + placeWord(r.place) : ''}` : '';
+  return `${cap(when)}${yr} · ${E.fmtTime(r.time)}${r.timeEnd ? '–' + E.fmtTime(r.timeEnd) : ''}${drop}${pick}${r.alt?.on ? ' · si impossible : ' + altText(r.alt) : ''}`;
 }
 function relaisEditor(init = null) {
   if (!isParent()) return;
@@ -647,28 +699,68 @@ function relaisEditor(init = null) {
     <label class="lbl">Relais de mi-journée (Aïd, demi-journées)</label><input class="in" type="time" name="mt" value="${st.middayTime || '14:00'}">
     <label class="lbl">Horaires réguliers (prioritaires sur l'horaire par défaut)</label><div data-part="rules"></div>
     <button class="btn soft block mt" data-act="rl-add">${IC.plus} Ajouter un horaire régulier</button>
-    <div class="hint">Ex. : « chaque vendredi en période scolaire · 16h30 · École ». Le plus précis l'emporte : date précise › vacances › jour de la semaine › horaire par défaut. Un échange « horaire de relais » reste possible au cas par cas.</div>
+    <div class="hint">Ex. : « chaque lundi en période scolaire · 8h20–8h30 · déposés par ${esc(parents().A.name)} à l'école ». Le plus précis l'emporte : date précise › vacances › jour de la semaine › horaire par défaut. Un échange « horaire de relais » reste possible au cas par cas.</div>
     <div class="hint">${needsValidation() ? "L'autre parent devra valider ce changement." : 'Appliqué immédiatement.'}</div>
     <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="set-relais-save">Enregistrer</button></div>`, { onClose: () => { S.ui.relSheet = null; } });
   S.ui.relSheet = sh; renderRules();
 }
 function renderRules() {
   const sh = S.ui.relSheet, ed = S.ui.relEdit; if (!sh || !ed) return;
-  sh.querySelector('[data-part="rules"]').innerHTML = ed.rules.length ? ed.rules.map((r, i) => `<div class="per"><div class="pi">🕓</div><div class="f1 small b">${esc(ruleText(r))}</div><button class="ib" data-act="rl-del" data-i="${i}">${IC.trash}</button></div>`).join('') : '<p class="small muted">Aucun : l\'horaire par défaut s\'applique à tous les relais.</p>';
+  sh.querySelector('[data-part="rules"]').innerHTML = ed.rules.length ? ed.rules.map((r, i) => `<div class="per"><div class="pi">🕓</div><button class="f1 small b" style="text-align:left" data-act="rl-edit" data-i="${i}">${esc(ruleText(r))} <span class="lnk">✏️</span></button><button class="ib" data-act="rl-del" data-i="${i}">${IC.trash}</button></div>`).join('') : '<p class="small muted">Aucun : l\'horaire par défaut s\'applique à tous les relais.</p>';
 }
-function ruleSheet() {
-  const p = parents();
+function ruleSheet(r = null, idx = null) {
+  const p = parents(), x = r || { kind: 'dow', dow: 4, every: 1, parity: 'pair', school: true, time: '16:30' };
+  const k0 = x.kind === 'dow' && +x.every === 2 ? (x.parity === 'impair' ? 'dowI' : 'dowP') : x.kind || 'dow';
+  const today = E.todayISO(), sy = schoolYear(today), wk = E.isoWeek(today).week;
+  const legacy = !x.pickAt && x.place ? (/^école$/i.test(x.place) ? ['ecole', ''] : /^chez /i.test(x.place) ? [x.place.slice(5) === p.A.name ? 'A' : x.place.slice(5) === p.B.name ? 'B' : 'autre', x.place] : ['autre', x.place]) : [x.pickAt || '', x.pickTxt || ''];
   const sh = openSheet(`<h3 class="sh-title">🕓 Horaire régulier</h3>
-    <label class="lbl">Quand ?</label>${chips('kind', [{ v: 'dow', l: '📅 Chaque semaine' }, { v: 'dow2', l: '🔁 Une semaine sur deux' }, { v: 'vacStart', l: '🎒 Veille des vacances' }, { v: 'vacEnd', l: '🏁 Fin des vacances' }, { v: 'date', l: '📌 Une date' }], ['dow'])}
-    <div data-part="dow"><label class="lbl">Jour du relais</label>${chips('dow', E.JOURS.map((j, i) => ({ v: String(i), l: cap(j) })), ['4'])}
-      <label class="row gap mt"><span class="sw"><input type="checkbox" name="school" checked><span></span></span><span class="f1">Seulement en période scolaire (pas pendant les vacances)</span></label></div>
-    <div data-part="par" class="hide"><label class="lbl">Semaines</label>${chips('parity', [{ v: 'pair', l: 'Paires' }, { v: 'impair', l: 'Impaires' }], ['pair'])}</div>
-    <div data-part="date" class="hide"><label class="lbl">Date</label><input class="in" type="date" name="date" value="${E.todayISO()}"></div>
-    <label class="lbl">Qui récupère les enfants ?</label>${chips('to', [{ v: '', l: 'Peu importe' }, { v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [''])}
-    <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="16:30"></div><div><label class="lbl">Lieu</label><input class="in" name="place" placeholder="École, domicile…"></div></div>
-    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="rl-save">Ajouter</button></div>`);
-  const upd = () => { const k = readForm(sh).kind || 'dow'; sh.querySelector('[data-part="dow"]').classList.toggle('hide', !k.startsWith('dow')); sh.querySelector('[data-part="par"]').classList.toggle('hide', k !== 'dow2'); sh.querySelector('[data-part="date"]').classList.toggle('hide', k !== 'date'); };
-  sh.addEventListener('chipchange', upd);
+    <label class="lbl">Quand ?</label>${chips('kind', [{ v: 'dow', l: '📅 Chaque semaine' }, { v: 'dowP', l: '2️⃣ Semaines paires' }, { v: 'dowI', l: '1️⃣ Semaines impaires' }, { v: 'vacStart', l: '🎒 Veille des vacances' }, { v: 'vacEnd', l: '🏁 Fin des vacances' }, { v: 'date', l: '📌 Une date' }], [k0])}
+    <div data-part="par" class="hint hide">Cette semaine : n° ${wk} (semaine ${wk % 2 ? 'impaire' : 'paire'}).</div>
+    <label class="lbl">Année scolaire</label>${chips('year', [{ v: '', l: 'Toutes les années' }, ...[sy, sy + 1].map(y => ({ v: String(y), l: `${y}-${y + 1}` }))], [x.year || ''])}
+    <div data-part="dow"><label class="lbl">Jour du relais</label>${chips('dow', E.JOURS.map((j, i) => ({ v: String(i), l: cap(j) })), [String(x.dow ?? 4)])}
+      <label class="row gap mt"><span class="sw"><input type="checkbox" name="school" ${x.school !== false ? 'checked' : ''}><span></span></span><span class="f1">Seulement en période scolaire (pas pendant les vacances)</span></label></div>
+    <div data-part="date" class="hide"><label class="lbl">Date</label><input class="in" type="date" name="date" value="${x.date || today}"></div>
+    <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="${x.time || '16:30'}"></div><div><label class="lbl">Jusqu'à (option)</label><input class="in" type="time" name="timeEnd" value="${x.timeEnd || ''}"></div></div>
+    <div class="hint">Avant midi, c'est un relais du matin le jour choisi : la garde de la veille continue jusque-là.</div>
+    <label class="lbl">Qui dépose les enfants ?</label>${whoChips('from', x.from)}
+    <label class="lbl">Lieu de dépose</label>${placeSel('dropAt', x.dropAt || '', x.dropTxt || '')}
+    <label class="lbl">Qui récupère les enfants ?</label>${whoChips('to', x.to)}
+    <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', legacy[0], legacy[1])}
+    <label class="row gap mt"><span class="sw"><input type="checkbox" name="altOn" ${x.alt?.on ? 'checked' : ''}><span></span></span><span class="f1">Si impossible : solution de repli</span></label>
+    <div data-part="alt" class="hide">
+      <label class="lbl">Quand ?</label>${chips('altWhen', [{ v: 'veille', l: 'La veille' }, { v: 'jour', l: 'Le jour même' }], [x.alt?.when || 'veille'])}
+      <label class="lbl">Heure</label><input class="in" type="time" name="altTime" value="${x.alt?.time || settings().handoverTime || '18:30'}">
+      <label class="lbl">Qui dépose les enfants ?</label>${chips('altBy', [{ v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [x.alt?.by || x.from || myCode() || 'A'])}
+      <label class="lbl">Lieu</label>${placeSel('altAt', x.alt?.at || '', x.alt?.txt || '')}
+    </div>
+    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="rl-save" data-i="${idx ?? ''}">${r ? 'Enregistrer' : 'Ajouter'}</button></div>`);
+  const upd = () => {
+    const f = readForm(sh), k = f.kind || 'dow';
+    sh.querySelector('[data-part="dow"]').classList.toggle('hide', !k.startsWith('dow'));
+    sh.querySelector('[data-part="par"]').classList.toggle('hide', k !== 'dowP' && k !== 'dowI');
+    sh.querySelector('[data-part="date"]').classList.toggle('hide', k !== 'date');
+    sh.querySelector('[data-part="alt"]').classList.toggle('hide', !f.altOn);
+    placeToggle(sh);
+  };
+  sh.addEventListener('chipchange', upd); sh.addEventListener('change', upd); upd();
+}
+function ruleFromForm(f, old = null) {
+  const k = f.kind || 'dow', t = s2 => String(s2 || '').trim();
+  if (!f.time) return "Indiquez l'heure.";
+  if (k === 'date' && !f.date) return 'Choisissez la date.';
+  if (f.timeEnd && f.timeEnd <= f.time) return "L'heure de fin doit suivre l'heure de début.";
+  if (f.dropAt === 'autre' && !t(f.dropAtTxt)) return 'Précisez le lieu de dépose.';
+  if (f.pickAt === 'autre' && !t(f.pickAtTxt)) return 'Précisez le lieu de récupération.';
+  if (f.altOn && !f.altTime) return "Indiquez l'heure de la solution de repli.";
+  if (f.altOn && !f.altAt) return 'Choisissez le lieu de la solution de repli.';
+  if (f.altOn && f.altAt === 'autre' && !t(f.altAtTxt)) return 'Précisez le lieu de la solution de repli.';
+  return {
+    id: old?.id || 'r' + Date.now().toString(36), kind: k.startsWith('dow') ? 'dow' : k, dow: +(f.dow ?? 4), every: k === 'dowP' || k === 'dowI' ? 2 : 1, parity: k === 'dowI' ? 'impair' : 'pair',
+    school: !!f.school, date: f.date || '', year: f.year || '', time: f.time, timeEnd: f.timeEnd || '',
+    from: f.from || '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace: placeLabel(f.dropAt, f.dropAtTxt),
+    to: f.to || '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', place: placeLabel(f.pickAt, f.pickAtTxt),
+    alt: f.altOn ? { on: true, when: f.altWhen || 'veille', time: f.altTime, by: f.altBy || '', at: f.altAt, txt: f.altAt === 'autre' ? t(f.altAtTxt) : '', place: placeLabel(f.altAt, f.altAtTxt) } : null,
+  };
 }
 
 // ───────────── Mode test : un cercle d'essai « 🧪 Famille TEST » avec une maman TEST (aucun lien avec le vrai cercle)
@@ -731,3 +823,14 @@ Object.assign(actions, {
     await guard(() => S.be.auth.signOut()); S.authEmail = back; S.authMode = 'login'; location.hash = '';
   },
 });
+
+// ───── Notifications : lue seulement quand on la touche
+actions['notif-open'] = el => {
+  markRead(el.dataset.id);
+  let params = {}; try { params = JSON.parse(el.dataset.p || '{}'); } catch (e) { /* */ }
+  go(el.dataset.v || 'home', params);
+};
+actions['notif-all'] = async () => {
+  if (!(await confirmBox('Tout marquer comme lu ?', 'Les notifications ne seront plus entourées en rouge et le compteur revient à zéro.', 'Tout marquer comme lu'))) return;
+  await guard(() => S.be.db.update(`users/${uid()}`, { [`lastSeen.${S.fid}`]: Date.now(), [`nread.${S.fid}`]: {} }), 'Tout est lu ✓');
+};

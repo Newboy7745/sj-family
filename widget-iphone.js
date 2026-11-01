@@ -74,14 +74,17 @@ else {
   const kidIds = K.map(k => k.id);
   const label = K.length === all.length && all.length > 1 ? (all.length === 2 ? all.map(c => c.name).join(' & ') : 'Les enfants') : K.map(c => c.name).join(' & ');
   const code = (c, d) => { const i = dayDiff(feed.start, d); return (c.days || '')[i] || '.'; };
-  const evening = (c, d) => { const h = (feed.handovers || []).find(x => x.d === d && !x.m && (x.k || []).includes(c.id)); return h ? t2m(h.t) : t2m(feed.ht); };
+  const hoOf = (c, d, mo) => (feed.handovers || []).find(x => x.d === d && !x.m && !!x.mo === mo && (x.k || []).includes(c.id));
+  // relais du soir du jour d ; aucun si le relais a lieu le lendemain matin (ex. dépose à l'école à 8h20)
+  const evening = (c, d) => { const h = hoOf(c, d, false); return h ? t2m(h.t) : hoOf(c, addDays(d, 1), true) ? 1e9 : t2m(feed.ht); };
   const presence = (c, d, m) => {
+    const mo = hoOf(c, d, true); if (mo && m < t2m(mo.t)) return mo.f; // la garde de la veille continue jusqu'au relais du matin
     if (m >= evening(c, d)) return first(code(c, addDays(d, 1)));
     const x = code(c, d), mid = t2m(feed.mid || '14:00');
     if (x === 'X') return m < mid ? 'A' : 'B'; if (x === 'Y') return m < mid ? 'B' : 'A';
     return first(x);
   };
-  const short = p => (P[p] && (P[p].short || P[p].name)) || '—';
+  const short = p => (P[p] && (P[p].name || P[p].short)) || '—'; // prénom (jamais Papa / Maman)
   const name = p => (P[p] && P[p].name) || '—';
   const colorOf = c => c === 'A' ? new Color(colA) : c === 'B' ? new Color(colB) : c === 'a' ? mix(colA, .55) : c === 'b' ? mix(colB, .55) : c === 'X' || c === 'Y' ? mix(c === 'X' ? colA : colB, .25) : new Color('#ffffff', 0.15);
   const nowWho = presence(K[0], today, nowM);
@@ -206,7 +209,7 @@ else {
     W.addSpacer(8);
     const max = family === 'large' || family === 'extraLarge' ? 10 : 4;
     const items = [];
-    for (const h of hand.slice(0, 3)) items.push({ k: h.d + h.t, s: `🔁 ${cap(rel(h.d, today))} ${fmtT(h.t)} · ${kidNames(h.k)} → ${name(h.to)}${h.p ? ' (' + h.p + ')' : ''}` });
+    for (const h of hand.slice(0, 3)) items.push({ k: h.d + h.t, s: `🔁 ${cap(rel(h.d, today))} ${fmtT(h.t)}${h.t2 ? '–' + fmtT(h.t2) : ''} · ${kidNames(h.k)} → ${name(h.to)}${h.dp && h.dp !== h.p ? ' (dépose : ' + h.dp + ')' : h.p ? ' (' + h.p + ')' : ''}` });
     for (const e of events.filter(e => e.d >= today).slice(0, 8)) items.push({ k: e.d + (e.t || '00:00'), s: `${e.i} ${cap(rel(e.d, today))}${e.t ? ' ' + fmtT(e.t) : ''} · ${e.n}${e.k.length && K.length > 1 ? ' (' + kidNames(e.k) + ')' : ''}` });
     items.sort((a, b) => a.k.localeCompare(b.k));
     const lines = items.slice(0, max).map(i => i.s);
@@ -230,7 +233,7 @@ else {
     for (const h of (feed.handovers || []).filter(h => h.d >= today).slice(0, 4)) {
       const at = parseISO(h.d); at.setHours(Math.floor(t2m(h.t) / 60), t2m(h.t) % 60, 0, 0);
       const when = new Date(at.getTime() - 2 * 3600000); if (when <= now) continue;
-      want.set(`sjf-${h.d}-${h.t}-${h.to}`, { when, title: `🔁 Relais ${rel(h.d, isoOf(when))} à ${fmtT(h.t)}`, body: `${kidNames(h.k)} : ${name(h.f)} → ${name(h.to)}${h.p ? ' — ' + h.p : ''}` });
+      want.set(`sjf-${h.d}-${h.t}-${h.to}`, { when, title: `🔁 Relais ${rel(h.d, isoOf(when))} à ${fmtT(h.t)}`, body: `${kidNames(h.k)} : ${name(h.f)} → ${name(h.to)}${h.t2 ? ' (entre ' + fmtT(h.t) + ' et ' + fmtT(h.t2) + ')' : ''}${h.dp || h.p ? ' — ' + (h.dp || h.p) : ''}` });
     }
     const pending = await Notification.allPending();
     const stale = pending.filter(n => (n.identifier || '').startsWith('sjf-') && !want.has(n.identifier)).map(n => n.identifier);

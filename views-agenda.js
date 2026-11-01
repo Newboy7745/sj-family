@@ -1,10 +1,11 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.10';
-import { S, engine, parents, pName, pShort, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.10';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.10';
-import { vacRecap } from './views-sac.js?v=6.10';
-import { kidChips, cellBg } from './views-home.js?v=6.10';
-import { openPrint } from './print.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.11';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.11';
+import { vacRecap } from './views-sac.js?v=6.11';
+import { kidChips, cellBg } from './views-home.js?v=6.11';
+import { altText } from './views-more.js?v=6.11';
+import { openPrint } from './print.js?v=6.11';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
@@ -16,7 +17,7 @@ function shiftMonth(m, k) { let [y, mo] = m.split('-').map(Number); mo += k; whi
 function legend() {
   const p = parents();
   return `<div class="legend"><span><i style="background:var(--pa)"></i>${esc(p.A.name)}</span><span><i style="background:var(--pb)"></i>${esc(p.B.name)}</span>
-    <span><i style="background:var(--pb-l)"></i>École (${esc(p.B.short)})</span><span><i style="background:var(--pa-l)"></i>École (${esc(p.A.short)})</span>
+    <span><i style="background:var(--pb-l)"></i>École (${esc(p.B.name)})</span><span><i style="background:var(--pa-l)"></i>École (${esc(p.A.name)})</span>
     <span><i style="background:linear-gradient(90deg,var(--pa) 50%,var(--pb) 50%)"></i>Demi-journée</span>
     <span><i style="background:var(--gold);height:5px;vertical-align:2px"></i>Vacances scolaires</span><span><i style="background:var(--err);border-radius:50%;width:9px;height:9px"></i>Férié</span><span>🔁 Relais du soir</span><span><i style="border:2px dashed var(--navy);background:#fff"></i>Échange accepté</span></div>`;
 }
@@ -48,8 +49,8 @@ function monthLists(m) {
   const evs = E.expandEvents(S.events, from, to).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
   const tab = S.ui.agTab || 'relais';
   const body = tab === 'relais'
-    ? (hs.length ? hs.map(h => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${h.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(h.date, 'wdm')} · ${E.fmtTime(h.time)}${h.custom ? ' <span class="pill warn">convenu</span>' : ''}</div>
-        <div class="ls">${esc(pName(h.from))} → ${esc(pName(h.to))} · ${esc(childNames(h.childIds))}${h.kind === 'midi' ? ' · mi-journée' : ''}${h.place ? ' · ' + esc(h.place) : ''}</div></div></button>`).join('') : '<div class="empty">Aucun relais ce mois-ci.</div>')
+    ? (hs.length ? hs.map(h => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${h.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(h.date, 'wdm')} · ${hoTime(h)}${h.custom ? ' <span class="pill warn">convenu</span>' : ''}</div>
+        <div class="ls">${esc(pName(h.from))} → ${esc(pName(h.to))} · ${esc(childNames(h.childIds))}${h.kind === 'midi' ? ' · mi-journée' : h.kind === 'matin' ? ' · le matin' : ''}${esc(hoPlace(h))}</div></div></button>`).join('') : '<div class="empty">Aucun relais ce mois-ci.</div>')
     : (evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div>
         <div class="ls">${E.fmtDate(e.occ, 'wdm')}${e.time ? ' · ' + E.fmtTime(e.time) + (e.endTime ? '–' + E.fmtTime(e.endTime) : '') : ''}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.repeat && e.repeat !== 'none' ? ' · 🔁' : ''}</div></div></button>`).join('') : '<div class="empty">Aucun événement ce mois-ci.</div>');
   return `<div class="card"><div class="seg"><button class="${tab === 'relais' ? 'on' : ''}" data-act="ag-tab" data-t="relais">🔁 Relais (${hs.length})</button><button class="${tab === 'events' ? 'on' : ''}" data-act="ag-tab" data-t="events">🗓️ Événements (${evs.length})</button></div>${body}</div>`;
@@ -128,7 +129,7 @@ export const views = {
         <div class="bar"><span style="width:${s.A / tot * 100}%;background:var(--pa)"></span><span style="width:${s.B / tot * 100}%;background:var(--pb)"></span></div>
         <div class="row between mt"><div><div class="b" style="font-size:24px">${E.fmtNum(s.A)} j</div><div class="muted small">${esc(pr.A.name)}</div></div><div class="center"><div class="b" style="font-size:24px">${E.fmtNum(s.A + s.B)}</div><div class="muted small">jours comptés</div></div><div style="text-align:right"><div class="b" style="font-size:24px">${E.fmtNum(s.B)} j</div><div class="muted small">${esc(pr.B.name)}</div></div></div>
         <div class="hr"></div>
-        <div class="stat"><span></span><span class="small b">${esc(pr.A.short)}</span><span class="small b">${esc(pr.B.short)}</span>
+        <div class="stat"><span></span><span class="small b">${esc(pr.A.name)}</span><span class="small b">${esc(pr.B.name)}</span>
           <span>Week-ends (jours)</span><span class="v">${s.weA}</span><span class="v">${s.weB}</span>
           <span>Vacances scolaires (jours)</span><span class="v">${s.vacA}</span><span class="v">${s.vacB}</span>
           <span>Demi-journées</span><span class="v">${s.half}</span><span class="v">${s.half}</span>
@@ -150,11 +151,11 @@ export const views = {
     const rows = list.map(h => {
       const parts = eng.blocks(ids[0], h.s, h.e).filter(b => b.key !== '.');
       const desc = parts.length ? parts.map(b => `<span class="pill" style="background:${b.code === 'A' || b.code === 'a' ? 'var(--pa)' : b.code === 'B' || b.code === 'b' ? 'var(--pb)' : '#eee'};color:#13233A">${esc(E.isHalf(b.code) ? '½ / ½' : pShort(E.first(b.code)))} · ${E.fmtDate(b.start, 'short')}${b.end !== b.start ? '→' + E.fmtDate(b.end, 'short') : ''}</span>`).join(' ') : '<span class="muted small">Pas de planning</span>';
-      const ho = eng.handovers(ids, E.addDays(h.s, -1), h.e).filter(x => x.kind === 'soir');
+      const ho = eng.handovers(ids, E.addDays(h.s, -1), E.addDays(h.e, 1)).filter(x => x.kind !== 'midi');
       const nL = S.sac.filter(l => l.kind === 'vlist' && l.period?.id === h.id).length;
       return `<button class="per" style="align-items:flex-start;width:100%;text-align:left" data-go="vacp" data-params='${JSON.stringify({ id: h.id, zone })}'><div class="pi">${h.i}</div><div class="f1"><div class="pn">${esc(h.n)} ${h.s.slice(2, 4)} ${h.e < today ? '<span class="pill">passées</span>' : ''}</div>
         <div class="pd">Du ${E.fmtDate(h.s)} au ${E.fmtDate(h.e)}</div><div class="row wrap gap6 mt" style="margin-top:6px">${desc}</div>
-        ${ho.length ? `<div class="tiny muted" style="margin-top:6px">🔁 ${ho.map(x => `${E.fmtDate(x.date, 'wdm')} ${E.fmtTime(x.time)} → ${esc(pShort(x.to))}`).join(' · ')}</div>` : ''}
+        ${ho.length ? `<div class="tiny muted" style="margin-top:6px">🔁 ${ho.map(x => `${E.fmtDate(x.date, 'wdm')} ${hoTime(x)} → ${esc(pName(x.to))}`).join(' · ')}</div>` : ''}
         ${isParent() && nL ? `<div class="tiny b" style="margin-top:6px">🎒 ${nL} liste${nL > 1 ? 's' : ''} du Sac</div>` : ''}</div><span class="lnk" style="align-self:center">›</span></button>`;
     }).join('');
     return {
@@ -190,7 +191,7 @@ views.vacp = p => {
   const sec = (t, n, body, more = '') => `<div class="card vp-sec"><h3>${t}${n != null ? ` <span class="pill">${n}</span>` : ''}${more}</h3>${body}</div>`;
   const html = `${head}
     ${sec('👨‍👩‍👧 Garde', null, custody || '<div class="small muted">Aucun enfant.</div>')}
-    ${sec('🔁 Relais', ho.length, ho.length ? ho.map(x => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${x.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(x.date, 'wdm')} · ${E.fmtTime(x.time)}${x.custom ? ' <span class="pill warn">convenu</span>' : ''}</div><div class="ls">${esc(pName(x.from))} → ${esc(pName(x.to))} · ${esc(childNames(x.childIds))}${x.place ? ' · ' + esc(x.place) : ''}</div></div></button>`).join('') : '<div class="small muted">Aucun relais pendant ces vacances.</div>')}
+    ${sec('🔁 Relais', ho.length, ho.length ? ho.map(x => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${x.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(x.date, 'wdm')} · ${hoTime(x)}${x.custom ? ' <span class="pill warn">convenu</span>' : ''}</div><div class="ls">${esc(pName(x.from))} → ${esc(pName(x.to))} · ${esc(childNames(x.childIds))}${esc(hoPlace(x))}</div></div></button>`).join('') : '<div class="small muted">Aucun relais pendant ces vacances.</div>')}
     ${sec('🔄 Échanges', xs.length, xs.length ? xs.map(x => { const [c, l] = XS[x.state] || ['', x.state]; return `<button class="li" style="width:100%;text-align:left" data-go="exchanges" data-params='${JSON.stringify({ tab: x.state === 'pending' ? (x.proposedBy === uid() ? 'mine' : 'todo') : 'hist' })}'><div class="le">${x.type === 'time' ? '⏰' : '🔄'}</div><div class="f1"><div class="lt">${esc(x.summary || 'Échange')}</div><div class="ls">${esc(childNames(x.childIds))} · demandé par ${esc(x.proposedByName || '')} le ${fmtStamp(x.proposedAt)}</div></div><span class="pill ${c}">${l}</span></button>`; }).join('') : '<div class="small muted">Aucun échange sur cette période.</div>')}
     ${sec('🗓️ Événements', evs.length, evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.occ, 'wdm')}${e.time ? ' · ' + E.fmtTime(e.time) : ''}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.place ? ' · ' + esc(e.place) : ''}</div></div></button>`).join('') : '<div class="small muted">Aucun événement.</div>', ` <a class="act" data-act="ev-new" data-d="${h.s}">${IC.plus}</a>`)}
     ${vacRecap(h.id)}
@@ -220,7 +221,8 @@ export function openDay(d) {
   const tags = [info.ferie && `<span class="pill err">🎌 ${esc(info.ferie)}</span>`, info.comment && info.comment !== info.ferie && `<span class="pill navy">${esc(info.comment)}</span>`, info.holiday && `<span class="pill warn">${info.holiday.i} ${esc(info.holiday.n)}</span>`].filter(Boolean).join(' ');
   openSheet(`<h3 class="sh-title">${E.fmtDate(d, 'wdmy')}</h3>${tags ? `<div class="row wrap gap6 mb">${tags}</div>` : ''}
     ${kids || '<p class="muted">Aucun enfant.</p>'}
-    ${hs.length ? `<div class="lbl">Relais</div>${hs.map(h => `<div class="tile"><span style="font-size:24px">🔁</span><div class="f1"><b>${E.fmtTime(h.time)}</b> · ${esc(pName(h.from))} → ${esc(pName(h.to))}<div class="small muted">${esc(childNames(h.childIds))}${h.custom ? ' · horaire convenu' : ''}${h.place ? ' · ' + esc(h.place) : ''}</div></div>
+    ${hs.length ? `<div class="lbl">Relais</div>${hs.map(h => `<div class="tile"><span style="font-size:24px">🔁</span><div class="f1"><b>${hoTime(h)}</b> · ${esc(pName(h.from))} → ${esc(pName(h.to))}<div class="small muted">${esc(childNames(h.childIds))}${h.kind === 'matin' ? ' · le matin' : ''}${h.custom ? ' · horaire convenu' : ''}${esc(hoPlace(h))}</div>
+        ${h.alt && isParent() && !h.custom ? `<button class="btn soft sm mtx" data-act="x-alt" data-d="${d}" data-kind="${h.kind}" data-kids="${h.childIds.join(',')}">↩️ Si impossible : ${esc(altText(h.alt, h))}</button>` : ''}</div>
       ${isParent() ? `<button class="btn soft sm" data-act="x-time" data-d="${d}" data-kind="${h.kind}" data-time="${h.time}" title="Changer l'horaire de ce relais">${IC.clock}</button>` : ''}</div>`).join('')}` : ''}
     <div class="lbl">Événements</div>${evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${d}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${e.time ? E.fmtTime(e.time) + (e.endTime ? '–' + E.fmtTime(e.endTime) : '') : 'Journée'}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.place ? ' · ' + esc(e.place) : ''}</div></div></button>`).join('') : '<p class="muted small">Aucun événement.</p>'}
     <div class="row gap mt"><button class="btn primary f1" data-act="ev-new" data-d="${d}">${IC.plus} Événement</button>${isParent() ? `<button class="btn ghost f1" data-act="x-new" data-d="${d}">🔄 Échange</button>` : ''}</div>`);

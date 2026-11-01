@@ -1,8 +1,8 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.10';
-import { S, engine, parents, pName, pShort, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.11';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.10';
+import { esc, fmtAgo } from './ui.js?v=6.11';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -52,8 +52,8 @@ function gardeCard(kids) {
   return `<div class="garde"><div class="gt"><span class="gk">${kids.map(k => kidAvatar(k, 26)).join('')}</span>Garde du jour · ${esc(label)}</div>
     <div class="gw">${avatar(P.name, who === 'A' ? 'var(--pa-d)' : 'var(--pb-d)', 50)}<div class="f1"><div class="gn">Chez ${esc(P.name)}${P.short && P.short !== P.name ? ` <span class="muted" style="font-weight:700">(${esc(P.short)})</span>` : ''}</div>
     <div class="gs">${esc(sub.join(' · '))}</div></div></div>
-    ${next ? `<div class="next"><span style="font-size:24px">🔁</span><div class="f1"><div class="nt">Relais ${esc(E.relDay(next.date, today))} à ${E.fmtTime(next.time)}${next.custom ? ' <span class="pill warn">horaire convenu</span>' : ''}</div>
-      <div class="small muted">${esc(pName(next.from))} → ${esc(pName(next.to))}${next.kind === 'midi' ? ' · mi-journée' : ''}${next.place ? ' · 📍 ' + esc(next.place) : ''}</div>
+    ${next ? `<div class="next"><span style="font-size:24px">🔁</span><div class="f1"><div class="nt">Relais ${esc(E.relDay(next.date, today))} à ${hoTime(next)}${next.custom ? ' <span class="pill warn">horaire convenu</span>' : ''}</div>
+      <div class="small muted">${esc(pName(next.from))} → ${esc(pName(next.to))}${next.kind === 'midi' ? ' · mi-journée' : ''}${esc(hoPlace(next))}</div>
       <div class="count mt6">⏱ ${countdown(next.date, next.time)}</div></div></div>` : ''}
     <div class="week">${week}</div></div>`;
 }

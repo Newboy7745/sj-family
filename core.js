@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.10';
-import { toast, esc } from './ui.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { toast, esc } from './ui.js?v=6.11';
 
-export const VERSION = '6.10';
+export const VERSION = '6.11';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';
@@ -73,14 +73,23 @@ export const rerender = () => S.render?.();
 // ───── Sélecteurs
 export const uid = () => S.user?.uid;
 export function parents() {
-  const p = S.family?.parents || {};
+  const p = S.family?.parents || {}, tB = S.family?.testCircle && p.B?.name === 'Maman' ? 'Maman TEST' : null;
   return {
     A: { uid: p.A?.uid || null, name: p.A?.name || 'Parent 1', short: p.A?.short || p.A?.name || 'Parent 1', color: p.A?.color || PARENT_COLORS[0], phone: p.A?.phone || '', email: p.A?.email || '' },
-    B: { uid: p.B?.uid || null, name: p.B?.name || 'Parent 2', short: p.B?.short || p.B?.name || 'Parent 2', color: p.B?.color || PARENT_COLORS[1], phone: p.B?.phone || '', email: p.B?.email || '' },
+    B: { uid: p.B?.uid || null, name: tB || p.B?.name || 'Parent 2', short: p.B?.short || p.B?.name || 'Parent 2', color: p.B?.color || PARENT_COLORS[1], phone: p.B?.phone || '', email: p.B?.email || '' },
   };
 }
 export const pName = c => parents()[c]?.name || '—';
-export const pShort = c => parents()[c]?.short || '—';
+/** Prénom du parent (l'appellation « Papa » / « Maman » n'apparaît que sur l'accueil et dans le Cercle) */
+export const pShort = c => parents()[c]?.name || '—';
+/** Créneau d'un relais : « 08h20–08h30 » */
+export const hoTime = h => `${E.fmtTime(h.time)}${h.timeEnd ? '–' + E.fmtTime(h.timeEnd) : ''}`;
+/** Lieux d'un relais : « 📍 École », ou « 📍 Dépose : École · Récupération : Chez Jounayda » */
+export function hoPlace(h, pre = ' · ') {
+  const d = h.dropPlace || '', p = h.place || '';
+  if (!d && !p) return '';
+  return `${pre}📍 ${d && p && d !== p ? `Dépose : ${d} · Récupération : ${p}` : p || d}`;
+}
 export const pColor = c => parents()[c]?.color || '#ddd';
 export function me() { return S.meMember || S.members.find(m => m.uid === uid()) || { uid: uid(), name: S.profile?.prenom || 'Moi' }; }
 export function myCode() { const p = parents(); return p.A.uid && p.A.uid === uid() ? 'A' : p.B.uid && p.B.uid === uid() ? 'B' : null; }
@@ -168,7 +177,7 @@ export async function log(cat, title, { body = '', link = null, icon = null, to 
     const item = { cat, title, body, link: lk, icon: ic, by: uid(), byName: myName(), at, fid: S.fid };
     await Promise.all(rcpt.map(r => S.be.db.set(`families/${S.fid}/inbox/${r}/items/${id}`, item)));
     const pushList = (push || rcpt).filter(r => r !== uid());
-    pushTo(pushList, `${ic} ${title}`, `${myName()}${body ? ' — ' + body : ''}`, lk);
+    pushTo(pushList, `${ic} ${title}`, `${myName()}${body ? ' — ' + body : ''}`, lk, id);
   } catch (e) { console.warn('log', e); }
 }
 
@@ -187,9 +196,9 @@ export function ntfyCancel(topic, seq) {
   fetch(`https://ntfy.sh/${encodeURIComponent(topic)}/${encodeURIComponent(seq)}/delete`, { mode: 'no-cors' }).catch(e => console.warn('ntfy', e));
 }
 /** Notifications push vers des membres précis (les sujets ntfy des autres ne sont connus que des parents) */
-export function pushTo(uids, title, message, link = null) {
+export function pushTo(uids, title, message, link = null, nid = null) {
   if (S.be?.mode === 'demo') return;
-  const click = link ? `${APP_URL}#/${link}${link.includes('?') ? '&' : '?'}fam=${S.fid}` : APP_URL;
+  const click = `${APP_URL}#/${link || 'notifs'}${(link || '').includes('?') ? '&' : '?'}fam=${S.fid}${nid ? '&n=' + nid : ''}`;
   for (const u of uids) { const m = S.members.find(x => x.uid === u); if (m && m.uid !== uid() && m.ntfyOn && m.ntfyTopic) ntfyPublish(m.ntfyTopic, { title, message, click }); }
 }
 /** Rappels de relais programmés (≤ 3 jours à l'avance, sans doublon entre téléphones) */
@@ -210,7 +219,7 @@ export async function scheduleReminders() {
         const created = await S.be.db.createIfAbsent(fpath('reminders', key), { at: when, uid: m.uid, createdAt: now });
         if (!created) continue;
         const mine = h.to === m.parentCode ? `Récupération de ${childNames(h.childIds)}` : `Remise de ${childNames(h.childIds)} à ${pName(h.to)}`;
-        ntfyPublish(m.ntfyTopic, { title: `🔁 Relais ${E.relDay(h.date)} à ${E.fmtTime(h.time)}`, message: `${mine}${h.place ? ' — ' + h.place : ''}`, delay: String(Math.round(when / 1000)), tags: ['bell'] });
+        ntfyPublish(m.ntfyTopic, { title: `🔁 Relais ${E.relDay(h.date)} à ${hoTime(h)}`, message: `${mine}${hoPlace(h, ' — ')}`, delay: String(Math.round(when / 1000)), tags: ['bell'] });
       } catch (e) { console.warn('reminder', e); }
     }
   }

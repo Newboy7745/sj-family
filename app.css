@@ -372,3 +372,13 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .rc-s{width:46px;text-align:center;flex:none}
 .vp-sec{margin-bottom:12px}.vp-sec h3{margin-bottom:6px}
 .vp-k{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid #EEF2F7}.vp-k:first-of-type{border-top:0}
+
+/* 6.11 : confirmations détaillées, somme en direct, notifications non lues, relances */
+.cfm{display:block;text-align:left;color:var(--ink,#13233A)}
+.cfm-h{display:block;font-weight:800;font-size:13px;margin:10px 0 3px;color:var(--navy)}
+.cfm-h:first-child{margin-top:0}
+.cfm-t{display:block;font-size:14px;line-height:1.4;background:#F4F7FB;border-radius:12px;padding:8px 10px}
+.sumline{margin:8px 0 2px;padding:9px 12px;border-radius:12px;background:#EEF4FB;font-size:15px;color:var(--navy)}
+.sumline b{font-size:17px}
+.card.notif.unread{box-shadow:inset 0 0 0 2px var(--err),var(--sh)}
+.nu{display:inline-block;font-size:11px;font-weight:800;color:#fff;background:var(--err);border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:2px}

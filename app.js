@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.10';
-import { createBackend } from './backend.js?v=6.10';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.10';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.10';
-import * as Home from './views-home.js?v=6.10';
-import * as Agenda from './views-agenda.js?v=6.10';
-import * as Plan from './views-planning.js?v=6.10';
-import * as Exch from './views-exchange.js?v=6.10';
-import * as Fam from './views-family.js?v=6.10';
-import * as Bud from './views-budget.js?v=6.10';
-import * as More from './views-more.js?v=6.10';
-import * as Admin from './views-admin.js?v=6.10';
-import * as Install from './install.js?v=6.10';
-import * as Sac from './views-sac.js?v=6.10';
-import * as Print from './print.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { createBackend } from './backend.js?v=6.11';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.11';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.11';
+import * as Home from './views-home.js?v=6.11';
+import * as Agenda from './views-agenda.js?v=6.11';
+import * as Plan from './views-planning.js?v=6.11';
+import * as Exch from './views-exchange.js?v=6.11';
+import * as Fam from './views-family.js?v=6.11';
+import * as Bud from './views-budget.js?v=6.11';
+import * as More from './views-more.js?v=6.11';
+import * as Admin from './views-admin.js?v=6.11';
+import * as Install from './install.js?v=6.11';
+import * as Sac from './views-sac.js?v=6.11';
+import * as Print from './print.js?v=6.11';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -141,6 +141,7 @@ function doRender() {
     return;
   }
   if (!S.family) return renderLoading();
+  if (r.params?.n && S.fid && (!r.params.fam || r.params.fam === S.fid) && S.ui.nOpen !== r.params.n) { S.ui.nOpen = r.params.n; More.markRead(r.params.n); }
   if (r.params?.fam && r.params.fam !== S.fid && (S.profile?.familyIds || []).includes(r.params.fam) && S.ui.famJump !== r.params.fam) {
     S.ui.famJump = r.params.fam; S.be.db.update(`users/${uid()}`, { currentFamily: r.params.fam }).catch(() => { }); return renderLoading();
   }
@@ -274,6 +275,7 @@ function listenSub(sub, path, opts = null, into = null) {
     if (sub === 'members' && !S.remindersDone && S.loaded.plannings) { S.remindersDone = true; setTimeout(scheduleReminders, 4000); }
     if (isParent()) scheduleMigrate();
     if (AP_SUBS.has(sub)) queueApprovals();
+    if (sub === 'sac' || sub === 'members') Sac.queueSacReminders();
   }, opts, err => { console.warn(sub, err?.code || err); S.loaded[sub] = true; S.render(); }));
 }
 /** (Ré)abonne les données quand le rôle ou les autorisations changent */
@@ -417,8 +419,8 @@ async function start() {
   // maintenance périodique : flux widgets (glissement des dates) + rappels
   setInterval(() => { if (S.family) { syncFeed(); scheduleReminders(); } }, 60 * 60 * 1000);
   // expiration des demandes de validation (48 h) et rappels associés
-  setInterval(() => { if (S.family && !document.hidden) { queueApprovals(100); if (['memories', 'docs', 'notifs'].includes(S.route?.view)) S.render(); } }, 5 * 60 * 1000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.family) { S.render(); queueFeed(); queueApprovals(1500); } });
+  setInterval(() => { if (S.family && !document.hidden) { queueApprovals(100); Sac.queueSacReminders(200); if (['memories', 'docs', 'notifs'].includes(S.route?.view)) S.render(); } }, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && S.family) { S.render(); queueFeed(); queueApprovals(1500); Sac.queueSacReminders(2000); } });
   if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('sw', e));
 }
 start();
@@ -433,4 +435,4 @@ document.addEventListener('touchend', e => {
   if (!ok || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6 || S.children.length < 2) return;
   Home.cycleKid(dx < 0 ? 1 : -1);
 }, { passive: true });
-window.SJF = { S, E, go, syncFeed, version: VERSION, APP_URL };
+window.SJF = { S, E, go, syncFeed, version: VERSION, APP_URL, sacSync: () => Sac.syncSacReminders() };

@@ -134,6 +134,8 @@ export function mapKJ(str, kaIs = 'A') {
 }
 
 // ───────────── Moteur ─────────────
+/** Horaire régulier du matin (avant midi) : le relais a lieu le jour choisi, la garde de la veille se prolonge jusque-là */
+export const isMorningRule = r => !!r?.time && t2m(r.time) < 12 * 60;
 /**
  * @param {object} o
  *  plannings : [{id, childIds, start, days, end?, state, createdAt, comments?, feries?}]
@@ -149,14 +151,15 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
   const byChild = new Map();
   for (const p of active) for (const c of p.childIds || []) { if (!byChild.has(c)) byChild.set(c, []); byChild.get(c).push(p); }
   // échanges acceptés → surcharges (le plus récemment validé l'emporte)
-  const ov = new Map(), tov = new Map(), ovSrc = new Map();
+  const ov = new Map(), tov = new Map(), tovM = new Map(), ovSrc = new Map();
   [...exchanges].filter(x => x.state === 'accepted').sort((a, b) => (a.decidedAt || 0) - (b.decidedAt || 0)).forEach(x => {
     for (const c of x.childIds || []) {
-      if (!ov.has(c)) { ov.set(c, new Map()); tov.set(c, new Map()); }
+      if (!ov.has(c)) { ov.set(c, new Map()); tov.set(c, new Map()); tovM.set(c, new Map()); }
       for (const ch of x.changes || []) { ov.get(c).set(ch.d, ch.to); ovSrc.set(c + '|' + ch.d, x.id); }
       if (x.timeChange && x.timeChange.d) {
-        if (x.timeChange.reset) tov.get(c).delete(x.timeChange.d); // retour à l'horaire habituel
-        else tov.get(c).set(x.timeChange.d, { time: x.timeChange.time, place: x.timeChange.place || '', midday: !!x.timeChange.midday });
+        const m = x.timeChange.morning ? tovM.get(c) : tov.get(c); // relais du matin (jour même) ou du soir / de mi-journée
+        if (x.timeChange.reset) m.delete(x.timeChange.d); // retour à l'horaire habituel
+        else m.set(x.timeChange.d, { time: x.timeChange.time, place: x.timeChange.place || '', midday: !!x.timeChange.midday });
       }
     }
   });
@@ -168,22 +171,29 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
   const holidays = schoolHolidays(settings.zone || 'B', settings.customHolidays || []);
   const rules = (settings.relayRules || []).filter(r => r && r.time);
   const ruleCache = new Map();
-  /** Horaire régulier applicable à un relais du soir le jour iso vers le parent « to » (le plus précis l'emporte) */
-  function ruleFor(iso, to) {
-    const key = iso + to; if (ruleCache.has(key)) return ruleCache.get(key);
+  /** Précision d'une règle pour un jour donné (-1 : ne s'applique pas) ; year = année scolaire (sept. → août) */
+  function dayRank(r, day) {
+    if (r.year && !(day >= `${r.year}-09-01` && day <= `${+r.year + 1}-08-31`)) return -1;
+    if (r.kind === 'date') return r.date === day ? 3 : -1;
+    if (r.kind === 'vacStart') return holidays.some(h => h.kind !== 'pont' && addDays(h.s, -1) === day) ? 2 : -1;
+    if (r.kind === 'vacEnd') return holidays.some(h => h.kind !== 'pont' && h.e === day) ? 2 : -1;
+    if (r.kind === 'dow') return dow(day) === +r.dow && (+r.every !== 2 || ((isoWeek(day).week % 2 === 0) === (r.parity === 'pair')))
+      && (!r.school || !holidays.some(h => h.s <= day && day <= h.e)) ? 1 : -1;
+    return -1;
+  }
+  /**
+   * Horaire régulier du relais entre le jour iso et le lendemain, de « from » vers « to » (le plus précis l'emporte).
+   * Avant midi, c'est un relais du matin : il a lieu le jour choisi (ex. lundi 8h20 à l'école), la garde de la veille se prolonge.
+   */
+  function ruleFor(iso, from, to) {
+    const key = iso + from + to; if (ruleCache.has(key)) return ruleCache.get(key);
     let best = null, rank = -1;
     for (const r of rules) {
-      if (r.to && r.to !== to) continue;
-      let ok = false, rk = 0;
-      if (r.kind === 'date') { ok = r.date === iso; rk = 3; }
-      else if (r.kind === 'vacStart') { ok = holidays.some(h => h.kind !== 'pont' && addDays(h.s, -1) === iso); rk = 2; }
-      else if (r.kind === 'vacEnd') { ok = holidays.some(h => h.kind !== 'pont' && h.e === iso); rk = 2; }
-      else if (r.kind === 'dow') {
-        ok = dow(iso) === +r.dow && (+r.every !== 2 || ((isoWeek(iso).week % 2 === 0) === (r.parity === 'pair')))
-          && (!r.school || !holidays.some(h => h.s <= iso && iso <= h.e));
-        rk = 1;
-      }
-      if (ok && rk > rank) { best = r; rank = rk; }
+      if ((r.to && r.to !== to) || (r.from && r.from !== from)) continue;
+      const rk = dayRank(r, isMorningRule(r) ? addDays(iso, 1) : iso);
+      if (rk < 0) continue;
+      const rk2 = rk + (r.year ? 0.5 : 0) + (r.from || r.to ? 0.25 : 0);
+      if (rk2 > rank) { best = r; rank = rk2; }
     }
     ruleCache.set(key, best);
     return best;
@@ -203,18 +213,29 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
     return baseCode(child, iso);
   }
   function isOverridden(child, iso) { const o = ov.get(child); return !!(o && o.has(iso)); }
-  /** Relais du soir du jour iso : horaire convenu (échange) > horaire régulier (règle) > horaire habituel */
+  /**
+   * Relais entre le jour iso et le lendemain : horaire convenu (échange) > horaire régulier (règle) > horaire habituel du soir.
+   * date : jour où il a lieu (iso le soir, le lendemain pour un relais du matin).
+   */
   function handoverInfo(child, iso) {
-    const t = tov.get(child)?.get(iso);
-    if (t && !t.midday && t.time) return { min: t2m(t.time), place: t.place || '', custom: true, rule: null };
-    const a = last(code(child, iso)), b = first(code(child, addDays(iso, 1)));
-    if (a && b && a !== b) { const r = ruleFor(iso, b); if (r) return { min: t2m(r.time), place: r.place || '', custom: false, rule: r }; }
-    return { min: HT, place: '', custom: false, rule: null };
+    const t = tov.get(child)?.get(iso), nx = addDays(iso, 1);
+    if (t && !t.midday && t.time) return { date: iso, min: t2m(t.time), place: t.place || '', custom: true, rule: null };
+    const tm = tovM.get(child)?.get(nx);
+    if (tm && tm.time) return { date: nx, min: t2m(tm.time), place: tm.place || '', custom: true, rule: null, morning: true };
+    const a = last(code(child, iso)), b = first(code(child, nx));
+    if (a && b && a !== b) {
+      const r = ruleFor(iso, a, b);
+      if (r) { const mo = isMorningRule(r); return { date: mo ? nx : iso, min: t2m(r.time), end: r.timeEnd || '', place: r.place || '', dropPlace: r.dropPlace || '', custom: false, rule: r, morning: mo }; }
+    }
+    return { date: iso, min: HT, place: '', custom: false, rule: null };
   }
-  function handoverMin(child, iso) { return handoverInfo(child, iso).min; }
+  function handoverMin(child, iso) { const h = handoverInfo(child, iso); return h.date === iso ? h.min : Infinity; }
   function middayMin(child, iso) { const t = tov.get(child)?.get(iso); return t && t.midday && t.time ? t2m(t.time) : MID; }
   /** Parent ('A'|'B'|null) qui a l'enfant à un instant donné */
   function presence(child, iso, min) {
+    // relais du matin : la garde de la veille continue jusqu'à l'heure du relais
+    const pv = addDays(iso, -1), pa = last(code(child, pv)), cb = first(code(child, iso));
+    if (pa && cb && pa !== cb) { const h = handoverInfo(child, pv); if (h.date === iso && min < h.min) return pa; }
     if (min >= handoverMin(child, iso)) return first(code(child, addDays(iso, 1)));
     const c = code(child, iso);
     if (c === 'X') return min < middayMin(child, iso) ? 'A' : 'B';
@@ -224,23 +245,23 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
   /** Relais entre deux dates incluses, regroupés si plusieurs enfants au même moment */
   function handovers(childIds, from, to) {
     const out = new Map();
-    for (const iso of eachDay(from, to)) {
+    for (const iso of eachDay(addDays(from, -1), to)) { // la veille : un relais du matin du 1er jour
       const nx = addDays(iso, 1);
       for (const ch of childIds) {
         const c = code(ch, iso), n = code(ch, nx);
-        if (isHalf(c)) push(out, iso, m2t(middayMin(ch, iso)), first(c), last(c), ch, 'midi', !!tov.get(ch)?.get(iso)?.midday);
+        if (isHalf(c) && iso >= from) push(out, iso, m2t(middayMin(ch, iso)), first(c), last(c), ch, 'midi', !!tov.get(ch)?.get(iso)?.midday);
         const a = last(c), b = first(n);
         if (a && b && a !== b) {
-          const info = handoverInfo(ch, iso);
-          push(out, iso, m2t(info.min), a, b, ch, 'soir', info.custom, info.place, !!info.rule);
+          const info = handoverInfo(ch, iso); if (info.date < from || info.date > to) continue;
+          push(out, info.date, m2t(info.min), a, b, ch, info.morning ? 'matin' : 'soir', info.custom, info.place, !!info.rule, info);
         }
       }
     }
     return [...out.values()].sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time));
   }
-  function push(out, date, time, from, to, ch, kind, custom, place = '', regular = false) {
+  function push(out, date, time, from, to, ch, kind, custom, place = '', regular = false, info = null) {
     const k = `${date}|${time}|${from}|${to}`;
-    if (!out.has(k)) out.set(k, { date, time, from, to, childIds: [], kind, custom, place, regular });
+    if (!out.has(k)) out.set(k, { date, time, from, to, childIds: [], kind, custom, place, regular, timeEnd: info?.end || '', dropPlace: info?.dropPlace || '', alt: info?.rule?.alt?.on ? info.rule.alt : null });
     const h = out.get(k); h.childIds.push(ch); if (custom) h.custom = true; if (place) h.place = place; if (regular) h.regular = true;
   }
   function nextHandovers(childIds, iso = todayISO(), min = nowMin(), count = 3, horizon = 120) {
@@ -265,7 +286,7 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
       if (c === 'A') s.A++; else if (c === 'B') s.B++;
       else if (c === 'a') s.defA++; else if (c === 'b') s.defB++;
       else if (isHalf(c)) { s.A += .5; s.B += .5; s.half++; } else s.none++;
-      const night = first(code(child, addDays(iso, 1))); if (night === 'A') s.nightsA++; else if (night === 'B') s.nightsB++;
+      const night = presence(child, iso, 1439); if (night === 'A') s.nightsA++; else if (night === 'B') s.nightsB++;
       const p = first(c), h = holidays.find(x => x.s <= iso && iso <= x.e && x.kind !== 'pont');
       if (h && p) s['vac' + p]++;
       if (dow(iso) >= 5 && p) s['we' + p]++;
@@ -415,7 +436,7 @@ export function buildICS({ engine, childIds, children, parents, from, to, events
   const names = ids => ids.map(id => children.find(c => c.id === id)?.prenom || '').filter(Boolean).join(' & ');
   if (withBlocks) for (const ch of childIds) for (const b of engine.blocks(ch, from, to)) {
     if (b.key === '.') continue;
-    const who = isHalf(b.code) ? `${parents[first(b.code)].short} puis ${parents[last(b.code)].short}` : parents[first(b.code)].short;
+    const who = isHalf(b.code) ? `${parents[first(b.code)].name} puis ${parents[last(b.code)].name}` : parents[first(b.code)].name;
     const sum = `${isDefault(b.code) ? '🏫' : '🏠'} ${names([ch])} chez ${who}${isDefault(b.code) ? ' (semaine)' : ''}`;
     L.push('BEGIN:VEVENT', `UID:${uidPrefix}-blk-${ch}-${b.start}@sjfamily`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${icsD(b.start)}`,
       `DTEND;VALUE=DATE:${icsD(addDays(b.end, 1))}`, fold(`SUMMARY:${icsEsc(sum)}`), 'TRANSP:TRANSPARENT', 'END:VEVENT');
@@ -424,10 +445,10 @@ export function buildICS({ engine, childIds, children, parents, from, to, events
     const [hh, mm] = h.time.split(':');
     const dt = `${icsD(h.date)}T${hh}${mm}00`;
     const endM = t2m(h.time) + 15, dte = `${icsD(h.date)}T${pad(Math.floor(endM / 60))}${pad(endM % 60)}00`;
-    const sum = `🔁 Relais ${fmtTime(h.time)} : ${names(h.childIds)} → ${parents[h.to].short}`;
+    const sum = `🔁 Relais ${fmtTime(h.time)} : ${names(h.childIds)} → ${parents[h.to].name}`;
     L.push('BEGIN:VEVENT', `UID:${uidPrefix}-rel-${h.date}-${h.time.replace(':', '')}-${h.to}@sjfamily`, `DTSTAMP:${stamp}`,
       `DTSTART;TZID=Europe/Paris:${dt}`, `DTEND;TZID=Europe/Paris:${dte}`, fold(`SUMMARY:${icsEsc(sum)}`),
-      fold(`DESCRIPTION:${icsEsc(`De ${parents[h.from].name} à ${parents[h.to].name}${h.place ? ' — ' + h.place : ''}`)}`));
+      fold(`DESCRIPTION:${icsEsc(`Déposés par ${parents[h.from].name}${h.dropPlace ? ' (' + h.dropPlace + ')' : ''}, récupérés par ${parents[h.to].name}${h.place ? ' (' + h.place + ')' : ''}${h.timeEnd ? ' — entre ' + fmtTime(h.time) + ' et ' + fmtTime(h.timeEnd) : ''}`)}`));
     if (alarmMin) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `TRIGGER:-PT${alarmMin}M`, fold(`DESCRIPTION:${icsEsc(sum)}`), 'END:VALARM');
     L.push('END:VEVENT');
   }
@@ -466,7 +487,7 @@ export function buildFeed({ engine, family, children, parents, events = [], task
       if (includeHealth) Object.assign(info, { doctor: c.doctor || '', doctorPhone: c.doctorPhone || '', allergies: c.allergies || '', treatments: c.treatments || '', blood: c.blood || '' });
       return { id: c.id, name: c.prenom, emoji: c.emoji || '🧒', color: c.color || '', days, info };
     }),
-    handovers: engine.handovers(ids, from, to).map(h => ({ d: h.date, t: h.time, f: h.from, to: h.to, k: h.childIds, p: h.place || '', m: h.kind === 'midi' ? 1 : 0 })),
+    handovers: engine.handovers(ids, from, to).map(h => ({ d: h.date, t: h.time, f: h.from, to: h.to, k: h.childIds, p: h.place || '', m: h.kind === 'midi' ? 1 : 0, ...(h.kind === 'matin' ? { mo: 1 } : {}), ...(h.timeEnd ? { t2: h.timeEnd } : {}), ...(h.dropPlace ? { dp: h.dropPlace } : {}) })),
     events: expandEvents(events, today, addDays(today, 45)).slice(0, 40).map(e => ({ d: e.occ, t: e.time || '', t2: e.endTime || '', n: e.title, i: e.icon || '📌', k: e.childIds || [], w: e.place || '' })),
     tasks: tasks.filter(t => !t.done).slice(0, 10).map(t => ({ n: t.title, d: t.due || '', k: t.childIds || [] })),
     notes: notes.slice(0, 3).map(n => ({ x: String(n.text || '').slice(0, 140), at: n.at, by: n.byName || '', k: n.childIds || [] })),
@@ -475,4 +496,4 @@ export function buildFeed({ engine, family, children, parents, events = [], task
   for (const iso of eachDay(from, to)) { const i = engine.dayInfo(iso); const lbl = i.comment || i.ferie; if (lbl) feed.off[iso] = lbl; }
   return feed;
 }
-function pick(p) { return p ? { name: p.name || '', short: p.short || p.name || '', color: p.color || '' } : null; }
+function pick(p) { return p ? { name: p.name || '', short: p.name || '', color: p.color || '' } : null; } // widgets : prénom (jamais Papa / Maman)

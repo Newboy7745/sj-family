@@ -1,9 +1,9 @@
 // ═══════════════ Cercle familial : création, adhésion, statut, enfants, membres, invitations ═══════════════
-import * as E from './engine.js?v=6.10';
-import { randomId } from './backend.js?v=6.10';
-import { stat } from './core.js?v=6.10';
-import { S, engine, parents, pName, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, SHARE_URL, PARENT_COLORS, CHILD_EMOJIS, avatar, kidAvatar, groupAvatar, kidFull, CHILD_DETAIL_KEYS, PERM_KEYS, memberName, hasOtherParent, countdown } from './core.js?v=6.10';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, copyText, closeSheetsThen, compressImage, squarePhoto } from './ui.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { randomId } from './backend.js?v=6.11';
+import { stat } from './core.js?v=6.11';
+import { S, engine, parents, pName, hoTime, hoPlace, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, SHARE_URL, PARENT_COLORS, CHILD_EMOJIS, avatar, kidAvatar, groupAvatar, kidFull, CHILD_DETAIL_KEYS, PERM_KEYS, memberName, hasOtherParent, countdown } from './core.js?v=6.11';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, copyText, closeSheetsThen, compressImage, squarePhoto } from './ui.js?v=6.11';
 
 const STATUS = { separes: '🔶 Séparés', divorces: '📋 Divorcés' };
 const code6 = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const b = new Uint8Array(6); crypto.getRandomValues(b); return [...b].map(x => a[x % a.length]).join(''); };
@@ -65,15 +65,16 @@ function joinSheet(code = '') {
     <label class="lbl">Code du cercle</label><input class="in" name="code" value="${esc(code)}" maxlength="6" style="text-transform:uppercase;letter-spacing:6px;font-size:24px;text-align:center" placeholder="ABC123">
     <label class="lbl">Je suis</label>${chips('role', [{ v: 'parent', l: "👪 L'autre parent" }, { v: 'proche', l: '👵 Un proche' }], ['parent'])}
     <label class="lbl">Lien avec les enfants (proche)</label><input class="in" name="relation" placeholder="Grand-mère, oncle, nounou…">
+    <label class="lbl">Côté (proche)</label>${chips('side', [{ v: 'pat', l: 'Paternel' }, { v: 'mat', l: 'Maternel' }, { v: '', l: 'Aucun' }], [''])}
     <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="fam-join-go">Rejoindre</button></div>`);
 }
-async function joinFamily(code, role, relation) {
+async function joinFamily(code, role, relation, side = '') {
   const db = S.be.db, u = uid(), p = S.profile || {};
   const jc = await db.get(`joinCodes/${code}`);
   if (!jc) throw Object.assign(new Error('Code introuvable. Vérifiez les 6 caractères.'), { code: 'join/not-found' });
   const fid = jc.fid;
   if ((p.familyIds || []).includes(fid)) { await db.update(`users/${u}`, { currentFamily: fid }); return fid; }
-  await db.set(`families/${fid}/members/${u}`, { uid: u, prenom: p.prenom || '', nom: p.nom || '', name: p.prenom || '', email: p.email || '', phone: p.phone || '', role, relation: relation || '', parentCode: null, joinCode: code, joinedAt: Date.now() });
+  await db.set(`families/${fid}/members/${u}`, { uid: u, prenom: p.prenom || '', nom: p.nom || '', name: p.prenom || '', email: p.email || '', phone: p.phone || '', role, relation: relation || '', side: side || '', parentCode: null, joinCode: code, joinedAt: Date.now() });
   const fam = await db.get(`families/${fid}`);
   let asParent = false;
   if (role === 'parent' && fam && !fam.parents?.B?.uid) {
@@ -103,11 +104,32 @@ function permLabel(m) {
   const on = PERM_KEYS.filter(x => (m.perms || {})[x.k]).map(x => x.l.replace(/^\S+\s/, ''));
   return `Agenda · Souvenirs · ses notes${on.length ? ' · ' + on.join(' · ') : ''}`;
 }
+// ───── Proches : lien avec les enfants et côté (paternel / maternel), pour savoir qui est qui
+const FEM = /(m[eè]re|tante|s(oe|œ)ur|cousine|marraine|ni[eè]ce|fille|amie|nounou|belle|voisine|baby-sitter|nourrice)/i;
+/** « paternel(le) » / « maternel(le) » d'après l'appellation du parent (Papa / Maman), sinon « côté Khalid » */
+export function sideAdj(code, rel = '') {
+  const p = parents()[code]; if (!p) return '';
+  const f = FEM.test(rel), sh = String(p.short || '').toLowerCase();
+  return sh === 'papa' ? (f ? 'paternelle' : 'paternel') : sh === 'maman' ? (f ? 'maternelle' : 'maternel') : `côté ${p.name}`;
+}
+/** Lien et côté : fiche des parents, sinon ce que le proche a indiqué, sinon son invitation */
+const procheOf = m => {
+  const fp = S.family?.proches?.[m.uid], inv = (S.invites || []).find(i => norm(i.prenom) && norm(i.prenom) === norm(m.prenom || m.name));
+  return { rel: fp?.rel ?? (m.relation || inv?.relation || ''), side: fp?.side ?? (m.side || inv?.side || '') };
+};
+const norm = x => String(x || '').trim().toLowerCase();
+/** « Grand-mère paternelle de Selman & Jandal » */
+export function procheText(m) {
+  const { rel, side } = procheOf(m), kids = S.children.length ? ' de ' + childNames(S.children.map(c => c.id)) : '';
+  const adj = side === 'pat' || side === 'mat' ? (side === 'pat' ? 'paternel' : 'maternel') + (FEM.test(rel) ? 'le' : '') : side ? sideAdj(side, rel) : '';
+  return rel ? `${rel}${adj ? ' ' + adj : ''}${kids}` : 'Proche';
+}
+const sideChips = (val, rel = '') => { const p = parents(); if (val === 'pat' || val === 'mat') val = ['A', 'B'].find(c => String(p[c].short).toLowerCase() === (val === 'pat' ? 'papa' : 'maman')) || ''; return chips('side', [{ v: 'A', l: `Côté ${esc(p.A.name)}${sideAdj('A', rel).startsWith('côté') ? '' : ' (' + sideAdj('A') + ')'}` }, { v: 'B', l: `Côté ${esc(p.B.name)}${sideAdj('B', rel).startsWith('côté') ? '' : ' (' + sideAdj('B') + ')'}` }, { v: '', l: 'Aucun (nounou, ami…)' }], [val || '']); };
 function memberRow(m, p, u) {
   const proche = !m.parentCode;
   const pend = m.pendingPerms;
   return `<div class="li" ${proche && isParent() ? `data-act="perm-open" data-id="${m.uid}" style="cursor:pointer"` : ''}>${avatar(m.name, m.parentCode ? p[m.parentCode].color : '#8E9BB0', 40)}<div class="f1"><div class="lt">${esc(m.prenom || m.name)} ${esc(m.nom || '')}${m.uid === u ? ' <span class="pill navy">vous</span>' : ''}${pend ? ' <span class="pill warn">⏳ accès à valider</span>' : ''}</div>
-    <div class="ls">${m.parentCode ? 'Parent' : esc(m.relation || 'Proche')}${m.email ? ' · ' + esc(m.email) : ''}</div>${proche ? `<div class="ls">👁️ ${esc(permLabel(m))}</div>` : ''}</div>${proche && isParent() ? '<span class="lnk">›</span>' : '<span class="pill ok">✓</span>'}</div>`;
+    <div class="ls">${m.parentCode ? 'Parent' : esc(procheText(m))}${m.email ? ' · ' + esc(m.email) : ''}</div>${proche ? `<div class="ls">👁️ ${esc(permLabel(m))}</div>` : ''}</div>${proche && isParent() ? '<span class="lnk">›</span>' : '<span class="pill ok">✓</span>'}</div>`;
 }
 export const views = {
   family() {
@@ -151,7 +173,7 @@ export const views = {
     const eng = engine(), today = E.todayISO(), min = E.nowMin(), par = isParent();
     const rows = [
       ['🏠 Actuellement', k => { const w = eng.presence(k.id, today, min); return w ? 'Chez ' + pName(w) : '—'; }],
-      ['🔁 Prochain relais', k => { const n = eng.nextHandovers([k.id], today, min, 1)[0]; return n ? `${E.relDay(n.date)} ${E.fmtTime(n.time)} → ${parents()[n.to].short}${n.place ? ' · ' + n.place : ''} (${countdown(n.date, n.time).replace('dans ', '')})` : '—'; }],
+      ['🔁 Prochain relais', k => { const n = eng.nextHandovers([k.id], today, min, 1)[0]; return n ? `${E.relDay(n.date)} ${hoTime(n)} → ${parents()[n.to].name}${hoPlace(n)} (${countdown(n.date, n.time).replace('dans ', '')})` : '—'; }],
       ['🎂 Âge', k => k.birth ? `${E.age(k.birth)} ans (${E.fmtDate(k.birth, 'num')})` : '—'],
       ['📅 Planning', k => S.plannings.filter(x => x.childIds.includes(k.id) && x.state === 'active').map(x => x.title).join(', ') || '—'],
     ];
@@ -259,7 +281,7 @@ export const actions = {
     const f = readForm(el.closest('.sheet')), code = (f.code || '').toUpperCase().replace(/\s/g, '');
     if (code.length !== 6) return toast('Le code comporte 6 caractères.', 'warn');
     el.disabled = true;
-    try { await joinFamily(code, f.role || 'parent', f.relation); closeSheetsThen(() => { toast('Bienvenue dans le cercle 🎉'); go('home'); }); }
+    try { await joinFamily(code, f.role || 'parent', f.relation, f.side || ''); closeSheetsThen(() => { toast('Bienvenue dans le cercle 🎉'); go('home'); }); }
     catch (e) { el.disabled = false; toast(e.code === 'join/not-found' ? e.message : (e.message || 'Erreur'), 'err', 4500); }
   },
   'fam-switch': async el => { if (el.dataset.id === S.fid) return; await guard(() => S.be.db.update(`users/${uid()}`, { currentFamily: el.dataset.id }), 'Cercle changé'); S.sel = new Set(); },
@@ -281,6 +303,8 @@ export const actions = {
     const m = S.members.find(x => x.uid === el.dataset.id); if (!m || !isParent()) return;
     const pend = m.pendingPerms, cur = m.perms || {}, mine = pend && pend.by === uid();
     openSheet(`<h3 class="sh-title">👁️ Accès de ${esc(m.prenom || m.name)}</h3>
+      <label class="lbl">Lien avec les enfants</label><input class="in" name="rel" value="${esc(procheOf(m).rel)}" placeholder="Grand-mère, oncle, nounou…">
+      <label class="lbl">Côté</label>${sideChips(procheOf(m).side, procheOf(m).rel)}
       <p class="small muted">Toujours visible : l'agenda à jour (garde et événements), les souvenirs et les notes de liaison qui lui sont adressées.</p>
       ${pend ? `<div class="alert"><div class="ai">⏳</div><div class="f1"><div class="at">${esc(pend.byName || memberName(pend.by))} propose : ${esc(PERM_KEYS.filter(x => pend.perms?.[x.k]).map(x => x.l).join(', ') || 'aucune rubrique en plus')}</div>
         ${!mine ? `<div class="row gap mt"><button class="btn ok sm" data-act="perm-ok" data-id="${m.uid}">✓ Valider</button><button class="btn danger sm" data-act="perm-no" data-id="${m.uid}">✗ Refuser</button></div>` : `<div class="small muted">En attente de validation par l'autre parent.</div><button class="btn soft sm mt" data-act="perm-no" data-id="${m.uid}">Annuler ma proposition</button>`}</div></div>` : ''}
@@ -292,6 +316,9 @@ export const actions = {
   'perm-save': async el => {
     const m = S.members.find(x => x.uid === el.dataset.id); if (!m) return;
     const f = readForm(el.closest('.sheet')), perms = {}; for (const x of PERM_KEYS) perms[x.k] = !!f['p_' + x.k];
+    const pi = procheOf(m), rel = String(f.rel || '').trim(), side = f.side || '';
+    if (rel !== pi.rel || side !== pi.side) await guard(() => setFamily({ [`proches.${m.uid}`]: { rel, side } }));
+    if (PERM_KEYS.every(x => !!(m.perms || {})[x.k] === perms[x.k]) && !m.pendingPerms) return closeSheet();
     const list = PERM_KEYS.filter(x => perms[x.k]).map(x => x.l.replace(/^\S+\s/, '')).join(', ') || 'agenda et souvenirs uniquement';
     if (hasOtherParent()) await guard(async () => { await updItem('members', m.uid, { pendingPerms: { perms, by: uid(), byName: myName(), at: Date.now() } }); await log('cercle', `Accès de ${m.prenom || m.name} à valider`, { body: list, icon: '🔐' }); }, "Proposition envoyée à l'autre parent");
     else await guard(async () => { await updItem('members', m.uid, { perms, pendingPerms: null }); await log('cercle', `Accès de ${m.prenom || m.name} : ${list}`, { icon: '🔐', to: [m.uid] }); }, 'Accès enregistrés');
@@ -400,14 +427,15 @@ export const actions = {
   'inv-new': () => openSheet(`<h3 class="sh-title">✉️ Inviter</h3>
     <div class="two"><div><label class="lbl">Prénom</label><input class="in" name="prenom"></div><div><label class="lbl">Nom</label><input class="in" name="nom"></div></div>
     <label class="lbl">Rôle</label>${chips('role', [{ v: 'proche', l: '👵 Proche' }, ...(!parents().B.uid ? [{ v: 'parent', l: "👪 L'autre parent" }] : [])], ['proche'])}
-    <label class="lbl">Lien</label><input class="in" name="relation" placeholder="Grand-mère, nounou…">
+    <label class="lbl">Lien avec les enfants (proche)</label><input class="in" name="relation" placeholder="Grand-mère, oncle, nounou…">
+    <label class="lbl">Côté (proche)</label>${sideChips('')}
     <label class="lbl">Téléphone</label><input class="in" type="tel" name="phone" placeholder="06…"><label class="lbl">E-mail</label><input class="in" type="email" name="email">
     <div class="hint">La personne recevra un SMS ou un e-mail avec le lien et le code. Elle n'apparaîtra comme membre qu'après avoir créé son compte.</div>
     <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="inv-save">Enregistrer</button></div>`),
   'inv-save': async el => {
     const f = readForm(el.closest('.sheet'));
     if (!f.prenom || (!f.phone && !f.email)) return toast('Prénom et téléphone ou e-mail requis.', 'warn');
-    const data = { prenom: f.prenom, nom: f.nom, role: f.role || 'proche', relation: f.relation, phone: f.phone, email: (f.email || '').toLowerCase(), state: 'pending', by: uid(), byName: myName(), at: Date.now() };
+    const data = { prenom: f.prenom, nom: f.nom, role: f.role || 'proche', relation: f.relation || '', side: f.side || '', phone: f.phone, email: (f.email || '').toLowerCase(), state: 'pending', by: uid(), byName: myName(), at: Date.now() };
     const id = await guard(async () => { const i = await addItem('invites', data); await log('cercle', `Invitation envoyée à ${f.prenom}`); return i; });
     if (id) closeSheetsThen(() => sendInviteSheet(data));
   },

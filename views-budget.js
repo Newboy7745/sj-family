@@ -1,7 +1,7 @@
 // ═══════════════ Budget : dépenses partagées (jamais supprimées : terminées puis archivées) ═══════════════
-import * as E from './engine.js?v=6.10';
-import { S, parents, pName, uid, myName, myCode, isParent, childNames, addItem, updItem, log, guard, fpath, go, selIds } from './core.js?v=6.10';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtMoney, parseAmount, compressImage, fileToDataURL, dataURLtoBlob, download, fmtStamp } from './ui.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { S, parents, pName, uid, myName, myCode, isParent, childNames, addItem, updItem, log, guard, fpath, go, selIds } from './core.js?v=6.11';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtMoney, parseAmount, compressImage, fileToDataURL, dataURLtoBlob, download, fmtStamp } from './ui.js?v=6.11';
 
 export const CATS = [
   { v: 'ecole', i: '🎒', l: 'Scolarité' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activités' }, { v: 'vetements', i: '👕', l: 'Vêtements' },
@@ -57,7 +57,7 @@ function expSheet(e = null) {
     <label class="lbl">Enfants</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: esc(c.prenom) })), x.childIds || [], { multi: true })}
     <label class="lbl">Payé par</label>${chips('paidBy', [{ v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [x.paidBy])}
     <label class="lbl">Répartition</label>
-    <div class="chips"><button type="button" class="chip sm" data-act="exp-split" data-a="50">50 / 50</button><button type="button" class="chip sm" data-act="exp-split" data-a="100">100 % ${esc(p.A.short)}</button><button type="button" class="chip sm" data-act="exp-split" data-a="0">100 % ${esc(p.B.short)}</button><button type="button" class="chip sm" data-act="exp-split" data-a="60">60 / 40</button><button type="button" class="chip sm" data-act="exp-split" data-a="40">40 / 60</button></div>
+    <div class="chips"><button type="button" class="chip sm" data-act="exp-split" data-a="50">50 / 50</button><button type="button" class="chip sm" data-act="exp-split" data-a="100">100 % ${esc(p.A.name)}</button><button type="button" class="chip sm" data-act="exp-split" data-a="0">100 % ${esc(p.B.name)}</button><button type="button" class="chip sm" data-act="exp-split" data-a="60">60 / 40</button><button type="button" class="chip sm" data-act="exp-split" data-a="40">40 / 60</button></div>
     <div class="split"><b>${esc(p.A.name)}</b><input class="in" name="pA" inputmode="decimal" value="${x.shareA}"><input class="in" name="eA" inputmode="decimal"></div>
     <div class="split"><b>${esc(p.B.name)}</b><input class="in" name="pB" inputmode="decimal" value="${100 - x.shareA}"><input class="in" name="eB" inputmode="decimal"></div>
     <div class="hint">Modifiez un pourcentage ou un montant : le reste se calcule tout seul.</div>
@@ -131,7 +131,7 @@ export const actions = {
     if (e.receiptId) showReceipt(e, sh.querySelector('[data-part="rc"]'));
   },
   'exp-edit': el => { const e = S.expenses.find(x => x.id === el.dataset.id); if (e) { closeSheet(); setTimeout(() => expSheet(e), 280); } },
-  'exp-ok': async el => { const e = S.expenses.find(x => x.id === el.dataset.id); if (!e) return; await guard(async () => { await updItem('expenses', e.id, { okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('budget', `Dépense validée : ${e.title} ${fmtMoney(e.amount)}`); }, 'Dépense validée'); closeSheet(); },
+  'exp-ok': async el => { const e = S.expenses.find(x => x.id === el.dataset.id); if (!e) return; if (!(await confirmInfo('Valider cette dépense ?', `${esc(e.title)} · ${fmtMoney(e.amount)} : validée et comptée dans le solde.`, `« Validée par ${esc(myName())} », et une notification.`, e.createdByName || "l'autre parent"))) return; await guard(async () => { await updItem('expenses', e.id, { okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('budget', `Dépense validée : ${e.title} ${fmtMoney(e.amount)}`); }, 'Dépense validée'); closeSheet(); },
   'exp-close': async el => {
     const e = S.expenses.find(x => x.id === el.dataset.id); if (!e) return;
     if (!(await confirmBox('Terminer cette dépense ?', `${esc(e.title)} · ${fmtMoney(e.amount)}<br>Elle sera archivée (non supprimée) et sortira du solde.`, 'Terminer'))) return;

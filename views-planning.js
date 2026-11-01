@@ -1,9 +1,9 @@
 // ═══════════════ Plannings : liste, import 2026-2027, assistant 4 étapes, validation ═══════════════
-import * as E from './engine.js?v=6.10';
-import { SJ_PLANNINGS } from './sj-data.js?v=6.10';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily } from './core.js?v=6.10';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox } from './ui.js?v=6.10';
-import { cellBg } from './views-home.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { SJ_PLANNINGS } from './sj-data.js?v=6.11';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily } from './core.js?v=6.11';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox } from './ui.js?v=6.11';
+import { cellBg } from './views-home.js?v=6.11';
 
 const ICONS = ['📅', '🗓️', '🏠', '🔁', '🏖️', '⭐', '🎒', '❤️', '🌙', '☀️'];
 const STATE = { active: ['ok', 'Actif'], pending: ['warn', 'En attente de validation'], 'pending-archive': ['warn', 'Archivage demandé'], refused: ['err', 'Refusé'], archived: ['', 'Archivé'], cancelled: ['', 'Annulé'] };
@@ -98,7 +98,7 @@ function step1(w) {
 }
 function holidayRows(w, all) {
   const p = parents();
-  const lbl = a => a === 'A' ? esc(p.A.short) : a === 'B' ? esc(p.B.short) : a === 'rythme' ? 'Rythme' : 'Auto';
+  const lbl = a => a === 'A' ? esc(p.A.name) : a === 'B' ? esc(p.B.name) : a === 'rythme' ? 'Rythme' : 'Auto';
   return all.map(h => {
     const k = h.id + h.s, on = !w.periods || w.periods.includes(k), a = w.assign[k] || 'auto';
     return `<div class="per"><div class="pi">${h.i}</div><div class="f1"><div class="pn">${esc(h.n)}</div><div class="pd">Du ${E.fmtDate(h.s)} au ${E.fmtDate(h.e)}</div></div>

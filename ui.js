@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — utilitaires d'interface
 // ═══════════════════════════════════════════════════════════════
-import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.10';
+import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.11';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -85,6 +85,10 @@ export function confirmBox(title, text = '', ok = 'Confirmer', danger = false) {
       done = true; res(b.dataset.x === 'yes'); closeSheet();
     });
   });
+}
+/** Confirmation d'une action définitive : ce que ça fait + ce que l'autre parent verra */
+export function confirmInfo(title, does, sees, who = "l'autre parent", ok = 'Valider', danger = false) {
+  return confirmBox(title, `<span class="cfm"><span class="cfm-h">✅ Ce que ça fait</span><span class="cfm-t">${does}</span><span class="cfm-h">👀 Ce que ${esc(who)} verra</span><span class="cfm-t">${sees}</span></span>`, ok, danger);
 }
 export function promptBox(title, { label = '', value = '', placeholder = '', ok = 'Enregistrer', type = 'text', textarea = false } = {}) {
   return new Promise(res => {

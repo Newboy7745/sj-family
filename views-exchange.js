@@ -1,7 +1,8 @@
 // ═══════════════ Échanges de garde & horaires de relais (avec validation de l'autre parent) ═══════════════
-import * as E from './engine.js?v=6.10';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.10';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.10';
+import * as E from './engine.js?v=6.11';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.11';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.11';
+import { placeSel, placeToggle, placeLabel } from './views-more.js?v=6.11';
 
 const ST = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'], cancelled: ['', 'Annulée'] };
 export function pendingForMe() { return isParent() ? S.exchanges.filter(x => x.state === 'pending' && x.proposedBy !== uid()).length : 0; }
@@ -66,7 +67,8 @@ function sheetHtml(o) {
     <div class="${type === 'time' ? '' : 'hide'}" data-part="time">
       <label class="lbl">Date du relais</label><input class="in" type="date" name="tdate" value="${d}">
       <div class="mt" data-part="hos">${hosHtml(hos, o.kind)}</div>
-      <div class="two"><div><label class="lbl">Nouvel horaire</label><input class="in" type="time" name="time" value="${o.time || ''}"></div><div><label class="lbl">Lieu (option)</label><input class="in" name="place" placeholder="École, domicile…"></div></div>
+      <label class="lbl">Nouvel horaire</label><input class="in" type="time" name="time" value="${o.time || ''}">
+      <label class="lbl">Lieu</label>${placeSel('xpl', '', '', 'Lieu habituel')}
     </div>
     <label class="lbl">Message / motif</label><textarea class="in" name="reason" rows="3" placeholder="Ex. Déplacement professionnel, mariage…"></textarea>
     ${needsValidation() ? `<div class="hint">${esc(pName(E.other(me)))} devra accepter la demande pour qu'elle s'applique.</div>` : `<div class="hint">L'autre parent n'a pas encore rejoint le cercle : l'échange s'appliquera directement.</div>`}
@@ -74,15 +76,16 @@ function sheetHtml(o) {
 }
 function hosHtml(hos, kind) {
   if (!hos.length) return '<div class="hint">Aucun relais prévu ce jour selon le planning.</div>';
-  return `<label class="lbl">Relais concerné</label>${chips('kind', hos.map(h => ({ v: h.kind, l: `${E.fmtTime(h.time)} · ${esc(pShort(h.from))} → ${esc(pShort(h.to))}` })), [kind || hos[0].kind])}`;
+  return `<label class="lbl">Relais concerné</label>${chips('kind', hos.map(h => ({ v: h.kind, l: `${h.kind === 'matin' ? 'Matin · ' : ''}${E.fmtTime(h.time)} · ${esc(pName(h.from))} → ${esc(pName(h.to))}` })), [kind || hos[0].kind])}`;
 }
 function refresh(sh) {
   const f = readForm(sh);
   sh.querySelector('[data-part="days"]').classList.toggle('hide', f.type !== 'days');
   sh.querySelector('[data-part="time"]').classList.toggle('hide', f.type !== 'time');
+  placeToggle(sh);
   if (f.type === 'days') {
     const pv = previewDays(f), p = parents();
-    sh.querySelector('[data-part="preview"]').innerHTML = pv.length ? `<div class="lbl">Aperçu (${pv.length} jour${pv.length > 1 ? 's' : ''})</div><div class="row wrap gap6">${pv.slice(0, 40).map(c => `<span class="pill" style="background:${c.to === 'A' ? 'var(--pa)' : 'var(--pb)'};color:#13233A">${E.fmtDate(c.d, 'wdm')} → ${esc(p[c.to].short)}</span>`).join('')}</div>` : '';
+    sh.querySelector('[data-part="preview"]').innerHTML = pv.length ? `<div class="lbl">Aperçu (${pv.length} jour${pv.length > 1 ? 's' : ''})</div><div class="row wrap gap6">${pv.slice(0, 40).map(c => `<span class="pill" style="background:${c.to === 'A' ? 'var(--pa)' : 'var(--pb)'};color:#13233A">${E.fmtDate(c.d, 'wdm')} → ${esc(p[c.to].name)}</span>`).join('')}</div>` : '';
   } else {
     const hos = engine().handovers(S.children.map(c => c.id), f.tdate, f.tdate);
     const box = sh.querySelector('[data-part="hos"]'); const prev = box.dataset.d;
@@ -119,8 +122,9 @@ export const actions = {
       data = { type: 'days', childIds: f.kids, changes: ch, summary };
     } else {
       if (!f.tdate || !f.time) return toast('Indiquez la date et le nouvel horaire.', 'warn');
-      const kind = f.kind || 'soir';
-      data = { type: 'time', childIds: f.kids, changes: [], timeChange: { d: f.tdate, time: f.time, place: f.place || '', midday: kind === 'midi' }, summary: `Relais du ${E.fmtDate(f.tdate, 'wdm')} à ${E.fmtTime(f.time)}${f.place ? ' (' + f.place + ')' : ''}` };
+      if (f.xpl === 'autre' && !String(f.xplTxt || '').trim()) return toast('Précisez le lieu.', 'warn');
+      const kind = f.kind || 'soir', place = placeLabel(f.xpl, f.xplTxt);
+      data = { type: 'time', childIds: f.kids, changes: [], timeChange: { d: f.tdate, time: f.time, place, midday: kind === 'midi', morning: kind === 'matin' }, summary: `Relais du ${E.fmtDate(f.tdate, 'wdm')} à ${E.fmtTime(f.time)}${place ? ' (' + place + ')' : ''}` };
     }
     const nv = needsValidation();
     Object.assign(data, { reason: f.reason, proposedBy: uid(), proposedByName: myName(), proposedAt: Date.now(), state: nv ? 'pending' : 'accepted' });
@@ -131,7 +135,7 @@ export const actions = {
   },
   'x-accept': async el => {
     const x = S.exchanges.find(y => y.id === el.dataset.id); if (!x) return;
-    if (!(await confirmBox('Accepter cet échange ?', esc(x.summary), 'Accepter'))) return;
+    if (!(await confirmInfo('Accepter cet échange ?', `${esc(x.summary || 'Échange')} : le planning des jours concernés est modifié (bordure pointillée sur le calendrier).`, `« Acceptée par ${esc(myName())} », le planning modifié, et une notification.`, x.proposedByName || "l'autre parent", 'Accepter'))) return;
     await guard(() => decide(x, 'accepted'), 'Échange accepté');
   },
   'x-refuse': async el => {
@@ -151,7 +155,7 @@ export const actions = {
     for (const c of x.changes || []) { const b = eng.baseCode(x.childIds[0], c.d); if (E.first(b)) ch.push({ d: c.d, to: b }); }
     if (!ch.length && !x.timeChange) return toast('Rien à rétablir.', 'warn');
     const nv = needsValidation();
-    const data = { type: x.type, childIds: x.childIds, changes: ch, timeChange: x.timeChange ? { d: x.timeChange.d, midday: !!x.timeChange.midday, reset: true, time: '', place: '' } : null,
+    const data = { type: x.type, childIds: x.childIds, changes: ch, timeChange: x.timeChange ? { d: x.timeChange.d, midday: !!x.timeChange.midday, morning: !!x.timeChange.morning, reset: true, time: '', place: '' } : null,
       summary: `Annulation : ${x.summary}`, reason: 'Retour au planning initial', proposedBy: uid(), proposedByName: myName(), proposedAt: Date.now(), state: nv ? 'pending' : 'accepted' };
     if (!nv) Object.assign(data, { decidedBy: uid(), decidedByName: myName() + ' (auto)', decidedAt: Date.now() });
     await guard(async () => { await addItem('exchanges', data); await log('echange', data.summary); }, nv ? 'Demande envoyée' : 'Planning rétabli');

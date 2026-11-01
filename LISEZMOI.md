@@ -190,6 +190,34 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
 - Lien d'import des listes type v3 (`tools/mktpl.py`) : nombres par prénom (`{"selman": 8, "jandal": 8}`).
 - Les fichiers téléchargés n'ont plus d'accents dans leur nom (Chrome les renommait « download »).
 
+## 10 sexies. Nouveautés 6.11
+
+- **Sac** : dans « + » (ajouter une quantité) et « Ajouter un élément », la quantité de départ est 0 ; l'addition et le total
+  s'affichent en direct (« 8 + 2 = 10 après l'ajout », « Selman 1 + Jandal 2 = 3 »).
+- **Nombre finalement reçu / récupéré** : depuis l'alerte « Reçu en moins / Non reçu », on indique le nombre réellement reçu.
+  C'est définitif : l'alerte se ferme et l'autre parent ne peut plus le contester.
+- **Confirmations** : chaque action définitive (préparer, confirmer la réception, refuser, contester, accepter un écart,
+  ajouter pendant la période, valider un souvenir, une dépense, un échange…) ouvre une fenêtre « Ce que ça fait » /
+  « Ce que <prénom> verra ».
+- **Listes type** : les vacances n'ont plus d'année (la liste vaut pour les mêmes vacances chaque année) ; l'année n'apparaît
+  que sur les listes envoyées (« Envoyer vers : Noël 26 »).
+- **Notifications** : une notification reste **non lue** (entourée de rouge, comptée dans le badge 🔔) tant qu'on ne l'a pas
+  touchée (ou ouverte depuis la notification du téléphone). « Tout marquer comme lu » reste possible.
+- **Relances quotidiennes à 19 h** : une fois les vacances terminées, la personne qui doit faire l'étape en cours de la liste
+  (préparer, recevoir, rendre, récupérer, traiter les alertes) est relancée chaque jour à 19 h jusqu'à ce que ce soit fait ;
+  l'autre parent est prévenu de chaque relance. Les relances sont programmées 3 jours à l'avance (limite de ntfy) et
+  renouvelées dès que l'un des deux parents ouvre l'application.
+- **Horaires réguliers** : Quand ? (chaque semaine, semaines paires, semaines impaires, veille / fin des vacances, une date),
+  année scolaire, heure et « jusqu'à », **qui dépose** + lieu de dépose, **qui récupère** + lieu de récupération (Chez <prénom>,
+  École, Autre à préciser), et une **solution de repli** (la veille / le jour même, heure, qui dépose, lieu). Un horaire avant
+  midi est un **relais du matin** : la garde de la veille continue jusque-là (présence, nuits, widgets). Dans la fiche du jour,
+  « Si impossible » crée la demande d'échange d'horaire correspondante.
+- Lien de réglage du lundi : `#/settings?preset=lundi` (dépose à l'école 8h20–8h30 par Khalid après sa garde, sinon la veille
+  à 18h30 chez Jounayda).
+- **Prénoms partout** (widgets compris) ; « Papa » / « Maman » seulement sur l'accueil et dans le Cercle.
+- **Proches** : lien avec les enfants et côté (paternel / maternel) : « Grand-mère paternelle de Selman & Jandal ».
+- Widgets Android (nouvel APK) et iPhone : relais du matin, créneau, lieu de dépose, prénoms.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.
