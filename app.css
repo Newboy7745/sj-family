@@ -256,6 +256,13 @@ input[type=date].in,input[type=time].in{min-width:0;width:100%;-webkit-appearanc
 code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;padding:12px;font-size:13px;word-break:break-all;margin-top:8px}
 
 @media (min-width:700px){ .modules{grid-template-columns:repeat(3,1fr)} .cday{min-height:78px} }
+/* ───── Sac : boutons toujours visibles (haut : enfants, onglets, vacances ; bas : actions) */
+.stick{position:sticky;top:var(--top-h,68px);z-index:20;background:var(--bg);margin:-18px -16px 12px;padding:10px 16px 10px;box-shadow:0 8px 12px -10px rgba(15,27,45,.28)}
+.stick .kid-chips{margin-bottom:0}
+.stick-b{position:sticky;bottom:calc(var(--tabs-h,84px) + 4px);z-index:20;margin:8px -16px 0;padding:16px 16px 6px;background:linear-gradient(rgba(244,246,250,0),var(--bg) 28%)}
+.steps-l{margin:8px 0 2px;padding:8px 10px;border-radius:12px;background:#F6F8FB;display:flex;flex-direction:column;gap:3px}
+.steps-l .tiny{font-size:12.5px}
+.mtx{margin-top:8px}
 @media print{ .top,.tabs,.noprint{display:none!important} #view{padding:0} .card{box-shadow:none;border:1px solid #ddd} }
 
 /* ───── Installation & admin (v6.1) */

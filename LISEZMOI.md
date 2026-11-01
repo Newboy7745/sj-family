@@ -138,6 +138,24 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   Les rappels d'un envoi fait par un proche sont programmés à la prochaine ouverture de l'application par un parent.
 - Règles Firestore v6.7 : la validation n'est acceptée que de l'autre parent et avant la fin des 48 h.
 
+## 10 ter. Nouveautés 6.8 (Sac)
+
+- Boutons toujours visibles : enfants, onglets, vacances en haut ; actions (Sac prêt, J'ai tout préparé, Réception
+  confirmée, Exporter…) en bas, au-dessus des onglets. Prénoms partout (jamais « Papa / Maman », sauf « Maman TEST »).
+- **Listes type privées** (onglet 📋, rangées dans le profil `users/{uid}.sacTpl`, invisibles pour l'autre parent) :
+  une par vacances (Toussaint, Noël, Hiver, Pâques, Été), en « Demande à … » ou « Envoi à … ». Chaque élément a son
+  bouton pour l'envoyer vers les vacances du même nom de l'année choisie ; la liste des vacances est créée toute seule.
+  Lien d'import des 5 listes : outil `mktpl.py`.
+- **Circuit complet** par élément : demande (ou envoi prévu), envoi, réception, retour, récupération, chacun daté.
+  Seule la personne qui a créé la liste peut la modifier (éléments, quantités, avec historique daté) ou la supprimer.
+  L'autre parent ne change pas la quantité demandée. À la confirmation de réception, les éléments reçus sont figés.
+  Au retour, la quantité à rendre est celle reçue à l'aller (non modifiable) ; la confirmation fige tout.
+  Un élément ajouté après validation porte sa date d'ajout et prévient l'autre parent.
+- **Export** de chaque liste en JPG ou PDF avec tout le circuit (`sac-export.js`, PDF généré sur le téléphone).
+- Affaires de chaque relais : Sac › Relais › « Affaires de chaque relais ». Bouton « Modifier la liste » supprimé.
+- Réglages › Sac › **Tout effacer et recommencer** : affaires, listes, relais, photos et notifications du Sac dans le
+  cercle et le cercle de test (listes type gardées).
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

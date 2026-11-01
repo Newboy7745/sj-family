@@ -1,27 +1,27 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.7';
-import { createBackend } from './backend.js?v=6.7';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.7';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.7';
-import * as Home from './views-home.js?v=6.7';
-import * as Agenda from './views-agenda.js?v=6.7';
-import * as Plan from './views-planning.js?v=6.7';
-import * as Exch from './views-exchange.js?v=6.7';
-import * as Fam from './views-family.js?v=6.7';
-import * as Bud from './views-budget.js?v=6.7';
-import * as More from './views-more.js?v=6.7';
-import * as Admin from './views-admin.js?v=6.7';
-import * as Install from './install.js?v=6.7';
-import * as Sac from './views-sac.js?v=6.7';
-import * as Print from './print.js?v=6.7';
+import * as E from './engine.js?v=6.8';
+import { createBackend } from './backend.js?v=6.8';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.8';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.8';
+import * as Home from './views-home.js?v=6.8';
+import * as Agenda from './views-agenda.js?v=6.8';
+import * as Plan from './views-planning.js?v=6.8';
+import * as Exch from './views-exchange.js?v=6.8';
+import * as Fam from './views-family.js?v=6.8';
+import * as Bud from './views-budget.js?v=6.8';
+import * as More from './views-more.js?v=6.8';
+import * as Admin from './views-admin.js?v=6.8';
+import * as Install from './install.js?v=6.8';
+import * as Sac from './views-sac.js?v=6.8';
+import * as Print from './print.js?v=6.8';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
 const AFTER = Object.assign({}, ...MODS.map(m => m.after || {}));
 const ACTIONS = Object.assign({}, ...MODS.map(m => m.actions || {}));
-const TAB_OF = { home: 'home', agenda: 'agenda', exchanges: 'echange', family: 'cercle', sac: 'sac', memories: 'souvenirs', liaison: 'liaison' };
+const TAB_OF = { home: 'home', agenda: 'agenda', exchanges: 'echange', family: 'cercle', sac: 'sac', sacl: 'sac', sacperm: 'sac', memories: 'souvenirs', liaison: 'liaison' };
 
 // ───── Actions communes
 Object.assign(ACTIONS, {
@@ -147,6 +147,8 @@ function doRender() {
   if (typeof out === 'string') out = { html: out };
   header(out);
   const v = $('#view'); v.innerHTML = testBanner() + out.html; S.lastView = r.view;
+  { const tp = $('.top'), tb = $('.tabs'), st = document.documentElement.style;
+    st.setProperty('--top-h', (tp?.offsetHeight || 68) + 'px'); st.setProperty('--tabs-h', (tb && getComputedStyle(tb).display !== 'none' ? tb.offsetHeight : 0) + 'px'); }
   const tab = TAB_OF[r.view];
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
   const bx = $('#bx'), bs = $('#bs'), bl = $('#bl'), px = Exch.pendingForMe ? Exch.pendingForMe() : 0, ps = Sac.pendingCount ? Sac.pendingCount() : 0, pl = More.unreadNotes ? More.unreadNotes() : 0;

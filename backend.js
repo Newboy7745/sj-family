@@ -63,6 +63,8 @@ async function createFirebase() {
           const db2 = {
             set: (p, d, m = false) => F.setDoc(F.doc(f2, p), clean(d), { merge: m }), update: (p, d) => F.updateDoc(F.doc(f2, p), clean(d)),
             get: async p => snap2obj(await F.getDoc(F.doc(f2, p))), arrayUnion: (...v) => F.arrayUnion(...v), newId: () => F.doc(F.collection(f2, '_')).id,
+            list: async (p, o) => { o = o || {}; const c = []; for (const w of o.where || []) c.push(F.where(w[0], w[1], w[2])); return (await F.getDocs(F.query(F.collection(f2, p), ...c))).docs.map(d => ({ id: d.id, ...d.data() })); },
+            del: p => F.deleteDoc(F.doc(f2, p)),
           };
           return await fn({ uid: cred.user.uid, db: db2 });
         } finally { try { await A.signOut(a2); } catch (e) { /* */ } try { await deleteApp(app2); } catch (e) { /* */ } }
@@ -166,7 +168,8 @@ function createMock() {
       refresh: async () => cur(),
       side: async (email, pw, fn) => {
         email = email.trim().toLowerCase(); if (!store.users[email]) { store.users[email] = { uid: 'u_' + randomId(10), pw }; save(); }
-        const self = { set: async (p, d, m = false) => write(p, d, m ? 'merge' : 'replace'), update: async (p, d) => write(p, d, 'update'), get: async p => store.docs[p] ? { id: p.split('/').pop(), ...structuredClone(store.docs[p]) } : null, arrayUnion: (...v) => ({ [AU]: v }), newId: () => randomId(20) };
+        const self = { set: async (p, d, m = false) => write(p, d, m ? 'merge' : 'replace'), update: async (p, d) => write(p, d, 'update'), get: async p => store.docs[p] ? { id: p.split('/').pop(), ...structuredClone(store.docs[p]) } : null, arrayUnion: (...v) => ({ [AU]: v }), newId: () => randomId(20),
+          list: async (p, o) => colDocs(p, o), del: async p => { delete store.docs[p]; save(); notify(p); } };
         return fn({ uid: store.users[email].uid, db: self });
       },
     },

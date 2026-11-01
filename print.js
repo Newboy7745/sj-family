@@ -1,8 +1,8 @@
 // ═══════════════ Calendrier annuel imprimable — même organisation que les plannings officiels (PLANNING GARDE … 2026 / 2027) ═══════════════
 // 12 tableaux mensuels (N° · S. · Jour · Garde · Commentaire), totaux par mois et par an, à jour de tous les changements validés.
-import * as E from './engine.js?v=6.7';
-import { S, engine, parents, selIds, isParent, setFamily, guard } from './core.js?v=6.7';
-import { esc, openSheet, closeSheet, readForm, chips, toast, IC, download } from './ui.js?v=6.7';
+import * as E from './engine.js?v=6.8';
+import { S, engine, parents, selIds, isParent, setFamily, guard } from './core.js?v=6.8';
+import { esc, openSheet, closeSheet, readForm, chips, toast, IC, download } from './ui.js?v=6.8';
 
 const MO = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
 const JR = ['L', 'Ma', 'Me', 'J', 'V', 'S', 'D'];

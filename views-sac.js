@@ -1,14 +1,38 @@
-// ═══════════════ Sac : affaires de chaque relais + listes des vacances (demandées ou envoyées, aller / retour) ═══════════════
-import * as E from './engine.js?v=6.7';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go } from './core.js?v=6.7';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.7';
-import { kidChips } from './views-home.js?v=6.7';
+// ═══════════════ Sac : affaires de chaque relais, listes des vacances (demande / envoi, aller / retour) et listes type ═══════════════
+import * as E from './engine.js?v=6.8';
+import { S, engine, parents, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS } from './core.js?v=6.8';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.8';
+import { kidChips } from './views-home.js?v=6.8';
+import { buildFile, shareFile } from './sac-export.js?v=6.8';
 
 const runKey = h => `${h.date}_${h.time.replace(':', '')}_${h.to}`;
 const relaisItems = () => S.sac.filter(i => !i.kind);
 const vlists = () => S.sac.filter(i => i.kind === 'vlist');
 const other = c => (c === 'A' ? 'B' : 'A');
 const nid = () => S.be.db.newId().slice(0, 12);
+const norm = s => String(s || '').trim().toLowerCase();
+/** Prénom affiché dans le Sac (jamais « Papa » ni « Maman » ; dans le cercle de test : « Maman TEST ») */
+export function nm(code) {
+  if (!code) return '—';
+  if (S.family?.testCircle && code === 'B') return 'Maman TEST';
+  return parents()[code]?.name || '—';
+}
+/** Date sans l'heure */
+const dd = t => (t ? E.fmtDate(typeof t === 'number' ? E.todayISO(new Date(t)) : String(t).slice(0, 10), 'num') : '');
+
+// ───── Vacances et listes type
+const VAC = { tou: ['Toussaint', '🎃', 'Affaires de la Toussaint'], noel: ['Noël', '🎄', 'Affaires de Noël'], hiv: ['Hiver', '⛄', "Affaires d'hiver"], pri: ['Pâques', '🌼', 'Affaires de Pâques'], ete: ['Été', '☀️', "Affaires d'été"] };
+const VKEYS = Object.keys(VAC);
+const vacOf = id => (String(id || '').match(/^(tou|noel|hiv|pri|ete)\d/) || [])[1] || null;
+const tplAll = () => S.profile?.sacTpl || {};
+const tpl = v => tplAll()[v] || { dir: 'request', items: {} };
+const tplItems = v => Object.entries(tpl(v).items || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
+async function tplUpd(data) { await S.be.db.update(`users/${uid()}`, data); }
+function vacPeriods(v) {
+  const st = settings(), today = E.todayISO();
+  return E.schoolHolidays(st.zone || 'B', st.customHolidays || []).filter(p => vacOf(p.id) === v && p.e > today).slice(0, 3);
+}
+
 /** Relais proposés : le dernier (pour confirmer la réception) et les 3 prochains */
 function relaisList(ids) {
   const eng = engine(), today = E.todayISO(), min = E.nowMin();
@@ -48,124 +72,187 @@ function itemRow(i, run, h) {
       <button class="ck2 ${g ? 'on' : ''}" data-act="sac-got" data-id="${i.id}" data-k="${runKey(h)}" title="Reçu">📥<span>${g ? '✓' : ''}</span></button></div>`}</div>`;
 }
 
-// ───── Listes des vacances
+// ───── Listes des vacances : rôles, quantités et étapes de chaque élément
 function periods() {
   const st = settings(), today = E.todayISO();
   return E.schoolHolidays(st.zone || 'B', st.customHolidays || []).filter(p => p.e >= E.addDays(today, -21) && p.s <= E.addDays(today, 400)).slice(0, 8);
 }
-const pLabel = p => `${p.i || '🏖️'} ${p.n.replace('Vacances de la ', '').replace('Vacances d\'', '').replace('Vacances de ', '')} ${p.s.slice(0, 4)}`;
+const pLabel = p => `${p.i || '🏖️'} ${p.n.replace('Vacances de la ', '').replace('Vacances d\'', '').replace('Vacances de ', '').replace(/^./, c => c.toUpperCase())} ${p.s.slice(0, 4)}`;
+const ownerOf = l => l.ownerCode || (l.dir === 'request' ? other(l.giver) : l.giver);
+const isCreator = l => l.createdBy === uid();
 function phaseInfo(l, ph) { const g = ph === 'retour' ? other(l.giver) : l.giver; return { giver: g, receiver: other(g) }; }
+const stOf = (l, ph, iid) => l.st?.[ph]?.[iid] || {};
+/** Quantité envoyée à l'aller (sinon celle demandée / prévue) */
+const sentQty = (l, iid) => stOf(l, 'aller', iid).qty ?? (+l.items?.[iid]?.qty || 1);
+/** Quantité à rendre = quantité reçue à l'aller (non modifiable) */
+const retQty = (l, iid) => { const a = stOf(l, 'aller', iid); return a.got ? (a.gotQty ?? sentQty(l, iid)) : sentQty(l, iid); };
+function dirText(l) {
+  const o = ownerOf(l);
+  return l.dir === 'request' ? `Demande de ${nm(o)} à ${nm(l.giver)}` : `Envoi de ${nm(l.giver)} à ${nm(other(l.giver))}`;
+}
+/** Toutes les étapes d'un élément (demande, envoi, réception, retour), datées sans l'heure */
+function stepsOf(l, iid) {
+  const it = l.items[iid], a = stOf(l, 'aller', iid), r = stOf(l, 'retour', iid), g = l.giver, rc = other(g), out = [];
+  out.push({ i: '📝', t: `${l.dir === 'request' ? 'Demandé' : 'Prévu'} ×${it.qty || 1} par ${nm(ownerOf(l))}${it.at || l.createdAt ? ' le ' + dd(it.at || l.createdAt) : ''}` });
+  if (it.late) out.push({ i: '➕', t: `Ajouté après validation le ${dd(it.late)}` });
+  for (const h of it.hist || []) out.push({ i: '✏️', t: `${h.txt} (${dd(h.at)})` });
+  if (a.done) out.push({ i: '📤', t: `Envoyé ×${sentQty(l, iid)} par ${nm(g)} le ${dd(a.at)}${a.note ? ' — ' + a.note : ''}`, w: +sentQty(l, iid) !== +(it.qty || 1) });
+  if (a.got) out.push({ i: '📥', t: `Reçu ×${a.gotQty ?? sentQty(l, iid)} par ${nm(rc)} le ${dd(a.gotAt)}${a.lock ? ' 🔒' : ''}`, w: a.gotQty != null && +a.gotQty !== +sentQty(l, iid) });
+  if (r.done) out.push({ i: '↩️', t: `Rendu ×${retQty(l, iid)} par ${nm(rc)} le ${dd(r.at)}` });
+  if (r.got) out.push({ i: '✅', t: `Récupéré ×${r.gotQty ?? retQty(l, iid)} par ${nm(g)} le ${dd(r.gotAt)}${r.lock ? ' 🔒' : ''}`, w: r.gotQty != null && +r.gotQty !== +retQty(l, iid) });
+  return out;
+}
 function listStats(l, ph) {
   const ids = Object.keys(l.items || {}), st = l.st?.[ph] || {};
   return { n: ids.length, done: ids.filter(id => st[id]?.done).length, got: ids.filter(id => st[id]?.got).length };
 }
 function vlistCard(l) {
-  const a = listStats(l, 'aller'), r = listStats(l, 'retour'), p = parents();
+  const a = listStats(l, 'aller'), r = listStats(l, 'retour');
   return `<button class="card vl" style="width:100%;text-align:left" data-go="sacl" data-params='${JSON.stringify({ id: l.id })}'>
     <div class="row gap"><div style="font-size:28px">${l.dir === 'request' ? '📥' : '📤'}</div><div class="f1"><div class="b">${esc(l.title)}</div>
-    <div class="small muted">${l.dir === 'request' ? `${esc(p[l.ownerCode]?.name || '')} demande à ${esc(p[l.giver].name)} de fournir` : `${esc(p[l.giver].name)} fournit`} · ${a.n} élément${a.n > 1 ? 's' : ''}${l.childIds?.length ? ' · ' + esc(childNames(l.childIds)) : ''}</div>
-    <div class="tiny muted mt6">➡️ Aller : ${a.done}/${a.n} mis · ${a.got}/${a.n} reçus &nbsp; ⬅️ Retour : ${r.done}/${r.n} mis · ${r.got}/${r.n} reçus</div></div><span class="lnk">›</span></div></button>`;
+    <div class="small muted">${esc(dirText(l))} · ${a.n} élément${a.n > 1 ? 's' : ''}${l.childIds?.length ? ' · ' + esc(childNames(l.childIds)) : ''}${isCreator(l) ? '' : ' · 🔒'}</div>
+    <div class="tiny muted mt6">➡️ Aller : ${a.done}/${a.n} envoyés · ${a.got}/${a.n} reçus &nbsp; ⬅️ Retour : ${r.done}/${r.n} rendus · ${r.got}/${r.n} récupérés</div></div><span class="lnk">›</span></div></button>`;
 }
 function vacTab(ids) {
-  const ps = periods(); if (!ps.length) return '<div class="card empty">Aucune période de vacances à venir.</div>';
+  const ps = periods(); if (!ps.length) return { top: '', body: '<div class="card empty">Aucune période de vacances à venir.</div>', bottom: '' };
   const pid = S.ui.sacPer && ps.some(p => p.id === S.ui.sacPer) ? S.ui.sacPer : ps.find(p => p.e >= E.todayISO())?.id || ps[0].id;
   const per = ps.find(p => p.id === pid), eng = engine();
   const blocks = ids.length ? eng.blocks(ids[0], per.s, per.e).filter(b => b.key !== '.') : [];
   const ls = vlists().filter(l => l.period?.id === pid).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-  return `<div class="chips scroll mb">${ps.map(p => `<button class="chip sm ${p.id === pid ? 'on' : ''}" data-act="sac-per" data-id="${p.id}">${esc(pLabel(p))}</button>`).join('')}</div>
-    <div class="card"><div class="b">${per.i || '🏖️'} ${esc(per.n)}</div><div class="small muted">Du ${E.fmtDate(per.s)} au ${E.fmtDate(per.e)}</div>
-      ${blocks.length ? `<div class="row wrap gap6 mt6">${blocks.map(b => `<span class="pill" style="background:${E.first(b.code) === 'A' ? 'var(--pa)' : 'var(--pb)'};color:#13233A">${esc(E.isHalf(b.code) ? '½ / ½' : pShort(E.first(b.code)))} · ${E.fmtDate(b.start, 'short')}${b.end !== b.start ? '→' + E.fmtDate(b.end, 'short') : ''}</span>`).join('')}</div>` : ''}</div>
-    ${ls.length ? ls.map(vlistCard).join('') : '<div class="card empty"><div class="e-i">🧳</div>Aucune liste pour ces vacances.<br>Exemple : la liste des vêtements que vous attendez de l\'autre parent.</div>'}
-    ${isParent() ? `<button class="btn primary block" data-act="vl-new" data-p="${pid}">${IC.plus} Nouvelle liste pour ces vacances</button>` : ''}`;
+  return {
+    top: `<div class="chips scroll mtx">${ps.map(p => `<button class="chip sm ${p.id === pid ? 'on' : ''}" data-act="sac-per" data-id="${p.id}">${esc(pLabel(p))}</button>`).join('')}</div>`,
+    body: `<div class="card"><div class="b">${per.i || '🏖️'} ${esc(per.n)}</div><div class="small muted">Du ${E.fmtDate(per.s)} au ${E.fmtDate(per.e)}</div>
+      ${blocks.length ? `<div class="row wrap gap6 mt6">${blocks.map(b => `<span class="pill" style="background:${E.first(b.code) === 'A' ? 'var(--pa)' : 'var(--pb)'};color:#13233A">${esc(E.isHalf(b.code) ? '½ / ½' : nm(E.first(b.code)))} · ${E.fmtDate(b.start, 'short')}${b.end !== b.start ? '→' + E.fmtDate(b.end, 'short') : ''}</span>`).join('')}</div>` : ''}</div>
+      ${ls.length ? ls.map(vlistCard).join('') : `<div class="card empty"><div class="e-i">🧳</div>Aucune liste pour ces vacances.${isParent() ? '<br>Créez-la ici, ou depuis vos listes type (onglet 📋).' : ''}</div>`}`,
+    bottom: isParent() ? `<button class="btn primary block" data-act="vl-new" data-p="${pid}">${IC.plus} Nouvelle liste pour ces vacances</button>` : '',
+  };
+}
+/** Listes type : privées (profil de la personne qui les crée), une par vacances, envoyables élément par élément */
+function tplTab() {
+  const v = VKEYS.includes(S.ui.tplVac) ? S.ui.tplVac : 'tou', t = tpl(v), items = tplItems(v), me = myCode() || 'A', o = other(me), dir = t.dir || 'request';
+  const ps = vacPeriods(v), pid = ps.some(p => p.id === S.ui.tplPer) ? S.ui.tplPer : ps[0]?.id, per = ps.find(p => p.id === pid);
+  const target = per ? vlists().find(l => l.period?.id === per.id && l.dir === dir && l.createdBy === uid() && l.tplVac === v) : null;
+  const inL = new Set(Object.values(target?.items || {}).map(x => norm(x.name)));
+  const todo = items.filter(([, it]) => !inL.has(norm(it.name)));
+  const yl = p => `${VAC[v][1]} ${VAC[v][0]} ${p.s.slice(0, 4)}`;
+  return {
+    top: `<div class="chips scroll mtx">${VKEYS.map(k => `<button class="chip sm ${k === v ? 'on' : ''}" data-act="tpl-vac" data-v="${k}">${VAC[k][1]} ${VAC[k][0]} <span class="muted">${tplItems(k).length || ''}</span></button>`).join('')}</div>`,
+    body: `<div class="card"><h3>${VAC[v][1]} Liste type · ${VAC[v][0]} <a class="act" data-act="tpl-item" data-v="${v}">${IC.plus} Élément</a></h3>
+        <div class="seg" style="margin:6px 0 10px"><button class="${dir === 'request' ? 'on' : ''}" data-act="tpl-dir" data-v="${v}" data-d="request">📥 Demande à ${esc(nm(o))}</button><button class="${dir === 'send' ? 'on' : ''}" data-act="tpl-dir" data-v="${v}" data-d="send">📤 Envoi à ${esc(nm(o))}</button></div>
+        <div class="small b">Pour les vacances :</div>
+        ${ps.length ? `<div class="chips scroll mtx">${ps.map(p => `<button class="chip sm ${p.id === pid ? 'on' : ''}" data-act="tpl-per" data-id="${p.id}">${esc(yl(p))}</button>`).join('')}</div>` : '<div class="small muted">Aucune période à venir pour ces vacances.</div>'}
+        ${per ? `<div class="small muted mt6">${target ? `Liste « ${esc(target.title)} » : ${Object.keys(target.items || {}).length} élément(s)${target.phase?.aller?.gotAt ? ' · validée le ' + dd(target.phase.aller.gotAt) + ' (les ajouts seront datés)' : ''}. <a class="lnk" data-go="sacl" data-params='${JSON.stringify({ id: target.id })}'>Ouvrir ›</a>` : `La liste « ${esc(VAC[v][2])} » ${esc(yl(per))} sera créée automatiquement au premier envoi.`}</div>` : ''}
+        <div class="hint">🔒 Visible uniquement par vous. ${dir === 'request' ? `${esc(nm(o))} devra fournir les éléments envoyés.` : `Vous fournissez les éléments, ${esc(nm(o))} confirme la réception.`}</div></div>
+      ${items.length ? `<div class="card tight">${items.map(([iid, it]) => { const has = inL.has(norm(it.name)); return `<div class="li"><button class="f1" style="text-align:left" data-act="tpl-item" data-v="${v}" data-i="${iid}"><div class="lt">${esc(it.name)} <span class="muted">×${it.qty || 1}</span></div>${it.desc ? `<div class="ls">${esc(it.desc)}</div>` : ''}</button>
+          ${per ? (has ? `<span class="pill ok">✓ ${dir === 'request' ? 'demandé' : 'envoyé'}</span>` : `<button class="btn soft sm" data-act="tpl-send" data-v="${v}" data-i="${iid}">${dir === 'request' ? '📥 Demander' : '📤 Envoyer'}</button>`) : ''}</div>`; }).join('')}</div>`
+        : `<div class="card empty"><div class="e-i">📋</div>Liste type vide.<br>Ajoutez vos affaires habituelles pour les vacances de ${esc(VAC[v][0])}.</div>`}`,
+    bottom: per && todo.length ? `<button class="btn primary block" data-act="tpl-send" data-v="${v}" data-all="1">${dir === 'request' ? '📥 Demander' : '📤 Envoyer'} les ${todo.length} élément${todo.length > 1 ? 's' : ''} · ${esc(yl(per))}</button>` : '',
+  };
 }
 function vlistItem(l, iid, it, ph, me) {
-  const st = l.st?.[ph]?.[iid] || {}, { giver, receiver } = phaseInfo(l, ph), photos = it.photos || [];
-  const exp = +it.qty || 1, given = st.qty ?? '', got = st.gotQty ?? '';
-  const gap = st.got && st.gotQty != null && +st.gotQty !== +(st.qty ?? exp);
-  const canG = me === giver || !me, canR = me === receiver || !me;
+  const st = stOf(l, ph, iid), { giver, receiver } = phaseInfo(l, ph), photos = it.photos || [], lock = !!st.lock;
+  const isG = me === giver, isR = me === receiver, lockA = !!stOf(l, 'aller', iid).lock;
+  const steps = stepsOf(l, iid);
+  let act = '';
+  if (lock) act = `<div class="small b" style="color:var(--ok)">🔒 Validé : plus modifiable</div>`;
+  else if (ph === 'aller') {
+    const q = sentQty(l, iid), gq = st.gotQty ?? q;
+    if (isG) act += `<div class="vrow"><span class="vlab">${esc(nm(giver))} envoie</span>
+        <input class="in sm" type="number" min="0" inputmode="numeric" value="${q}" ${st.got ? 'disabled' : ''} data-change="vl-qty" data-id="${l.id}" data-i="${iid}" data-ph="${ph}">
+        <button class="ck2 ${st.done ? 'on' : ''}" ${st.got ? 'disabled' : ''} data-act="vl-done" data-id="${l.id}" data-i="${iid}" data-ph="${ph}" title="Mis dans le sac">🎒<span>✓</span></button></div>
+      <input class="in sm" ${st.got ? 'disabled' : ''} placeholder="Ce que je mets exactement (taille, couleur, marque…)" value="${esc(st.note || '')}" data-change="vl-note" data-id="${l.id}" data-i="${iid}" data-ph="${ph}">`;
+    if (isR) act += `<div class="vrow"><span class="vlab">${esc(nm(receiver))} reçoit</span>
+        <input class="in sm" type="number" min="0" inputmode="numeric" value="${gq}" data-change="vl-gotqty" data-id="${l.id}" data-i="${iid}" data-ph="${ph}">
+        <button class="ck2 ${st.got ? 'on' : ''}" data-act="vl-got" data-id="${l.id}" data-i="${iid}" data-ph="${ph}" title="Reçu">📥<span>✓</span></button></div>`;
+  } else {
+    const q = retQty(l, iid), gq = st.gotQty ?? q;
+    if (isG) act += `<div class="vrow"><span class="vlab">${esc(nm(giver))} rend <b>×${q}</b> <span class="tiny muted">(reçu à l'aller)</span></span>
+        <button class="ck2 ${st.done ? 'on' : ''}" ${st.got ? 'disabled' : ''} data-act="vl-done" data-id="${l.id}" data-i="${iid}" data-ph="${ph}" title="Rendu">🎒<span>✓</span></button></div>`;
+    if (isR) act += `<div class="vrow"><span class="vlab">${esc(nm(receiver))} récupère</span>
+        <input class="in sm" type="number" min="0" inputmode="numeric" value="${gq}" data-change="vl-gotqty" data-id="${l.id}" data-i="${iid}" data-ph="${ph}">
+        <button class="ck2 ${st.got ? 'on' : ''}" data-act="vl-got" data-id="${l.id}" data-i="${iid}" data-ph="${ph}" title="Récupéré">📥<span>✓</span></button></div>`;
+  }
+  const canEdit = isCreator(l) && !lockA && !S.ui.sacSelOn;
   return `<div class="vi ${st.done ? 'done' : ''} ${st.got ? 'got' : ''}">
-    <div class="row gap">${selBox(iid)}<div class="f1" style="min-width:0"><div class="b">${esc(it.name)} <span class="muted">· ${exp} attendu${exp > 1 ? 's' : ''}</span></div>${it.desc ? `<div class="small muted">${esc(it.desc)}</div>` : ''}</div>
-      ${S.ui.sacSelOn ? '' : `<button class="ib" data-act="vl-item" data-id="${l.id}" data-i="${iid}">${IC.edit}</button>`}</div>
-    <div class="vph">${photos.map(p => { const on = !!st.ph?.[p.id]; return `<div class="vp ${on ? 'on' : ''}"><button class="vp-i" data-act="vl-ph" data-id="${l.id}" data-i="${iid}" data-p="${p.id}" data-ph="${ph}" title="Cocher cette photo"><img src="${p.thumb}" alt=""><span>${on ? '✓' : ''}</span></button>
+    <div class="row gap">${isCreator(l) ? selBox(iid) : ''}<div class="f1" style="min-width:0"><div class="b">${esc(it.name)} <span class="pill">${l.dir === 'request' ? 'demandé' : 'prévu'} ×${it.qty || 1}</span>${it.late ? ` <span class="pill warn">➕ ${dd(it.late)}</span>` : ''}</div>${it.desc ? `<div class="small muted">${esc(it.desc)}</div>` : ''}</div>
+      ${canEdit ? `<button class="ib" data-act="vl-item" data-id="${l.id}" data-i="${iid}">${IC.edit}</button>` : ''}</div>
+    <div class="steps-l">${steps.map(s => `<div class="tiny ${s.w ? 'b' : 'muted'}" ${s.w ? 'style="color:var(--err)"' : ''}>${s.i} ${esc(s.t)}${s.w ? ' ⚠️' : ''}</div>`).join('')}</div>
+    <div class="vph">${photos.map(p => { const on = !!st.ph?.[p.id]; return `<div class="vp ${on ? 'on' : ''}"><button class="vp-i" ${lock ? 'disabled' : ''} data-act="vl-ph" data-id="${l.id}" data-i="${iid}" data-p="${p.id}" data-ph="${ph}" title="Cocher cette photo"><img src="${p.thumb}" alt=""><span>${on ? '✓' : ''}</span></button>
       <button class="vp-z" data-act="vl-zoom" data-b="${p.blobId || ''}" data-t="${p.thumb}">🔍</button></div>`; }).join('')}
-      <label class="vp add">📷<input type="file" accept="image/*" multiple class="hide" data-vlph="1" data-id="${l.id}" data-i="${iid}"></label></div>
-    <div class="vrow"><span class="vlab">${esc(pShort(giver))} met</span>
-      <input class="in sm" type="number" min="0" inputmode="numeric" value="${esc(String(given))}" placeholder="${exp}" ${canG ? '' : 'disabled'} data-change="vl-qty" data-id="${l.id}" data-i="${iid}" data-ph="${ph}">
-      <button class="ck2 ${st.done ? 'on' : ''}" ${canG ? '' : 'disabled'} data-act="vl-done" data-id="${l.id}" data-i="${iid}" data-ph="${ph}" title="Mis dans le sac">🎒<span>${st.done ? '✓' : ''}</span></button></div>
-    <input class="in sm" ${canG ? '' : 'disabled'} placeholder="Ce que je mets exactement (taille, couleur, marque…)" value="${esc(st.note || '')}" data-change="vl-note" data-id="${l.id}" data-i="${iid}" data-ph="${ph}">
-    <div class="vrow"><span class="vlab">${esc(pShort(receiver))} reçoit</span>
-      <input class="in sm" type="number" min="0" inputmode="numeric" value="${esc(String(got))}" placeholder="${given || exp}" ${canR ? '' : 'disabled'} data-change="vl-gotqty" data-id="${l.id}" data-i="${iid}" data-ph="${ph}">
-      <button class="ck2 ${st.got ? 'on' : ''}" ${canR ? '' : 'disabled'} data-act="vl-got" data-id="${l.id}" data-i="${iid}" data-ph="${ph}" title="Reçu">📥<span>${st.got ? '✓' : ''}</span></button></div>
-    ${gap ? `<div class="small b" style="color:var(--err)">⚠️ Écart : ${st.qty ?? exp} mis, ${st.gotQty} reçu${+st.gotQty > 1 ? 's' : ''}</div>` : ''}
-    ${st.done ? `<div class="tiny muted">🎒 ${esc(st.byName || '')} ${st.at ? fmtAgo(st.at) : ''}${st.got ? ` · 📥 ${esc(st.gotByName || '')} ${st.gotAt ? fmtAgo(st.gotAt) : ''}` : ''}</div>` : ''}</div>`;
+      ${isParent() ? `<label class="vp add">📷<input type="file" accept="image/*" multiple class="hide" data-vlph="1" data-id="${l.id}" data-i="${iid}"></label>` : ''}</div>
+    ${act}</div>`;
 }
+const page = (top, body, bottom) => `<div class="stick">${top}</div>${body}${bottom ? `<div class="stick-b">${bottom}</div>` : ''}`;
 
 export const views = {
   sac(p) {
     const ids = selIds();
     if (!can('sac')) return { title: 'Sac du relais', back: 'home', html: '<div class="card empty">Rubrique réservée aux parents.</div>' };
-    const tab = p.tab || S.ui.sacTab || 'relais'; S.ui.sacTab = tab;
+    let tab = p.tab || S.ui.sacTab || 'relais'; if (tab === 'liste' && !isParent()) tab = 'relais'; S.ui.sacTab = tab;
     if (S.ui.sacSelTab !== tab) { S.ui.sacSelOn = false; sel().clear(); S.ui.sacSelTab = tab; }
+    const seg = `${kidChips()}<div class="seg mtx" style="margin-bottom:0"><button class="${tab === 'relais' ? 'on' : ''}" data-act="sac-tab" data-t="relais">🔁 Relais</button><button class="${tab === 'vac' ? 'on' : ''}" data-act="sac-tab" data-t="vac">🏖️ Vacances</button>${isParent() ? `<button class="${tab === 'liste' ? 'on' : ''}" data-act="sac-tab" data-t="liste">📋 Listes type</button>` : ''}</div>`;
+    if (tab === 'vac') { const x = vacTab(ids); return { title: 'Sac', back: isParent() ? null : 'home', html: page(seg + x.top, x.body, x.bottom) }; }
+    if (tab === 'liste') { const x = tplTab(); return { title: 'Sac', back: isParent() ? null : 'home', html: page(seg + x.top, x.body, x.bottom) }; }
     const { last, next } = relaisList(ids);
     const opts = [...(last ? [last] : []), ...next];
     const recent = last && Date.now() - new Date(...last.date.split('-').map((x, k) => (k === 1 ? x - 1 : +x))).getTime() < 2 * 86400000;
     const pick = opts.find(h => runKey(h) === S.ui.sacKey) || (recent && itemsFor(last).some(i => !runOf(last).got?.[i.id]) ? last : next[0] || last);
-    let body = '';
-    if (tab === 'vac') body = vacTab(ids);
-    else if (tab === 'liste') {
-      const perm = relaisItems().filter(i => i.perm && (!i.childIds?.length || i.childIds.some(id => ids.includes(id))));
-      body = `<div class="card"><h3>📋 Liste type <a class="act" data-act="sac-new" data-perm="1">${IC.plus} Ajouter</a></h3>
-        <p class="small muted" style="margin-top:0">Ces affaires sont proposées à chaque relais.</p>
-        ${perm.length ? `<div class="row gap mb">${selBar(perm.map(i => i.id), 'sac-del-sel', 'Supprimer')}</div>` : ''}
-        ${perm.length ? perm.map(i => `<div class="li">${selBox(i.id)}<button class="row gap f1" style="text-align:left" data-act="sac-item" data-id="${i.id}"><span class="sac-ph sm">${i.photo ? `<img src="${i.photo}" alt="">` : '<span>🎒</span>'}</span><div class="f1"><div class="lt">${esc(i.name)}</div><div class="ls">${esc(i.desc || '')}${i.childIds?.length ? ' · ' + esc(childNames(i.childIds)) : ''}</div></div><span class="lnk">›</span></button></div>`).join('') : '<div class="empty"><div class="e-i">🎒</div>Ajoutez cartable, doudou, médicaments, tenue de sport…</div>'}</div>`;
-    } else if (!pick) body = '<div class="card empty"><div class="e-i">🔁</div>Aucun relais prévu pour le moment.</div>';
-    else {
-      const run = runOf(pick), items = itemsFor(pick), me = myCode();
-      const nP = items.filter(i => run.packed?.[i.id]).length, nG = items.filter(i => run.got?.[i.id]).length;
-      const past = pick === last;
-      body = `${opts.length > 1 ? `<div class="chips scroll mb">${opts.map(h => `<button class="chip sm ${h === pick ? 'on' : ''}" data-act="sac-pick" data-k="${runKey(h)}">${h === last ? '⏮ ' : ''}${esc(E.relDay(h.date))} ${E.fmtTime(h.time)}</button>`).join('')}</div>` : ''}
-        <div class="card"><div class="row gap"><div style="font-size:30px">🔁</div><div class="f1"><div class="b">Relais ${esc(E.relDay(pick.date))} à ${E.fmtTime(pick.time)}</div>
-          <div class="small muted">${esc(pName(pick.from))} → ${esc(pName(pick.to))} · ${esc(childNames(pick.childIds))}${pick.place ? ' · 📍 ' + esc(pick.place) : ''}</div>
-          ${past ? '<div class="small b" style="color:var(--coral)">Relais passé : confirmez la réception</div>' : `<div class="count mt6">⏱ ${countdown(pick.date, pick.time)}</div>`}</div></div>
-          <div class="row gap mt"><div class="f1"><div class="tiny b">🎒 DANS LE SAC</div><div class="bar"><span style="width:${items.length ? nP / items.length * 100 : 0}%;background:var(--navy2)"></span></div><div class="tiny muted">${nP}/${items.length} · ${esc(pShort(pick.from))}</div></div>
-            <div class="f1"><div class="tiny b">📥 REÇU</div><div class="bar"><span style="width:${items.length ? nG / items.length * 100 : 0}%;background:var(--ok)"></span></div><div class="tiny muted">${nG}/${items.length} · ${esc(pShort(pick.to))}</div></div></div>
-          ${run.readyAt ? `<div class="tiny muted mt">✅ Sac prêt (${esc(run.readyByName || '')}, ${fmtAgo(run.readyAt)})</div>` : ''}${run.doneAt ? `<div class="tiny muted">📥 Tout reçu (${esc(run.doneByName || '')}, ${fmtAgo(run.doneAt)})</div>` : ''}</div>
-        ${items.length ? `<div class="row gap mb">${selBar(items.map(i => i.id), 'sac-out-sel', 'Retirer')}</div><div class="card tight">${items.map(i => itemRow(i, run, pick)).join('')}</div>` : '<div class="card empty"><div class="e-i">🎒</div>Rien dans le sac pour ce relais. Ajoutez des affaires ou une liste type.</div>'}
-        ${Object.keys(run.excluded || {}).some(k => run.excluded[k]) ? `<button class="btn ghost sm block mb" data-act="sac-restore" data-k="${runKey(pick)}">↩️ Remettre les affaires retirées de ce relais</button>` : ''}
-        <button class="btn soft block mb" data-act="sac-new" data-k="${runKey(pick)}">${IC.camera} Ajouter une affaire (photo + description)</button>
-        <div class="row gap wrap">${me === pick.from || !me ? `<button class="btn primary f1" data-act="sac-ready" data-k="${runKey(pick)}">✅ Sac prêt</button>` : ''}
-          ${me === pick.to || !me ? `<button class="btn ok f1" data-act="sac-done" data-k="${runKey(pick)}">📥 Tout est arrivé</button><button class="btn danger f1" data-act="sac-miss" data-k="${runKey(pick)}">⚠️ Signaler un oubli</button>` : ''}</div>`;
-      S.ui.sacPick = pick;
-    }
+    const nPerm = relaisItems().filter(i => i.perm).length;
+    const permBtn = `<button class="btn ghost block mb" data-go="sacperm">📋 Affaires de chaque relais (${nPerm})</button>`;
+    if (!pick) return { title: 'Sac', back: isParent() ? null : 'home', html: page(seg, `<div class="card empty"><div class="e-i">🔁</div>Aucun relais prévu pour le moment.</div>${permBtn}`, '') };
+    const run = runOf(pick), items = itemsFor(pick), me = myCode();
+    const nP = items.filter(i => run.packed?.[i.id]).length, nG = items.filter(i => run.got?.[i.id]).length, past = pick === last;
+    S.ui.sacPick = pick;
+    const top = opts.length > 1 ? `<div class="chips scroll mtx">${opts.map(h => `<button class="chip sm ${h === pick ? 'on' : ''}" data-act="sac-pick" data-k="${runKey(h)}">${h === last ? '⏮ ' : ''}${esc(E.relDay(h.date))} ${E.fmtTime(h.time)}</button>`).join('')}</div>` : '';
+    const body = `<div class="card"><div class="row gap"><div style="font-size:30px">🔁</div><div class="f1"><div class="b">Relais ${esc(E.relDay(pick.date))} à ${E.fmtTime(pick.time)}</div>
+        <div class="small muted">${esc(nm(pick.from))} → ${esc(nm(pick.to))} · ${esc(childNames(pick.childIds))}${pick.place ? ' · 📍 ' + esc(pick.place) : ''}</div>
+        ${past ? '<div class="small b" style="color:var(--coral)">Relais passé : confirmez la réception</div>' : `<div class="count mt6">⏱ ${countdown(pick.date, pick.time)}</div>`}</div></div>
+        <div class="row gap mt"><div class="f1"><div class="tiny b">🎒 DANS LE SAC</div><div class="bar"><span style="width:${items.length ? nP / items.length * 100 : 0}%;background:var(--navy2)"></span></div><div class="tiny muted">${nP}/${items.length} · ${esc(nm(pick.from))}</div></div>
+          <div class="f1"><div class="tiny b">📥 REÇU</div><div class="bar"><span style="width:${items.length ? nG / items.length * 100 : 0}%;background:var(--ok)"></span></div><div class="tiny muted">${nG}/${items.length} · ${esc(nm(pick.to))}</div></div></div>
+        ${run.readyAt ? `<div class="tiny muted mt">✅ Sac prêt (${esc(run.readyByName || '')}, ${fmtAgo(run.readyAt)})</div>` : ''}${run.doneAt ? `<div class="tiny muted">📥 Tout reçu (${esc(run.doneByName || '')}, ${fmtAgo(run.doneAt)})</div>` : ''}</div>
+      ${items.length ? `<div class="row gap mb">${selBar(items.map(i => i.id), 'sac-out-sel', 'Retirer')}</div><div class="card tight">${items.map(i => itemRow(i, run, pick)).join('')}</div>` : '<div class="card empty"><div class="e-i">🎒</div>Rien dans le sac pour ce relais. Ajoutez des affaires.</div>'}
+      ${Object.keys(run.excluded || {}).some(k => run.excluded[k]) ? `<button class="btn ghost sm block mb" data-act="sac-restore" data-k="${runKey(pick)}">↩️ Remettre les affaires retirées de ce relais</button>` : ''}
+      <button class="btn soft block mb" data-act="sac-new" data-k="${runKey(pick)}">${IC.camera} Ajouter une affaire (photo + description)</button>${permBtn}`;
+    const bottom = `<div class="row gap">${me === pick.from || !me ? `<button class="btn primary f1" data-act="sac-ready" data-k="${runKey(pick)}">✅ Sac prêt</button>` : ''}
+        ${me === pick.to || !me ? `<button class="btn ok f1" data-act="sac-done" data-k="${runKey(pick)}">📥 Tout est arrivé</button><button class="btn danger" data-act="sac-miss" data-k="${runKey(pick)}" title="Signaler un oubli">⚠️</button>` : ''}</div>`;
+    return { title: 'Sac', back: isParent() ? null : 'home', html: page(seg + top, body, bottom) };
+  },
+  /** Affaires proposées à chaque relais (liste partagée par les deux parents) */
+  sacperm() {
+    const ids = selIds(), perm = relaisItems().filter(i => i.perm && (!i.childIds?.length || i.childIds.some(id => ids.includes(id))));
+    if (S.ui.sacSelTab !== 'perm') { S.ui.sacSelOn = false; sel().clear(); S.ui.sacSelTab = 'perm'; }
     return {
-      title: 'Sac', back: isParent() ? null : 'home',
-      html: `${kidChips()}<div class="seg mt"><button class="${tab === 'relais' ? 'on' : ''}" data-act="sac-tab" data-t="relais">🔁 Relais</button><button class="${tab === 'vac' ? 'on' : ''}" data-act="sac-tab" data-t="vac">🏖️ Vacances</button><button class="${tab === 'liste' ? 'on' : ''}" data-act="sac-tab" data-t="liste">📋 Liste type</button></div>${body}`,
+      title: 'Chaque relais', back: 'sac',
+      html: page(kidChips(), `<div class="card"><h3>📋 Affaires de chaque relais</h3><p class="small muted" style="margin-top:0">Proposées automatiquement à chaque relais, pour les deux parents.</p>
+        ${perm.length ? `<div class="row gap mb">${selBar(perm.map(i => i.id), 'sac-del-sel', 'Supprimer')}</div>` : ''}
+        ${perm.length ? perm.map(i => `<div class="li">${selBox(i.id)}<button class="row gap f1" style="text-align:left" data-act="sac-item" data-id="${i.id}"><span class="sac-ph sm">${i.photo ? `<img src="${i.photo}" alt="">` : '<span>🎒</span>'}</span><div class="f1"><div class="lt">${esc(i.name)}</div><div class="ls">${esc(i.desc || '')}${i.childIds?.length ? ' · ' + esc(childNames(i.childIds)) : ''}</div></div><span class="lnk">›</span></button></div>`).join('') : '<div class="empty"><div class="e-i">🎒</div>Ajoutez cartable, doudou, médicaments, tenue de sport…</div>'}</div>`,
+      `<button class="btn primary block" data-act="sac-new" data-perm="1">${IC.plus} Ajouter une affaire</button>`),
     };
   },
-  /** Une liste des vacances : aller (début) / retour (fin), quantités, notes et photos à cocher une à une */
+  /** Une liste des vacances : aller (début) / retour (fin), toutes les étapes de chaque élément */
   sacl(p) {
     const l = S.sac.find(x => x.id === p.id);
     if (!l) return { title: 'Liste', back: 'sac', html: '<div class="card empty">Liste introuvable (supprimée ?).</div>' };
-    const ph = p.ph === 'retour' ? 'retour' : 'aller', me = myCode(), pr = parents();
+    const ph = p.ph === 'retour' ? 'retour' : 'aller', me = myCode(), cr = isCreator(l);
     if (S.ui.sacSelTab !== 'l' + l.id + ph) { S.ui.sacSelOn = false; sel().clear(); S.ui.sacSelTab = 'l' + l.id + ph; }
     const { giver, receiver } = phaseInfo(l, ph), stt = listStats(l, ph), phs = l.phase?.[ph] || {};
     const items = Object.entries(l.items || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0));
-    return {
-      title: l.title, back: 'sac',
-      html: `<div class="card"><div class="row gap"><div style="font-size:30px">${l.dir === 'request' ? '📥' : '📤'}</div><div class="f1"><div class="b">${esc(l.title)} · ${esc(l.period?.n || '')}</div>
-        <div class="small muted">${l.dir === 'request' ? `Liste demandée par ${esc(pr[l.ownerCode]?.name || '')} : ${esc(pr[l.giver].name)} fournit` : `${esc(pr[l.giver].name)} envoie cette liste`}${l.childIds?.length ? ' · ' + esc(childNames(l.childIds)) : ''}</div>
-        ${l.period ? `<div class="tiny muted">Du ${E.fmtDate(l.period.s)} au ${E.fmtDate(l.period.e)}</div>` : ''}</div></div></div>
-      <div class="seg"><button class="${ph === 'aller' ? 'on' : ''}" data-go="sacl" data-params='${JSON.stringify({ id: l.id, ph: 'aller' })}'>➡️ Aller · ${esc(pShort(l.giver))} → ${esc(pShort(other(l.giver)))}</button>
-        <button class="${ph === 'retour' ? 'on' : ''}" data-go="sacl" data-params='${JSON.stringify({ id: l.id, ph: 'retour' })}'>⬅️ Retour · ${esc(pShort(other(l.giver)))} → ${esc(pShort(l.giver))}</button></div>
-      <div class="card tight"><div class="row gap"><div class="f1"><div class="tiny b">🎒 MIS PAR ${esc(pShort(giver).toUpperCase())}</div><div class="bar"><span style="width:${stt.n ? stt.done / stt.n * 100 : 0}%;background:var(--navy2)"></span></div><div class="tiny muted">${stt.done}/${stt.n}</div></div>
-        <div class="f1"><div class="tiny b">📥 REÇU PAR ${esc(pShort(receiver).toUpperCase())}</div><div class="bar"><span style="width:${stt.n ? stt.got / stt.n * 100 : 0}%;background:var(--ok)"></span></div><div class="tiny muted">${stt.got}/${stt.n}</div></div></div>
-        ${phs.sentAt ? `<div class="tiny muted mt6">✅ Préparé par ${esc(phs.sentByName || '')} ${fmtAgo(phs.sentAt)}</div>` : ''}${phs.gotAt ? `<div class="tiny muted">📥 Réception confirmée par ${esc(phs.gotByName || '')} ${fmtAgo(phs.gotAt)}</div>` : ''}</div>
-      <div class="hint mb">${ph === 'aller' ? `${esc(pName(giver))} coche chaque élément, indique le nombre exact et ce qu'il met ; ${esc(pName(receiver))} confirme à la réception.` : `Au retour, ${esc(pName(giver))} rend les affaires et ${esc(pName(receiver))} confirme.`} Touchez une photo pour la cocher.</div>
-      ${items.length ? `<div class="row gap mb">${selBar(items.map(([id]) => id), 'vl-del-sel', 'Supprimer')}</div>${items.map(([iid, it]) => vlistItem(l, iid, it, ph, me)).join('')}` : '<div class="card empty"><div class="e-i">🧳</div>Liste vide : ajoutez les éléments attendus.</div>'}
-      <button class="btn soft block mb mt" data-act="vl-item" data-id="${l.id}">${IC.plus} Ajouter un élément (photos, nombre)</button>
-      <div class="row gap wrap mb">${me === giver || !me ? `<button class="btn primary f1" data-act="vl-sent" data-id="${l.id}" data-ph="${ph}">✅ J'ai tout préparé</button>` : ''}${me === receiver || !me ? `<button class="btn ok f1" data-act="vl-recv" data-id="${l.id}" data-ph="${ph}">📥 Réception confirmée</button>` : ''}</div>
-      <div class="row gap"><button class="btn soft f1" data-act="vl-edit" data-id="${l.id}">${IC.edit} Modifier la liste</button><button class="btn soft f1" style="color:var(--err)" data-act="vl-del" data-id="${l.id}">${IC.trash} Supprimer la liste</button></div>`,
-    };
+    const top = `<div class="seg" style="margin-bottom:0"><button class="${ph === 'aller' ? 'on' : ''}" data-go="sacl" data-params='${JSON.stringify({ id: l.id, ph: 'aller' })}'>➡️ Aller · ${esc(nm(l.giver))} → ${esc(nm(other(l.giver)))}</button>
+      <button class="${ph === 'retour' ? 'on' : ''}" data-go="sacl" data-params='${JSON.stringify({ id: l.id, ph: 'retour' })}'>⬅️ Retour · ${esc(nm(other(l.giver)))} → ${esc(nm(l.giver))}</button></div>`;
+    const body = `<div class="card"><div class="row gap"><div style="font-size:30px">${l.dir === 'request' ? '📥' : '📤'}</div><div class="f1"><div class="b">${esc(l.title)} · ${esc(l.period ? pLabel(l.period) : '')}</div>
+        <div class="small muted">${esc(dirText(l))}${l.childIds?.length ? ' · ' + esc(childNames(l.childIds)) : ''}</div>
+        ${l.period ? `<div class="tiny muted">Du ${E.fmtDate(l.period.s)} au ${E.fmtDate(l.period.e)}</div>` : ''}
+        ${cr ? '' : `<div class="tiny b mt6">🔒 Liste créée par ${esc(nm(ownerOf(l)))} : seule cette personne peut la modifier ou la supprimer.</div>`}</div></div></div>
+      <div class="card tight"><div class="row gap"><div class="f1"><div class="tiny b">🎒 ${ph === 'aller' ? 'ENVOYÉ' : 'RENDU'} PAR ${esc(nm(giver).toUpperCase())}</div><div class="bar"><span style="width:${stt.n ? stt.done / stt.n * 100 : 0}%;background:var(--navy2)"></span></div><div class="tiny muted">${stt.done}/${stt.n}</div></div>
+        <div class="f1"><div class="tiny b">📥 REÇU PAR ${esc(nm(receiver).toUpperCase())}</div><div class="bar"><span style="width:${stt.n ? stt.got / stt.n * 100 : 0}%;background:var(--ok)"></span></div><div class="tiny muted">${stt.got}/${stt.n}</div></div></div>
+        ${phs.sentAt ? `<div class="tiny muted mt6">✅ ${ph === 'aller' ? 'Préparé' : 'Rendu'} par ${esc(nm(giver))} le ${dd(phs.sentAt)}</div>` : ''}${phs.gotAt ? `<div class="tiny muted">📥 Réception confirmée par ${esc(nm(receiver))} le ${dd(phs.gotAt)} 🔒</div>` : ''}</div>
+      <div class="hint mb">${ph === 'aller' ? `${esc(nm(giver))} coche chaque élément, indique le nombre exact et ce qu'elle/il met ; ${esc(nm(receiver))} confirme à la réception (les éléments reçus sont alors figés).` : `Au retour, ${esc(nm(giver))} rend la quantité reçue à l'aller (non modifiable) et ${esc(nm(receiver))} confirme : tout est alors figé.`} Touchez une photo pour la cocher.</div>
+      ${items.length ? `${cr ? `<div class="row gap mb">${selBar(items.map(([id]) => id), 'vl-del-sel', 'Supprimer')}</div>` : ''}${items.map(([iid, it]) => vlistItem(l, iid, it, ph, me)).join('')}` : '<div class="card empty"><div class="e-i">🧳</div>Liste vide.</div>'}
+      ${cr ? `<button class="btn soft block mb mt" data-act="vl-item" data-id="${l.id}">${IC.plus} Ajouter un élément${l.phase?.aller?.gotAt ? ' (sera daté)' : ''}</button>
+        <button class="btn ghost block mb" style="color:var(--err)" data-act="vl-del" data-id="${l.id}">${IC.trash} Supprimer la liste</button>` : ''}`;
+    const bottom = `<div class="row gap">${me === giver ? `<button class="btn primary f1" data-act="vl-sent" data-id="${l.id}" data-ph="${ph}">✅ ${ph === 'aller' ? "J'ai tout préparé" : "J'ai tout rendu"}</button>` : ''}${me === receiver ? `<button class="btn ok f1" data-act="vl-recv" data-id="${l.id}" data-ph="${ph}">📥 Réception confirmée</button>` : ''}
+      <button class="btn soft ${me === giver || me === receiver ? '' : 'f1'}" data-act="vl-export" data-id="${l.id}">📄 ${me === giver || me === receiver ? '' : 'Exporter'}</button></div>`;
+    return { title: l.title, back: 'sac', html: page(top, body, bottom) };
   },
 };
 export const after = {
@@ -196,8 +283,8 @@ function itemSheet(i = null, o = {}) {
     <label class="lbl">Description</label><textarea class="in" name="desc" rows="3" placeholder="Couleur, taille, posologie, où il est rangé…">${esc(x.desc || '')}</textarea>
     <div class="two"><div><label class="lbl">Quantité</label><input class="in" type="number" min="1" name="qty" value="${x.qty || 1}"></div><div></div></div>
     <label class="lbl">Enfants</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: `${kidAvatar(c, 20)} ${esc(c.prenom)}` })), x.childIds || [], { multi: true })}
-    <label class="row gap mt"><span class="sw"><input type="checkbox" name="perm" ${x.perm ? 'checked' : ''}><span></span></span><span class="f1">À chaque relais (liste type)</span></label>
-    ${i && o.relais && i.perm ? '<div class="hint">Cette affaire vient de la liste type : la retirer de ce relais ne la supprime ni de la liste type, ni des listes des vacances.</div>' : ''}
+    <label class="row gap mt"><span class="sw"><input type="checkbox" name="perm" ${x.perm ? 'checked' : ''}><span></span></span><span class="f1">À chaque relais</span></label>
+    ${i && o.relais && i.perm ? '<div class="hint">Cette affaire est proposée à chaque relais : la retirer de ce relais ne la supprime ni des autres relais, ni des listes des vacances.</div>' : ''}
     <div class="sh-actions">${i ? (o.relais && i.perm ? `<button class="btn danger" data-act="sac-out-one" data-id="${i.id}" title="Retirer de ce relais">${IC.trash}</button>` : `<button class="btn danger" data-act="sac-del" data-id="${i.id}">${IC.trash}</button>`) : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="sac-save" data-id="${i?.id || ''}" data-k="${o.k || i?.runKey || ''}">Enregistrer</button></div>`);
   sh._photo = x.photo || null;
   sh.querySelectorAll('[data-ph]').forEach(inp => inp.addEventListener('change', async () => {
@@ -209,30 +296,87 @@ async function setRun(key, data) {
   const h = [...(S.ui.sacPick ? [S.ui.sacPick] : [])].find(x => runKey(x) === key);
   await S.be.db.set(fpath('sacRuns', key), { ...(h ? { date: h.date, time: h.time, from: h.from, to: h.to, childIds: h.childIds } : {}), ...data, updatedAt: Date.now(), updatedBy: uid() }, true);
 }
-function listSheet(l = null, pid = null) {
-  const p = parents(), me = myCode() || 'A', ps = periods(), cur = l?.period?.id || pid;
-  const others = vlists().filter(x => x.id !== l?.id);
-  openSheet(`<h3 class="sh-title">${l ? '✏️ Modifier la liste' : '🧳 Nouvelle liste des vacances'}</h3>
-    <label class="lbl">Titre</label><input class="in" name="title" value="${esc(l?.title || 'Vêtements')}" placeholder="Vêtements, affaires de toilette, médicaments…">
-    <label class="lbl">Vacances</label>${chips('per', ps.map(x => ({ v: x.id, l: esc(pLabel(x)) })), [cur || ps[0]?.id])}
-    <label class="lbl">Qui fournit ?</label>${chips('dir', [{ v: 'request', l: `📥 Je demande à ${esc(p[other(me)].name)} de fournir` }, { v: 'send', l: '📤 Je fournis moi-même' }], [l?.dir || 'request'])}
-    <div class="hint">Aller : au début des vacances, celui qui fournit coche chaque élément et le nombre exact. Retour : à la fin, l'autre parent rend les affaires et coche à son tour.</div>
-    <label class="lbl">Enfants</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: `${kidAvatar(c, 20)} ${esc(c.prenom)}` })), l?.childIds || selIds(), { multi: true })}
-    ${!l && others.length ? `<label class="lbl">Partir d'une liste existante (facultatif)</label><select class="in" name="from"><option value="">— Liste vide —</option>${others.map(x => `<option value="${x.id}">${esc(x.title)} · ${esc(x.period ? pLabel(x.period) : '')}</option>`).join('')}</select>` : ''}
-    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="vl-save" data-id="${l?.id || ''}">${l ? 'Enregistrer' : 'Créer la liste'}</button></div>`);
+function listSheet(pid = null) {
+  const me = myCode() || 'A', ps = periods(), others = vlists();
+  openSheet(`<h3 class="sh-title">🧳 Nouvelle liste des vacances</h3>
+    <label class="lbl">Titre</label><input class="in" name="title" value="Vêtements" placeholder="Vêtements, affaires de toilette, médicaments…">
+    <label class="lbl">Vacances</label>${chips('per', ps.map(x => ({ v: x.id, l: esc(pLabel(x)) })), [pid || ps[0]?.id])}
+    <label class="lbl">Demande ou envoi ?</label>${chips('dir', [{ v: 'request', l: `📥 Demande à ${esc(nm(other(me)))}` }, { v: 'send', l: `📤 Envoi à ${esc(nm(other(me)))}` }], ['request'])}
+    <div class="hint">Demande : ${esc(nm(other(me)))} fournit les éléments. Envoi : vous les fournissez. Vous seul(e) pourrez modifier ou supprimer cette liste.</div>
+    <label class="lbl">Enfants</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: `${kidAvatar(c, 20)} ${esc(c.prenom)}` })), selIds(), { multi: true })}
+    ${others.length ? `<label class="lbl">Partir d'une liste existante (facultatif)</label><select class="in" name="from"><option value="">— Liste vide —</option>${others.map(x => `<option value="${x.id}">${esc(x.title)} · ${esc(x.period ? pLabel(x.period) : '')}</option>`).join('')}</select>` : ''}
+    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="vl-save">Créer la liste</button></div>`);
 }
 function vItemSheet(l, iid = null) {
-  const it = iid ? l.items?.[iid] || {} : {};
+  const it = iid ? l.items?.[iid] || {} : {}, late = !iid && l.phase?.aller?.gotAt;
   openSheet(`<h3 class="sh-title">${iid ? '✏️ Élément' : '➕ Nouvel élément'}</h3>
+    ${late ? `<div class="alert"><div class="ai">📅</div><div class="small">La réception de cette liste a déjà été confirmée : l'élément sera marqué « ajouté le ${dd(Date.now())} » et ${esc(nm(other(myCode() || 'A')))} sera prévenu(e).</div></div>` : ''}
     <label class="lbl">Nom</label><input class="in" name="name" value="${esc(it.name || '')}" placeholder="Ex. T-shirts manches courtes">
-    <div class="two"><div><label class="lbl">Nombre attendu</label><input class="in" type="number" min="1" name="qty" value="${it.qty || 1}"></div><div></div></div>
+    <div class="two"><div><label class="lbl">${l.dir === 'request' ? 'Nombre demandé' : 'Nombre prévu'}</label><input class="in" type="number" min="1" name="qty" value="${it.qty || 1}"></div><div></div></div>
     <label class="lbl">Précisions</label><textarea class="in" name="desc" rows="2" placeholder="Taille 8 ans, couleur, marque…">${esc(it.desc || '')}</textarea>
-    ${!iid ? `<label class="lbl">Photos (autant que vous voulez)</label><label class="btn soft block">📷 Choisir ou prendre des photos<input type="file" accept="image/*" multiple class="hide" name="ph" data-vi="1"></label><div class="hint" data-part="n"></div>` : '<div class="hint">Ajoutez des photos depuis la liste avec le bouton 📷 de l\'élément.</div>'}
+    ${!iid ? `<label class="lbl">Photos (autant que vous voulez)</label><label class="btn soft block">📷 Choisir ou prendre des photos<input type="file" accept="image/*" multiple class="hide" name="ph" data-vi="1"></label><div class="hint" data-part="n"></div>` : '<div class="hint">Chaque modification est datée et visible par l\'autre parent.</div>'}
     <div class="sh-actions">${iid ? `<button class="btn danger" data-act="vl-item-del" data-id="${l.id}" data-i="${iid}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="vl-item-save" data-id="${l.id}" data-i="${iid || ''}">Enregistrer</button></div>`,
   { onMount: sh => sh.querySelector('[data-vi]')?.addEventListener('change', e => { sh.querySelector('[data-part="n"]').textContent = `${e.target.files.length} photo(s) sélectionnée(s)`; }) });
 }
+function tplSheet(v, iid = null) {
+  const it = iid ? tpl(v).items?.[iid] || {} : {};
+  openSheet(`<h3 class="sh-title">${VAC[v][1]} ${iid ? 'Élément de la liste type' : 'Nouvel élément'} · ${VAC[v][0]}</h3>
+    <label class="lbl">Nom</label><input class="in" name="name" value="${esc(it.name || '')}" placeholder="Ex. Tee-shirts">
+    <div class="two"><div><label class="lbl">Nombre</label><input class="in" type="number" min="1" name="qty" value="${it.qty || 1}"></div><div></div></div>
+    <label class="lbl">Précisions</label><textarea class="in" name="desc" rows="2">${esc(it.desc || '')}</textarea>
+    <div class="hint">🔒 Votre liste type n'est visible que par vous.</div>
+    <div class="sh-actions">${iid ? `<button class="btn danger" data-act="tpl-item-del" data-v="${v}" data-i="${iid}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="tpl-item-save" data-v="${v}" data-i="${iid || ''}">Enregistrer</button></div>`);
+}
 const L = id => S.sac.find(x => x.id === id);
 async function vupd(id, data) { await S.be.db.update(fpath('sac', id), { ...data, updatedAt: Date.now() }); }
+/** Peut agir sur l'étape ph de l'élément (rôle + élément non figé) */
+function canAct(l, iid, ph, role) { const r = phaseInfo(l, ph); return myCode() === r[role] && !stOf(l, ph, iid).lock; }
+/** Envoi depuis une liste type vers la liste des vacances du même nom (créée automatiquement) */
+async function sendFromTpl(v, iids) {
+  const t = tpl(v), dir = t.dir || 'request', me = myCode() || 'A';
+  const ps = vacPeriods(v), per = ps.find(p => p.id === S.ui.tplPer) || ps[0]; if (!per) return 0;
+  const db = S.be.db;
+  let l = vlists().find(x => x.period?.id === per.id && x.dir === dir && x.createdBy === uid() && x.tplVac === v);
+  if (!l) {
+    const id = db.newId();
+    l = { id, kind: 'vlist', v: 2, tplVac: v, title: VAC[v][2], period: { id: per.id, n: per.n, i: per.i || VAC[v][1], s: per.s, e: per.e }, dir, ownerCode: me, giver: dir === 'request' ? other(me) : me, childIds: S.children.map(c => c.id), items: {}, st: { aller: {}, retour: {} }, phase: {}, createdAt: Date.now(), createdBy: uid(), createdByName: myName() };
+    const { id: _x, ...data } = l; await db.set(fpath('sac', id), data);
+  }
+  const have = new Set(Object.values(l.items || {}).map(x => norm(x.name))), late = l.phase?.aller?.gotAt ? E.todayISO() : null;
+  let order = Object.keys(l.items || {}).length; const upd = {}, names = [];
+  for (const iid of iids) {
+    const it = t.items?.[iid]; if (!it || have.has(norm(it.name))) continue;
+    upd[`items.${nid()}`] = { name: it.name, qty: Math.max(1, +it.qty || 1), desc: it.desc || '', order: order++, photos: [], at: Date.now(), by: uid(), ...(late ? { late } : {}) };
+    names.push(`${it.name} ×${it.qty || 1}`); have.add(norm(it.name));
+  }
+  if (!names.length) return 0;
+  await vupd(l.id, upd);
+  const o = other(me);
+  await log('sac', `${dir === 'request' ? '📥' : '📤'} ${l.title} ${per.s.slice(0, 4)} : ${dir === 'request' ? `${myName()} demande à ${nm(o)}` : `${myName()} envoie à ${nm(o)}`} ${names.length} élément${names.length > 1 ? 's' : ''}${late ? ` (ajout${names.length > 1 ? 's' : ''} du ${dd(Date.now())})` : ''}`, { body: names.join(', ').slice(0, 180), icon: '🧳' });
+  return names.length;
+}
+/** Données d'export (JPG / PDF) avec tout le circuit */
+function exportDoc(l) {
+  const items = Object.entries(l.items || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0)), g = l.giver, rc = other(g);
+  const cell = (q, d, who, w) => (q == null ? ['—', '', false] : [`×${q}`, [d, who].filter(Boolean).join(' · '), !!w]);
+  const ph = k => { const x = l.phase?.[k] || {}, r = phaseInfo(l, k); return [x.sentAt ? `${k === 'aller' ? 'préparé' : 'rendu'} par ${nm(r.giver)} le ${dd(x.sentAt)}` : '', x.gotAt ? `réception confirmée par ${nm(r.receiver)} le ${dd(x.gotAt)}` : ''].filter(Boolean).join(' · ') || 'en cours'; };
+  return {
+    title: `${l.title} · ${l.period ? pLabel(l.period).replace(/^\S+\s/, '') : ''}`,
+    stamp: `Exporté le ${dd(Date.now())} · ${S.family?.name || ''}`,
+    lines: [`${dirText(l)}${l.childIds?.length ? ' · ' + childNames(l.childIds) : ''}`, l.period ? `Vacances du ${E.fmtDate(l.period.s)} au ${E.fmtDate(l.period.e)}` : '', `Aller (${nm(g)} → ${nm(rc)}) : ${ph('aller')}`, `Retour (${nm(rc)} → ${nm(g)}) : ${ph('retour')}`].filter(Boolean),
+    cols: ['Élément', l.dir === 'request' ? 'Demandé' : 'Prévu', 'Envoyé', 'Reçu', 'Rendu', 'Récupéré'],
+    rows: items.map(([iid, it]) => {
+      const a = stOf(l, 'aller', iid), r = stOf(l, 'retour', iid), sq = sentQty(l, iid), rq = retQty(l, iid);
+      return {
+        name: it.name,
+        sub: [it.desc, a.note ? `Envoyé : ${a.note}` : '', it.late ? `Ajouté après validation le ${dd(it.late)}` : '', ...(it.hist || []).map(h => `Modifié le ${dd(h.at)} : ${h.txt}`)].filter(Boolean),
+        cells: [cell(it.qty || 1, dd(it.at || l.createdAt), nm(ownerOf(l))), a.done ? cell(sq, dd(a.at), nm(g), +sq !== +(it.qty || 1)) : cell(null), a.got ? cell(a.gotQty ?? sq, dd(a.gotAt), nm(rc), a.gotQty != null && +a.gotQty !== +sq) : cell(null),
+          r.done ? cell(rq, dd(r.at), nm(rc)) : cell(null), r.got ? cell(r.gotQty ?? rq, dd(r.gotAt), nm(g), r.gotQty != null && +r.gotQty !== +rq) : cell(null)],
+      };
+    }),
+    notes: ['Les quantités en rouge signalent un écart entre deux étapes. 🔒 Les étapes confirmées ne sont plus modifiables.'],
+  };
+}
 
 export const actions = {
   'sac-tab': el => { S.ui.sacTab = el.dataset.t; S.ui.sacSelOn = false; sel().clear(); S.render(); },
@@ -242,7 +386,7 @@ export const actions = {
   'sac-sel-one': el => { const s = sel(); s.has(el.dataset.id) ? s.delete(el.dataset.id) : s.add(el.dataset.id); S.render(); },
   'sac-sel-all': el => { const ids = el.dataset.ids.split(',').filter(Boolean), s = sel(), all = ids.every(id => s.has(id)); s.clear(); if (!all) ids.forEach(id => s.add(id)); S.render(); },
   'sac-new': el => itemSheet(null, { perm: el.dataset.perm === '1', k: el.dataset.k || '' }),
-  'sac-item': el => { if (S.ui.sacSelOn) { actions['sac-sel-one'](el); return; } const i = S.sac.find(x => x.id === el.dataset.id); if (i) itemSheet(i, { relais: (S.ui.sacTab || 'relais') === 'relais' }); },
+  'sac-item': el => { if (S.ui.sacSelOn) { actions['sac-sel-one'](el); return; } const i = S.sac.find(x => x.id === el.dataset.id); if (i) itemSheet(i, { relais: S.route.view === 'sac' && (S.ui.sacTab || 'relais') === 'relais' }); },
   'sac-out-one': async el => {
     const h = S.ui.sacPick, i = S.sac.find(x => x.id === el.dataset.id); if (!h || !i) return;
     await guard(() => setRun(runKey(h), { excluded: { [i.id]: true } }), 'Retiré de ce relais'); closeSheet();
@@ -256,27 +400,26 @@ export const actions = {
     el.disabled = true;
     const ok = await guard(async () => {
       if (id) await S.be.db.update(fpath('sac', id), { ...data, updatedAt: Date.now() });
-      else { const nid2 = S.be.db.newId(); await S.be.db.set(fpath('sac', nid2), { ...data, createdAt: Date.now(), createdBy: uid(), createdByName: myName() }); await log('sac', `Sac : ${f.name} ajouté${data.perm ? ' à la liste type' : ''}`, { body: f.desc || '', icon: '🎒' }); }
+      else { const nid2 = S.be.db.newId(); await S.be.db.set(fpath('sac', nid2), { ...data, createdAt: Date.now(), createdBy: uid(), createdByName: myName() }); await log('sac', `Sac : ${f.name} ajouté${data.perm ? ' (chaque relais)' : ''}`, { body: f.desc || '', icon: '🎒' }); }
       return true;
     }, 'Enregistré');
     if (ok) closeSheet(); else el.disabled = false;
   },
   'sac-del': async el => {
     const i = S.sac.find(x => x.id === el.dataset.id); if (!i) return;
-    if (!(await confirmBox(`Supprimer « ${i.name} » ?`, i.perm ? 'Elle disparaît de la liste type et de tous les relais.' : '', 'Supprimer', true))) return;
+    if (!(await confirmBox(`Supprimer « ${i.name} » ?`, i.perm ? 'Elle disparaît de tous les relais.' : '', 'Supprimer', true))) return;
     await guard(() => S.be.db.del(fpath('sac', i.id)), 'Supprimé'); closeSheet();
   },
-  // suppression de plusieurs affaires de la liste type
   'sac-del-sel': async () => {
     const ids = [...sel()].filter(id => S.sac.some(x => x.id === id)); if (!ids.length) return;
-    if (!(await confirmBox(`Supprimer ${ids.length} affaire${ids.length > 1 ? 's' : ''} ?`, 'Elles disparaissent de la liste type et de tous les relais.', 'Supprimer', true))) return;
-    await guard(async () => { for (const id of ids) await S.be.db.del(fpath('sac', id)); await log('sac', `Sac : ${ids.length} affaire${ids.length > 1 ? 's' : ''} supprimée${ids.length > 1 ? 's' : ''} de la liste type`, { icon: '🗑️' }); }, 'Supprimé');
+    if (!(await confirmBox(`Supprimer ${ids.length} affaire${ids.length > 1 ? 's' : ''} ?`, 'Elles disparaissent de tous les relais.', 'Supprimer', true))) return;
+    await guard(async () => { for (const id of ids) await S.be.db.del(fpath('sac', id)); await log('sac', `Sac : ${ids.length} affaire${ids.length > 1 ? 's' : ''} supprimée${ids.length > 1 ? 's' : ''} (chaque relais)`, { icon: '🗑️' }); }, 'Supprimé');
     S.ui.sacSelOn = false; sel().clear(); S.render();
   },
-  // retrait de ce relais seulement (la liste type est conservée) ; les affaires « ce relais uniquement » sont supprimées
+  // retrait de ce relais seulement ; les affaires « ce relais uniquement » sont supprimées
   'sac-out-sel': async () => {
     const h = S.ui.sacPick, ids = [...sel()]; if (!h || !ids.length) return;
-    if (!(await confirmBox(`Retirer ${ids.length} affaire${ids.length > 1 ? 's' : ''} de ce relais ?`, 'La liste type n\'est pas modifiée.', 'Retirer', true))) return;
+    if (!(await confirmBox(`Retirer ${ids.length} affaire${ids.length > 1 ? 's' : ''} de ce relais ?`, 'Les affaires de chaque relais et les listes ne sont pas modifiées.', 'Retirer', true))) return;
     await guard(async () => {
       const ex = {};
       for (const id of ids) { const i = S.sac.find(x => x.id === id); if (!i) continue; if (i.perm) ex[id] = true; else await S.be.db.del(fpath('sac', id)); }
@@ -300,7 +443,7 @@ export const actions = {
   },
   'sac-miss': el => {
     const h = S.ui.sacPick; if (!h) return; const items = itemsFor(h), run = runOf(h);
-    openSheet(`<h3 class="sh-title">⚠️ Signaler un oubli</h3><p class="small muted">Cochez ce qui manque : ${esc(pName(h.from))} sera prévenu(e).</p>
+    openSheet(`<h3 class="sh-title">⚠️ Signaler un oubli</h3><p class="small muted">Cochez ce qui manque : ${esc(nm(h.from))} sera prévenu(e).</p>
       ${chips('miss', items.filter(i => !run.got?.[i.id]).map(i => ({ v: i.id, l: esc(i.name) })), [], { multi: true })}
       <label class="lbl">Message (facultatif)</label><textarea class="in" name="msg" rows="2" placeholder="Ex. Le doudou est resté dans la voiture ?"></textarea>
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn danger f1" data-act="sac-miss-go" data-k="${el.dataset.k}">Signaler</button></div>`);
@@ -312,86 +455,123 @@ export const actions = {
     await guard(async () => { await setRun(el.dataset.k, { missing: miss }); await log('sac', `⚠️ Oubli signalé : ${names.join(', ')}`, { body: f.msg || (h ? `relais ${E.relDay(h.date)} ${E.fmtTime(h.time)}` : ''), icon: '⚠️' }); }, 'Oubli signalé');
     closeSheet();
   },
+  // ───── listes type (privées)
+  'tpl-vac': el => { S.ui.tplVac = el.dataset.v; S.ui.tplPer = null; S.render(); },
+  'tpl-per': el => { S.ui.tplPer = el.dataset.id; S.render(); },
+  'tpl-dir': async el => { await guard(() => tplUpd({ [`sacTpl.${el.dataset.v}.dir`]: el.dataset.d })); },
+  'tpl-item': el => tplSheet(el.dataset.v, el.dataset.i || null),
+  'tpl-item-save': async el => {
+    const f = readForm(el.closest('.sheet')), v = el.dataset.v; if (!f.name) return toast("Donnez un nom à l'élément.", 'warn');
+    const iid = el.dataset.i || nid(), cur = tpl(v).items?.[iid];
+    const ok = await guard(async () => { await tplUpd({ [`sacTpl.${v}.items.${iid}`]: { name: f.name, qty: Math.max(1, +f.qty || 1), desc: f.desc || '', order: cur?.order ?? tplItems(v).length } }); return true; }, 'Enregistré');
+    if (ok) closeSheet();
+  },
+  'tpl-item-del': async el => {
+    const v = el.dataset.v, it = tpl(v).items?.[el.dataset.i]; if (!it) return;
+    if (!(await confirmBox(`Retirer « ${it.name} » de la liste type ?`, 'Les listes des vacances déjà envoyées ne changent pas.', 'Retirer', true))) return;
+    await guard(() => tplUpd({ [`sacTpl.${v}.items.${el.dataset.i}`]: S.be.db.deleteField() }), 'Retiré'); closeSheet();
+  },
+  'tpl-send': async el => {
+    const v = el.dataset.v, iids = el.dataset.all ? tplItems(v).map(([id]) => id) : [el.dataset.i];
+    el.disabled = true;
+    const n = await guard(() => sendFromTpl(v, iids));
+    el.disabled = false;
+    if (n) toast(`${n} élément${n > 1 ? 's' : ''} ${(tpl(v).dir || 'request') === 'request' ? 'demandé' : 'envoyé'}${n > 1 ? 's' : ''} ✓`, 'ok'); else if (n === 0) toast('Déjà dans la liste.', 'warn');
+  },
   // ───── listes des vacances
-  'vl-new': el => listSheet(null, el.dataset.p),
-  'vl-edit': el => { const l = L(el.dataset.id); if (l) listSheet(l); },
+  'vl-new': el => listSheet(el.dataset.p),
   'vl-save': async el => {
-    const f = readForm(el.closest('.sheet')), id = el.dataset.id, me = myCode() || 'A';
+    const f = readForm(el.closest('.sheet')), me = myCode() || 'A';
     if (!f.title) return toast('Donnez un titre à la liste.', 'warn');
-    const per = periods().find(x => x.id === f.per) || L(id)?.period; if (!per) return toast('Choisissez les vacances.', 'warn');
+    const per = periods().find(x => x.id === f.per); if (!per) return toast('Choisissez les vacances.', 'warn');
     const dir = f.dir || 'request', giver = dir === 'request' ? other(me) : me;
-    const base = { title: f.title, period: { id: per.id, n: per.n, i: per.i || '🏖️', s: per.s, e: per.e }, dir, ownerCode: me, giver, childIds: f.childIds };
     el.disabled = true;
     const ok = await guard(async () => {
-      if (id) { await vupd(id, base); return id; }
       const src = f.from ? L(f.from) : null, items = {};
-      if (src) Object.entries(src.items || {}).forEach(([k, v], n) => { items[nid()] = { name: v.name, desc: v.desc || '', qty: v.qty || 1, order: n, photos: v.photos || [] }; });
-      const nid2 = S.be.db.newId();
-      await S.be.db.set(fpath('sac', nid2), { kind: 'vlist', ...base, items, st: { aller: {}, retour: {} }, phase: {}, createdAt: Date.now(), createdBy: uid(), createdByName: myName() });
-      await log('sac', dir === 'request' ? `🧳 ${myName()} demande une liste : ${f.title}` : `🧳 Nouvelle liste : ${f.title}`, { body: `${per.n} · ${dir === 'request' ? 'à fournir par ' + pName(giver) : 'fournie par ' + pName(giver)}`, icon: '🧳' });
-      return nid2;
-    }, id ? 'Liste modifiée' : 'Liste créée');
-    if (ok) { if (id) closeSheet(); else closeSheetsThen(() => go('sacl', { id: ok })); } else el.disabled = false;
+      if (src) Object.entries(src.items || {}).forEach(([, v], n) => { items[nid()] = { name: v.name, desc: v.desc || '', qty: v.qty || 1, order: n, photos: v.photos || [], at: Date.now(), by: uid() }; });
+      const id = S.be.db.newId();
+      await S.be.db.set(fpath('sac', id), { kind: 'vlist', v: 2, title: f.title, period: { id: per.id, n: per.n, i: per.i || '🏖️', s: per.s, e: per.e }, dir, ownerCode: me, giver, childIds: f.childIds, items, st: { aller: {}, retour: {} }, phase: {}, createdAt: Date.now(), createdBy: uid(), createdByName: myName() });
+      await log('sac', dir === 'request' ? `📥 ${myName()} demande à ${nm(giver)} : ${f.title}` : `📤 ${myName()} envoie à ${nm(other(giver))} : ${f.title}`, { body: per.n, icon: '🧳' });
+      return id;
+    }, 'Liste créée');
+    if (ok) closeSheetsThen(() => go('sacl', { id: ok })); else el.disabled = false;
   },
   'vl-del': async el => {
-    const l = L(el.dataset.id); if (!l) return;
-    if (!(await confirmBox(`Supprimer la liste « ${l.title} » ?`, 'Tous ses éléments et les coches aller / retour sont supprimés.', 'Supprimer', true))) return;
-    await guard(async () => { await S.be.db.del(fpath('sac', l.id)); await log('sac', `Liste supprimée : ${l.title}`, { icon: '🗑️' }); }, 'Liste supprimée');
+    const l = L(el.dataset.id); if (!l || !isCreator(l)) return toast('Seule la personne qui a créé la liste peut la supprimer.', 'warn');
+    if (!(await confirmBox(`Supprimer la liste « ${l.title} » ?`, 'Tous ses éléments et leurs étapes (envoi, réception, retour) sont supprimés.', 'Supprimer', true))) return;
+    await guard(async () => { await S.be.db.del(fpath('sac', l.id)); await log('sac', `🗑️ Liste supprimée : ${l.title}`, { icon: '🗑️' }); }, 'Liste supprimée');
     go('sac');
   },
-  'vl-item': el => { if (S.ui.sacSelOn) return; const l = L(el.dataset.id); if (l) vItemSheet(l, el.dataset.i || null); },
+  'vl-item': el => { if (S.ui.sacSelOn) return; const l = L(el.dataset.id); if (!l) return; if (!isCreator(l)) return toast('Seule la personne qui a créé la liste peut la modifier.', 'warn'); vItemSheet(l, el.dataset.i || null); },
   'vl-item-save': async el => {
-    const sh = el.closest('.sheet'), f = readForm(sh), l = L(el.dataset.id); if (!l) return;
+    const sh = el.closest('.sheet'), f = readForm(sh), l = L(el.dataset.id); if (!l || !isCreator(l)) return;
     if (!f.name) return toast("Donnez un nom à l'élément.", 'warn');
     let iid = el.dataset.i; const isNew = !iid; if (!iid) iid = nid();
+    if (!isNew && stOf(l, 'aller', iid).lock) return toast('Élément déjà validé : il ne peut plus être modifié.', 'warn');
+    const qty = Math.max(1, +f.qty || 1);
     el.disabled = true;
     const ok = await guard(async () => {
       const db = S.be.db, photos = [];
-      const files = [...(sh.querySelector('[data-vi]')?.files || [])].slice(0, 20);
-      for (const file of files) {
+      for (const file of [...(sh.querySelector('[data-vi]')?.files || [])].slice(0, 20)) {
         const full = await compressImage(file, 1280, 0.72), thumb = await compressImage(file, 220, 0.6);
         const bid = db.newId(); await db.set(fpath('blobs', bid), { data: full, mime: 'image/jpeg', name: 'photo.jpg', kind: 'sac', at: Date.now(), by: uid() });
         photos.push({ id: nid(), thumb, blobId: bid, by: uid() });
       }
-      const cur = l.items?.[iid] || {};
-      await vupd(l.id, { [`items.${iid}`]: { name: f.name, desc: f.desc || '', qty: Math.max(1, +f.qty || 1), order: cur.order ?? Object.keys(l.items || {}).length, photos: [...(cur.photos || []), ...photos] } });
-      if (isNew) await log('sac', `🧳 ${l.title} : ${f.name} ×${Math.max(1, +f.qty || 1)} ajouté`, { icon: '🧳' });
+      if (isNew) {
+        const late = l.phase?.aller?.gotAt ? E.todayISO() : null;
+        await vupd(l.id, { [`items.${iid}`]: { name: f.name, desc: f.desc || '', qty, order: Object.keys(l.items || {}).length, photos, at: Date.now(), by: uid(), ...(late ? { late } : {}) } });
+        await log('sac', `🧳 ${l.title} : ${f.name} ×${qty} ${l.dir === 'request' ? 'demandé' : 'ajouté'}${late ? ` (ajout du ${dd(Date.now())}, après validation)` : ''}`, { icon: late ? '📅' : '🧳' });
+      } else {
+        const cur = l.items[iid], ch = [];
+        if (cur.name !== f.name) ch.push(`Nom « ${cur.name} » → « ${f.name} »`);
+        if (+cur.qty !== qty) ch.push(`Quantité ${cur.qty || 1} → ${qty}`);
+        if ((cur.desc || '') !== (f.desc || '')) ch.push('Précisions modifiées');
+        if (!ch.length) return true;
+        const hist = [...(cur.hist || []), { at: Date.now(), by: uid(), txt: ch.join(' · ') }];
+        await vupd(l.id, { [`items.${iid}.name`]: f.name, [`items.${iid}.qty`]: qty, [`items.${iid}.desc`]: f.desc || '', [`items.${iid}.hist`]: hist });
+        await log('sac', `✏️ ${l.title} : ${cur.name}`, { body: ch.join(' · '), icon: '✏️' });
+      }
       return true;
     }, 'Élément enregistré');
     if (ok) closeSheet(); else el.disabled = false;
   },
   'vl-item-del': async el => {
-    const l = L(el.dataset.id), iid = el.dataset.i; if (!l?.items?.[iid]) return;
+    const l = L(el.dataset.id), iid = el.dataset.i; if (!l?.items?.[iid] || !isCreator(l)) return;
+    if (stOf(l, 'aller', iid).lock) return toast('Élément déjà validé : il ne peut plus être supprimé.', 'warn');
     if (!(await confirmBox(`Supprimer « ${l.items[iid].name} » ?`, '', 'Supprimer', true))) return;
     const db = S.be.db;
-    await guard(() => vupd(l.id, { [`items.${iid}`]: db.deleteField(), [`st.aller.${iid}`]: db.deleteField(), [`st.retour.${iid}`]: db.deleteField() }), 'Supprimé');
+    await guard(async () => { await vupd(l.id, { [`items.${iid}`]: db.deleteField(), [`st.aller.${iid}`]: db.deleteField(), [`st.retour.${iid}`]: db.deleteField() }); await log('sac', `🗑️ ${l.title} : ${l.items[iid].name} retiré`, { icon: '🗑️' }); }, 'Supprimé');
     closeSheet();
   },
   'vl-del-sel': async () => {
-    const id = S.route.params.id, l = L(id), ids = [...sel()].filter(i => l?.items?.[i]); if (!ids.length) return;
+    const id = S.route.params.id, l = L(id); if (!l || !isCreator(l)) return;
+    const ids = [...sel()].filter(i => l.items?.[i] && !stOf(l, 'aller', i).lock); if (!ids.length) return toast('Rien à supprimer (les éléments validés restent).', 'warn');
     if (!(await confirmBox(`Supprimer ${ids.length} élément${ids.length > 1 ? 's' : ''} ?`, ids.length === Object.keys(l.items).length ? 'La liste sera vide.' : '', 'Supprimer', true))) return;
     const db = S.be.db, data = {};
     for (const i of ids) { data[`items.${i}`] = db.deleteField(); data[`st.aller.${i}`] = db.deleteField(); data[`st.retour.${i}`] = db.deleteField(); }
-    await guard(async () => { await vupd(id, data); await log('sac', `🧳 ${l.title} : ${ids.length} élément${ids.length > 1 ? 's' : ''} supprimé${ids.length > 1 ? 's' : ''}`, { icon: '🗑️' }); }, 'Supprimé');
+    await guard(async () => { await vupd(id, data); await log('sac', `🗑️ ${l.title} : ${ids.length} élément${ids.length > 1 ? 's' : ''} retiré${ids.length > 1 ? 's' : ''}`, { icon: '🗑️' }); }, 'Supprimé');
     S.ui.sacSelOn = false; sel().clear(); S.render();
   },
   'vl-done': async el => {
-    const l = L(el.dataset.id), { i, ph } = el.dataset; if (!l) return;
-    const st = l.st?.[ph]?.[i] || {}, on = !st.done;
-    const card = el.closest('.vi'), qIn = card?.querySelector('[data-change="vl-qty"]'), q = qIn && qIn.value !== '' ? +qIn.value : (st.qty ?? (+l.items[i].qty || 1));
+    const l = L(el.dataset.id), { i, ph } = el.dataset; if (!l || !canAct(l, i, ph, 'giver')) return;
+    const st = stOf(l, ph, i), on = !st.done; if (st.got) return;
+    let q;
+    if (ph === 'retour') q = retQty(l, i);
+    else { const qIn = el.closest('.vi')?.querySelector('[data-change="vl-qty"]'); q = qIn && qIn.value !== '' ? Math.max(0, +qIn.value) : sentQty(l, i); }
     await guard(() => vupd(l.id, { [`st.${ph}.${i}.done`]: on, [`st.${ph}.${i}.qty`]: on ? q : st.qty ?? null, [`st.${ph}.${i}.by`]: uid(), [`st.${ph}.${i}.byName`]: myName(), [`st.${ph}.${i}.at`]: Date.now() }));
   },
   'vl-got': async el => {
-    const l = L(el.dataset.id), { i, ph } = el.dataset; if (!l) return;
-    const st = l.st?.[ph]?.[i] || {}, on = !st.got;
-    const card = el.closest('.vi'), qIn = card?.querySelector('[data-change="vl-gotqty"]'), q = qIn && qIn.value !== '' ? +qIn.value : (st.gotQty ?? st.qty ?? (+l.items[i].qty || 1));
+    const l = L(el.dataset.id), { i, ph } = el.dataset; if (!l || !canAct(l, i, ph, 'receiver')) return;
+    const st = stOf(l, ph, i), on = !st.got;
+    const qIn = el.closest('.vi')?.querySelector('[data-change="vl-gotqty"]'), def = ph === 'retour' ? retQty(l, i) : sentQty(l, i);
+    const q = qIn && qIn.value !== '' ? Math.max(0, +qIn.value) : (st.gotQty ?? def);
     await guard(() => vupd(l.id, { [`st.${ph}.${i}.got`]: on, [`st.${ph}.${i}.gotQty`]: on ? q : st.gotQty ?? null, [`st.${ph}.${i}.gotBy`]: uid(), [`st.${ph}.${i}.gotByName`]: myName(), [`st.${ph}.${i}.gotAt`]: Date.now() }));
   },
-  'vl-qty': async el => { const { id, i, ph } = el.dataset; await guard(() => vupd(id, { [`st.${ph}.${i}.qty`]: el.value === '' ? null : Math.max(0, +el.value) })); },
-  'vl-gotqty': async el => { const { id, i, ph } = el.dataset; await guard(() => vupd(id, { [`st.${ph}.${i}.gotQty`]: el.value === '' ? null : Math.max(0, +el.value) })); },
-  'vl-note': async el => { const { id, i, ph } = el.dataset; await guard(() => vupd(id, { [`st.${ph}.${i}.note`]: el.value.trim() })); },
+  'vl-qty': async el => { const l = L(el.dataset.id), { i, ph } = el.dataset; if (!l || ph !== 'aller' || !canAct(l, i, ph, 'giver') || stOf(l, ph, i).got) return; await guard(() => vupd(l.id, { [`st.${ph}.${i}.qty`]: el.value === '' ? null : Math.max(0, +el.value) })); },
+  'vl-gotqty': async el => { const l = L(el.dataset.id), { i, ph } = el.dataset; if (!l || !canAct(l, i, ph, 'receiver')) return; await guard(() => vupd(l.id, { [`st.${ph}.${i}.gotQty`]: el.value === '' ? null : Math.max(0, +el.value) })); },
+  'vl-note': async el => { const l = L(el.dataset.id), { i, ph } = el.dataset; if (!l || !canAct(l, i, ph, 'giver') || stOf(l, ph, i).got) return; await guard(() => vupd(l.id, { [`st.${ph}.${i}.note`]: el.value.trim() })); },
   'vl-ph': async el => {
-    const l = L(el.dataset.id), { i, p, ph } = el.dataset; if (!l) return;
+    const l = L(el.dataset.id), { i, p, ph } = el.dataset; if (!l || stOf(l, ph, i).lock) return;
     const on = !l.st?.[ph]?.[i]?.ph?.[p];
     await guard(() => vupd(l.id, { [`st.${ph}.${i}.ph.${p}`]: on ? { by: uid(), at: Date.now() } : null }));
   },
@@ -400,22 +580,63 @@ export const actions = {
     if (el.dataset.b) { const b = await S.be.db.get(fpath('blobs', el.dataset.b)).catch(() => null); if (b) sh.querySelector('[data-part="b"]').innerHTML = `<img class="receipt" style="max-height:72vh" src="${b.data}">`; }
   },
   'vl-sent': async el => {
-    const l = L(el.dataset.id), ph = el.dataset.ph; if (!l) return;
+    const l = L(el.dataset.id), ph = el.dataset.ph; if (!l || myCode() !== phaseInfo(l, ph).giver) return;
     const ids = Object.keys(l.items || {}), st = l.st?.[ph] || {}, left = ids.filter(i => !st[i]?.done);
-    if (left.length && !(await confirmBox('Tout est préparé ?', `Pas encore cochés : ${esc(left.map(i => l.items[i].name).join(', '))}`, 'Oui, envoyer'))) return;
-    const lines = ids.filter(i => st[i]?.done).map(i => `${l.items[i].name} ×${st[i].qty ?? l.items[i].qty ?? 1}`).join(', ');
-    await guard(async () => { await vupd(l.id, { [`phase.${ph}.sentAt`]: Date.now(), [`phase.${ph}.sentByName`]: myName() }); await log('sac', `🧳 ${l.title} (${ph}) : ${ids.length - left.length}/${ids.length} préparés`, { body: lines.slice(0, 180), icon: '🎒' }); }, 'Préparation envoyée ✓');
+    if (left.length && !(await confirmBox(ph === 'aller' ? 'Tout est préparé ?' : 'Tout est rendu ?', `Pas encore cochés : ${esc(left.map(i => l.items[i].name).join(', '))}`, 'Oui, valider'))) return;
+    const lines = ids.filter(i => st[i]?.done).map(i => `${l.items[i].name} ×${st[i].qty ?? sentQty(l, i)}`).join(', ');
+    await guard(async () => { await vupd(l.id, { [`phase.${ph}.sentAt`]: Date.now(), [`phase.${ph}.sentByName`]: myName() }); await log('sac', `🧳 ${l.title} (${ph}) : ${ids.length - left.length}/${ids.length} ${ph === 'aller' ? 'préparés' : 'rendus'}`, { body: lines.slice(0, 180), icon: '🎒' }); }, ph === 'aller' ? 'Préparation envoyée ✓' : 'Retour envoyé ✓');
   },
   'vl-recv': async el => {
-    const l = L(el.dataset.id), ph = el.dataset.ph; if (!l) return;
-    const ids = Object.keys(l.items || {}), st = l.st?.[ph] || {};
-    const gaps = ids.filter(i => st[i]?.got && st[i]?.gotQty != null && +st[i].gotQty !== +(st[i].qty ?? l.items[i].qty ?? 1)).map(i => `${l.items[i].name} : ${st[i].qty ?? l.items[i].qty} mis / ${st[i].gotQty} reçus`);
+    const l = L(el.dataset.id), ph = el.dataset.ph; if (!l || myCode() !== phaseInfo(l, ph).receiver) return;
+    const ids = Object.keys(l.items || {}), st = l.st?.[ph] || {}, def = i => (ph === 'retour' ? retQty(l, i) : sentQty(l, i));
+    const got = ids.filter(i => st[i]?.got && !st[i]?.lock);
+    if (!got.length) return toast('Cochez d\'abord 📥 les éléments reçus.', 'warn');
+    const gaps = ids.filter(i => st[i]?.got && st[i]?.gotQty != null && +st[i].gotQty !== +def(i)).map(i => `${l.items[i].name} : ${def(i)} → ${st[i].gotQty} reçu(s)`);
     const miss = ids.filter(i => !st[i]?.got).map(i => l.items[i].name);
-    await guard(async () => { await vupd(l.id, { [`phase.${ph}.gotAt`]: Date.now(), [`phase.${ph}.gotByName`]: myName() }); await log('sac', `📥 ${l.title} (${ph}) : réception ${gaps.length || miss.length ? 'avec écarts' : 'complète ✓'}`, { body: [...gaps, ...(miss.length ? ['non reçus : ' + miss.join(', ')] : [])].join(' · ').slice(0, 180), icon: gaps.length || miss.length ? '⚠️' : '📥' }); }, 'Réception confirmée');
+    if (!(await confirmBox('Confirmer la réception ?', `Les ${got.length} élément${got.length > 1 ? 's' : ''} reçu${got.length > 1 ? 's' : ''} seront figé${got.length > 1 ? 's' : ''} (plus de modification).${miss.length ? ' Non reçus : ' + esc(miss.join(', ')) : ''}`, 'Confirmer'))) return;
+    const upd = { [`phase.${ph}.gotAt`]: Date.now(), [`phase.${ph}.gotByName`]: myName() };
+    for (const i of got) upd[`st.${ph}.${i}.lock`] = true;
+    await guard(async () => { await vupd(l.id, upd); await log('sac', `📥 ${l.title} (${ph}) : réception ${gaps.length || miss.length ? 'avec écarts' : 'complète ✓'}`, { body: [...gaps, ...(miss.length ? ['non reçus : ' + miss.join(', ')] : [])].join(' · ').slice(0, 180), icon: gaps.length || miss.length ? '⚠️' : '📥' }); }, 'Réception confirmée 🔒');
+  },
+  'vl-export': el => {
+    const l = L(el.dataset.id); if (!l) return;
+    openSheet(`<h3 class="sh-title">📄 Exporter « ${esc(l.title)} »</h3><p class="small muted">Toute la liste avec le circuit de chaque élément : demande, envoi, réception, retour (quantités, dates, prénoms).</p>
+      <div class="row gap"><button class="btn soft f1" data-act="vl-export-go" data-id="${l.id}" data-f="jpg">🖼️ Image JPG</button><button class="btn primary f1" data-act="vl-export-go" data-id="${l.id}" data-f="pdf">📄 PDF</button></div>`);
+  },
+  'vl-export-go': async el => {
+    const l = L(el.dataset.id); if (!l) return; el.disabled = true;
+    try {
+      const name = `${l.title} ${l.period ? l.period.s.slice(0, 4) : ''}`.replace(/[^\p{L}\p{N} _-]/gu, '').trim().replace(/\s+/g, '-');
+      const file = await buildFile(exportDoc(l), el.dataset.f, name);
+      S.ui.lastExport = file; closeSheet();
+      await shareFile(file, l.title);
+    } catch (e) { console.error(e); toast('Export impossible : ' + (e.message || e), 'err'); }
+    el.disabled = false;
+  },
+  // ───── Repartir de zéro : tout le Sac (ce cercle et le cercle de test), notifications du Sac comprises
+  'sac-reset': async () => {
+    const t = LS.get('testAcc', null), ids = [...new Set([S.fid, t?.fid, t?.realFid].filter(Boolean))].filter(f => (S.profile?.familyIds || []).includes(f));
+    const names = ids.map(f => S.families?.[f]?.name || (f === S.fid ? S.family?.name : f === t?.fid ? '🧪 Famille TEST' : 'cercle')).join(' et ');
+    if (!(await confirmBox('Effacer tout le Sac ?', `Dans ${esc(names)} : affaires, listes des vacances, relais du sac, photos, ainsi que les notifications et l'historique du Sac. Vos listes type sont gardées. Impossible d'annuler.`, 'Tout effacer', true))) return;
+    toast('Effacement en cours…', 'ok', 2500);
+    const db = S.be.db, me = uid();
+    const wipe = async (d, fid, owners) => {
+      let n = 0;
+      for (const sub of ['sac', 'sacRuns']) for (const r of await d.list(`families/${fid}/${sub}`)) { await d.del(`families/${fid}/${sub}/${r.id}`); n++; }
+      for (const r of await d.list(`families/${fid}/blobs`, { where: [['kind', '==', 'sac']] }).catch(() => [])) await d.del(`families/${fid}/blobs/${r.id}`).catch(() => { });
+      for (const o of owners) for (const r of await d.list(`families/${fid}/inbox/${o}/items`, { where: [['cat', '==', 'sac']] }).catch(() => [])) await d.del(`families/${fid}/inbox/${o}/items/${r.id}`).catch(() => { });
+      return n;
+    };
+    const n = await guard(async () => {
+      let k = 0; for (const fid of ids) k += await wipe(db, fid, [me]);
+      if (t?.fid && ids.includes(t.fid)) await S.be.auth.side(t.email, t.pw, async ({ uid: mu, db: d2 }) => { await wipe(d2, t.fid, [mu]); }).catch(e => console.warn('test', e));
+      return k;
+    });
+    if (n !== undefined) { toast(`Sac effacé (${n} élément${n > 1 ? 's' : ''}) ✓ On recommence !`, 'ok', 4000); S.ui.sacTab = 'liste'; S.render(); }
   },
 };
 
-// ───── Import de listes préparées (lien #/import?k=…) : crée les listes des vacances dans le cercle ouvert
+// ───── Import (lien #/import?k=…) : listes des vacances (v1) ou listes type privées (v2)
 function readImport(k) {
   try { let b = String(k).replace(/-/g, '+').replace(/_/g, '/'); while (b.length % 4) b += '='; return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), c => c.charCodeAt(0)))); }
   catch (e) { return null; }
@@ -424,28 +645,43 @@ function findPeriod(id) { const st = settings(); return E.schoolHolidays(st.zone
 views.import = p => {
   const d = p.k ? readImport(p.k) : S.ui.importData;
   if (p.k && d) { S.ui.importData = d; history.replaceState(null, '', '#/import'); S.route = { view: 'import', params: {} }; }
-  if (!d?.lists?.length) return { title: 'Importer', back: 'sac', html: '<div class="card empty">Lien d\'import invalide ou déjà utilisé.</div>' };
+  if (!d?.lists?.length && !d?.tpl?.length) return { title: 'Importer', back: 'sac', html: '<div class="card empty">Lien d\'import invalide ou déjà utilisé.</div>' };
   if (!isParent()) return { title: 'Importer', back: 'home', html: '<div class="card empty">Réservé aux parents.</div>' };
-  const pr = parents(), me = myCode() || 'A';
+  const me = myCode() || 'A';
+  if (d.tpl?.length) return {
+    title: 'Listes type', back: 'sac',
+    html: `<div class="card"><h3>📋 ${d.tpl.length} listes type</h3><p class="small muted" style="margin-top:0">Ajoutées à <b>vos</b> listes type (visibles uniquement par vous). Elles remplacent celles du même nom.</p>
+      ${d.tpl.map(x => `<div class="per" style="align-items:flex-start"><div class="pi">${VAC[x.vac]?.[1] || '🏖️'}</div><div class="f1"><div class="pn">${esc(VAC[x.vac]?.[0] || x.vac)} · ${x.dir === 'send' ? `Envoi à ${esc(nm(other(me)))}` : `Demande à ${esc(nm(other(me)))}`}</div>
+        <div class="tiny muted mt6">${x.items.map(i => `${esc(i[0])}${i[1] > 1 ? ' ×' + i[1] : ''}`).join(' · ')}</div></div></div>`).join('')}
+      <button class="btn primary block mt" data-act="import-go">✅ Ajouter à mes listes type</button></div>`,
+  };
   return {
     title: 'Importer des listes', back: 'sac',
     html: `<div class="card"><h3>🧳 ${d.lists.length} listes des vacances</h3><p class="small muted" style="margin-top:0">Elles seront ajoutées au cercle <b>${esc(S.family?.name || '')}</b>, pour ${esc(childNames(S.children.map(c => c.id)))}.</p>
       ${d.lists.map(l => { const per = findPeriod(l.per); return `<div class="per" style="align-items:flex-start"><div class="pi">${per?.i || '🏖️'}</div><div class="f1"><div class="pn">${esc(l.title)} · ${esc(per ? pLabel(per) : l.per)}</div>
-        <div class="pd">${l.dir === 'request' ? `${esc(pr[other(me)].name)} fournit` : `${esc(pr[me].name)} fournit`} · ${l.items.length} éléments</div>
+        <div class="pd">${l.dir === 'request' ? `Demande à ${esc(nm(other(me)))}` : `Envoi à ${esc(nm(other(me)))}`} · ${l.items.length} éléments</div>
         <div class="tiny muted mt6">${l.items.map(i => `${esc(i[0])}${i[1] > 1 ? ' ×' + i[1] : ''}`).join(' · ')}</div></div></div>`; }).join('')}
-      <button class="btn primary block mt" data-act="import-go">✅ Ajouter ces listes</button></div>
-      ${S.ui.testHint ? '' : '<div class="hint center">Astuce : ouvrez d\'abord le cercle de test (Réglages › Mode test) pour essayer sans toucher au vrai cercle.</div>'}`,
+      <button class="btn primary block mt" data-act="import-go">✅ Ajouter ces listes</button></div>`,
   };
 };
 actions['import-go'] = async el => {
   const d = S.ui.importData; if (!d) return; el.disabled = true;
   const me = myCode() || 'A', kids = S.children.map(c => c.id);
+  if (d.tpl?.length) {
+    const ok = await guard(async () => {
+      const upd = {};
+      for (const x of d.tpl) { if (!VAC[x.vac]) continue; const items = {}; x.items.forEach((it, k) => { items[nid()] = { name: it[0], qty: Math.max(1, +it[1] || 1), desc: it[2] || '', order: k }; }); upd[`sacTpl.${x.vac}`] = { dir: x.dir === 'send' ? 'send' : 'request', items }; }
+      await tplUpd(upd); return true;
+    }, 'Listes type ajoutées ✓');
+    if (ok) { S.ui.importData = null; S.ui.sacTab = 'liste'; S.ui.tplVac = d.tpl[0].vac; go('sac'); } else el.disabled = false;
+    return;
+  }
   const ok = await guard(async () => {
     let n = 0;
     for (const l of d.lists) {
       const per = findPeriod(l.per); if (!per) continue;
-      const items = {}; l.items.forEach((it, k) => { items[nid()] = { name: it[0], qty: Math.max(1, +it[1] || 1), desc: it[2] || '', order: k, photos: [] }; });
-      await S.be.db.set(fpath('sac', S.be.db.newId()), { kind: 'vlist', title: l.title, period: { id: per.id, n: per.n, i: per.i || '🏖️', s: per.s, e: per.e }, dir: l.dir || 'request', ownerCode: me, giver: (l.dir || 'request') === 'request' ? other(me) : me, childIds: kids, items, st: { aller: {}, retour: {} }, phase: {}, createdAt: Date.now(), createdBy: uid(), createdByName: myName() });
+      const items = {}; l.items.forEach((it, k) => { items[nid()] = { name: it[0], qty: Math.max(1, +it[1] || 1), desc: it[2] || '', order: k, photos: [], at: Date.now(), by: uid() }; });
+      await S.be.db.set(fpath('sac', S.be.db.newId()), { kind: 'vlist', v: 2, title: l.title, period: { id: per.id, n: per.n, i: per.i || '🏖️', s: per.s, e: per.e }, dir: l.dir || 'request', ownerCode: me, giver: (l.dir || 'request') === 'request' ? other(me) : me, childIds: kids, items, st: { aller: {}, retour: {} }, phase: {}, createdAt: Date.now(), createdBy: uid(), createdByName: myName() });
       n++;
     }
     await log('sac', `🧳 ${n} listes des vacances ajoutées`, { body: d.lists.map(l => l.title).join(' · ').slice(0, 160), icon: '🧳' });

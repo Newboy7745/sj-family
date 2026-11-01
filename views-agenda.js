@@ -1,9 +1,9 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.7';
-import { S, engine, parents, pName, pShort, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS } from './core.js?v=6.7';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen } from './ui.js?v=6.7';
-import { kidChips, cellBg } from './views-home.js?v=6.7';
-import { openPrint } from './print.js?v=6.7';
+import * as E from './engine.js?v=6.8';
+import { S, engine, parents, pName, pShort, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS } from './core.js?v=6.8';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen } from './ui.js?v=6.8';
+import { kidChips, cellBg } from './views-home.js?v=6.8';
+import { openPrint } from './print.js?v=6.8';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
