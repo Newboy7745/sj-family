@@ -1,6 +1,6 @@
 // ═══════════════ Installation de l'application (Android / iPhone) ═══════════════
-import { S, platform, isStandalone, stat, LS, SHARE_URL as APP_URL, APK_URL } from './core.js?v=6.8';
-import { openSheet, toast, copyText, IC } from './ui.js?v=6.8';
+import { S, platform, isStandalone, stat, LS, SHARE_URL as APP_URL, APK_URL } from './core.js?v=6.9';
+import { openSheet, toast, copyText, IC } from './ui.js?v=6.9';
 
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });

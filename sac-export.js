@@ -1,5 +1,5 @@
 // ═══════════════ Export d'une liste des vacances en JPG ou PDF (circuit complet : demande, envoi, réception, retour) ═══════════════
-import { toast, download } from './ui.js?v=6.8';
+import { toast, download } from './ui.js?v=6.9';
 
 const PW = 1240, PH = 1754, M = 48, TW = PW - 2 * M;
 const COLW = [364, 156, 156, 156, 156, 156];
@@ -53,7 +53,8 @@ export function drawPages(doc) {
     c.font = `700 22px ${FONT}`; const nameL = wrap(c, r.name, COLW[0] - 20, 3);
     c.font = `500 16px ${FONT}`; const subL = (r.sub || []).flatMap(s => wrap(c, s, COLW[0] - 20, 3));
     const cellL = r.cells.map((cell, i) => { c.font = `500 15px ${FONT}`; return wrap(c, cell[1] || '', COLW[i + 1] - 16, 4); });
-    const hL = 16 + nameL.length * 28 + subL.length * 22, hC = 16 + 30 + Math.max(0, ...cellL.map(l => l.length)) * 20;
+    const imgs = (r.imgs || []), PS = 84, PER = Math.max(1, Math.floor((COLW[0] - 16) / (PS + 6))), ph = imgs.length ? Math.ceil(imgs.length / PER) * (PS + 6) + 6 : 0;
+    const hL = 16 + nameL.length * 28 + subL.length * 22 + ph, hC = 16 + 30 + Math.max(0, ...cellL.map(l => l.length)) * 20;
     const h = Math.max(70, hL, hC) + 8;
     if (y + h > PH - 70) newPage();
     c.fillStyle = k % 2 ? '#FAFBFD' : '#fff'; c.fillRect(M, y, TW, h);
@@ -62,6 +63,11 @@ export function drawPages(doc) {
     for (const s of nameL) { c.fillText(s, M + 10, yy); yy += 28; }
     c.fillStyle = MUTED; c.font = `500 16px ${FONT}`;
     for (const s of subL) { c.fillText(s, M + 10, yy - 4); yy += 22; }
+    imgs.forEach((im, n) => {
+      const px = M + 10 + (n % PER) * (PS + 6), py = yy - 10 + Math.floor(n / PER) * (PS + 6), s = Math.min(im.width, im.height);
+      try { c.drawImage(im, (im.width - s) / 2, (im.height - s) / 2, s, s, px, py, PS, PS); } catch (e) { /* image illisible */ }
+      c.strokeStyle = LINE; c.strokeRect(px, py, PS, PS);
+    });
     let x = M + COLW[0];
     r.cells.forEach((cell, i) => {
       c.strokeStyle = LINE; c.beginPath(); c.moveTo(x, y); c.lineTo(x, y + h); c.stroke();
@@ -105,7 +111,9 @@ function makePdf(jpgs, w, h) {
   return out;
 }
 const toBlob = (cv, q = 0.9) => new Promise(r => cv.toBlob(r, 'image/jpeg', q));
+const loadImg = src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.onerror = () => res(null); im.src = src; });
 export async function buildFile(doc, fmt, name) {
+  for (const r of doc.rows) r.imgs = (await Promise.all((r.photos || []).slice(0, 12).map(loadImg))).filter(Boolean);
   const pages = drawPages(doc);
   if (fmt === 'jpg') {
     let cv = pages[0];
@@ -115,6 +123,8 @@ export async function buildFile(doc, fmt, name) {
   const jpgs = []; for (const p of pages) jpgs.push(new Uint8Array(await (await toBlob(p)).arrayBuffer()));
   return new File([makePdf(jpgs, PW, PH)], name + '.pdf', { type: 'application/pdf' });
 }
+/** Enregistre le fichier dans Téléchargements */
+export function saveFile(file) { download(file.name, file); toast(`« ${file.name} » enregistré dans Téléchargements`, 'ok', 3500); }
 export async function shareFile(file, title) {
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try { await navigator.share({ files: [file], title }); return; } catch (e) { if (e?.name === 'AbortError') return; }

@@ -156,6 +156,22 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
 - Réglages › Sac › **Tout effacer et recommencer** : affaires, listes, relais, photos et notifications du Sac dans le
   cercle et le cercle de test (listes type gardées).
 
+## 10 quater. Nouveautés 6.9
+
+- **Maman TEST dans une session séparée** : « Passer en Maman TEST » / « Revenir à mon compte » basculent sans jamais
+  déconnecter le compte principal (application Firebase nommée `sjtest`). Le bandeau du mode test reste toujours visible.
+- **Notifications cliquables** : chaque notification (dans l'application et sur le téléphone) ouvre l'élément concerné
+  (`link` de l'historique ; lien ntfy `#/vue?…&fam=<cercle>`).
+- **Sac** : année après chaque vacance (« Toussaint 27 ») ; cases de validation lisibles (Envoyé, Reçu, Rendu,
+  Récupéré, Dans le sac) et bouton **Tout valider** ; photo directe ou galerie / fichiers sur chaque élément.
+  À la réception : « Demander un élément » et « Reçu en plus (non déclaré) » ; au retour : « Rendu en plus ».
+  Le retour s'ouvre par défaut une fois l'aller confirmé ; le propriétaire ne voit que les éléments rendus et corrige
+  la quantité récupérée. Encadré **Alertes** (demandes, non déclarés, non envoyés / reçus / rendus, écarts) avec les
+  actions de l'étape, et bouton ⚠️ en haut qui fait défiler jusqu'à lui. Suppression uniquement par l'auteur et avant
+  toute action de l'autre parent ; pendant la période, seulement « ajouter une quantité » (datée, notifiée).
+  Retour confirmé sans alerte = **transfert clos** (lecture seule, liste gardée dans sa période).
+  Export JPG / PDF d'un, plusieurs ou tous les éléments, avec ou sans photos ; partager ou télécharger.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

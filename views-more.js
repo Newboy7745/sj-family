@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.8';
-import { randomId } from './backend.js?v=6.8';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg } from './core.js?v=6.8';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.8';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.8';
-import { createFamily } from './views-family.js?v=6.8';
-import { openPrint } from './print.js?v=6.8';
+import * as E from './engine.js?v=6.9';
+import { randomId } from './backend.js?v=6.9';
+import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.9';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.9';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.9';
+import { createFamily } from './views-family.js?v=6.9';
+import { openPrint } from './print.js?v=6.9';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -210,8 +210,9 @@ export const views = {
     for (const a of list.slice(0, 250)) {
       const d = new Date(a.at), iso = E.todayISO(d);
       if (iso !== day) { day = iso; html += `<div class="lbl">${E.fmtDate(iso, 'wdmy')}</div>`; }
-      html += `<div class="card tight" style="margin-bottom:8px;${a.at > last && a.by !== me ? 'border-left:5px solid var(--coral)' : ''}"><div class="row gap"><div style="font-size:28px">${a.icon || CATS[a.cat]?.i || '🔔'}</div><div class="f1"><div class="b">${esc(a.title)}</div>
-        <div class="small muted">${esc(a.by === me ? 'Moi' : a.byName || '')}${a.body ? ' — ' + esc(a.body) : ''}</div><div class="tiny muted">${fmtStamp(a.at)}</div></div></div></div>`;
+      const lk = notifLink(a), [lv, lq] = lk.split('?'), lp = JSON.stringify(Object.fromEntries(new URLSearchParams(lq || ''))).replace(/'/g, '&#39;');
+      html += `<div class="card tight" data-go="${esc(lv)}" data-params='${lp}' style="cursor:pointer;margin-bottom:8px;${a.at > last && a.by !== me ? 'border-left:5px solid var(--coral)' : ''}"><div class="row gap"><div style="font-size:28px">${a.icon || CATS[a.cat]?.i || '🔔'}</div><div class="f1"><div class="b">${esc(a.title)}</div>
+        <div class="small muted">${esc(a.by === me ? 'Moi' : a.byName || '')}${a.body ? ' — ' + esc(a.body) : ''}</div><div class="tiny muted">${fmtStamp(a.at)}</div></div><span class="lnk">›</span></div></div>`;
     }
     const pend = pendingItems();
     return {
@@ -721,13 +722,11 @@ Object.assign(actions, {
     if (ok) credsSheet(t);
   },
   'test-creds': () => { const t = testAcc(); if (t) credsSheet(t); },
-  'test-switch': async () => {
-    const t = testAcc(); if (!t) return;
-    LS.set('testBackEmail', S.user?.email || t.mainEmail || '');
-    await guard(async () => { await S.be.auth.signOut(); await S.be.auth.signIn(t.email, t.pw); });
-    location.hash = '#/home';
-  },
+  // Maman TEST tourne dans une session séparée : votre compte reste connecté
+  'test-switch': () => { if (!testAcc()) return; LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
   'test-back': async () => {
+    if (S.acc === 'test') { LS.set('acc', 'main'); location.hash = '#/home'; location.reload(); return; }
+    // ancienne bascule (avant 6.9) : la session principale avait été remplacée
     const back = LS.get('testBackEmail', '') || testAcc()?.mainEmail || '';
     await guard(() => S.be.auth.signOut()); S.authEmail = back; S.authMode = 'login'; location.hash = '';
   },

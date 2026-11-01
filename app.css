@@ -263,6 +263,15 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .steps-l{margin:8px 0 2px;padding:8px 10px;border-radius:12px;background:#F6F8FB;display:flex;flex-direction:column;gap:3px}
 .steps-l .tiny{font-size:12.5px}
 .mtx{margin-top:8px}
+/* ───── Sac : cases de validation, alertes */
+.vbox{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px 8px 10px;border-radius:14px;border:2px solid #CBD5E1;background:#fff;font-weight:800;font-size:15px;color:#334;flex:none}
+.vbox .bx{width:24px;height:24px;border-radius:7px;border:2.5px solid #94A3B8;display:grid;place-items:center;font-size:15px;line-height:1;color:#fff;background:#fff}
+.vbox.on{border-color:var(--ok);background:var(--ok-l);color:#126B48}.vbox.on .bx{background:var(--ok);border-color:var(--ok)}
+.vbox:disabled{opacity:.5}
+.vrow .vbox{margin-left:auto}
+.alert-jump{display:block;width:100%;text-align:left;margin:0 0 12px;padding:12px 14px;border-radius:16px;background:var(--err-l);border:1.5px solid #F2B8B8;color:var(--err);font-weight:800;font-size:15px}
+.alertbox{border:2px solid #F2B8B8;background:#FFF8F8}.alertbox h3{color:var(--err)}
+.al-it{padding:10px 0;border-top:1px solid #F5DADA}.al-it:first-of-type{border-top:0}
 @media print{ .top,.tabs,.noprint{display:none!important} #view{padding:0} .card{box-shadow:none;border:1px solid #ddd} }
 
 /* ───── Installation & admin (v6.1) */
@@ -343,7 +352,9 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .in.sm{padding:9px 11px;font-size:15px;border-radius:12px;min-height:0}
 .vrow .in.sm{width:78px;text-align:center}
 .vi>.in.sm{margin:2px 0 4px}
-.testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF2D6;border:1.5px solid #F5D58A;border-radius:16px;padding:8px 12px;margin-bottom:12px;font-size:14px}
+#tbar{position:sticky;top:var(--hdr-h,68px);z-index:29;max-width:760px;margin:0 auto}
+#tbar:empty{display:none}
+.testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF2D6;border-bottom:1.5px solid #F5D58A;padding:7px 16px;font-size:14px;box-shadow:0 4px 10px -8px rgba(15,27,45,.3)}
 
 /* ───── v6.6 : vidéos et validation des souvenirs */
 .grid3 .ph .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(15,27,45,.6);color:#fff;font-style:normal;display:grid;place-items:center;font-size:14px}

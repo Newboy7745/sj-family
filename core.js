@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.8';
-import { toast, esc } from './ui.js?v=6.8';
+import * as E from './engine.js?v=6.9';
+import { toast, esc } from './ui.js?v=6.9';
 
-export const VERSION = '6.8';
+export const VERSION = '6.9';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';
@@ -157,14 +157,18 @@ export function audience(to = 'parents') {
   else list = par;
   return [...new Set([uid(), ...list].filter(Boolean))];
 }
+/** Page ouverte par défaut quand on touche une notification de cette rubrique */
+export const CAT_LINK = { garde: 'plannings', echange: 'exchanges', budget: 'budget', agenda: 'agenda', taches: 'tasks', liaison: 'liaison', cercle: 'family', documents: 'docs', souvenirs: 'memories', contacts: 'contacts', sac: 'sac' };
+/** Lien d'une notification : « vue?param=… » (sans #/) */
+export const notifLink = a => a?.link || CAT_LINK[a?.cat] || 'home';
 export async function log(cat, title, { body = '', link = null, icon = null, to = 'parents', push = null } = {}) {
   try {
     const id = S.be.db.newId(), at = Date.now(), ic = icon || CATS[cat]?.i || '🔔';
-    const rcpt = audience(to);
-    const item = { cat, title, body, link, icon: ic, by: uid(), byName: myName(), at };
+    const rcpt = audience(to), lk = link || CAT_LINK[cat] || null;
+    const item = { cat, title, body, link: lk, icon: ic, by: uid(), byName: myName(), at, fid: S.fid };
     await Promise.all(rcpt.map(r => S.be.db.set(`families/${S.fid}/inbox/${r}/items/${id}`, item)));
     const pushList = (push || rcpt).filter(r => r !== uid());
-    pushTo(pushList, `${ic} ${title}`, `${myName()}${body ? ' — ' + body : ''}`);
+    pushTo(pushList, `${ic} ${title}`, `${myName()}${body ? ' — ' + body : ''}`, lk);
   } catch (e) { console.warn('log', e); }
 }
 
@@ -183,9 +187,10 @@ export function ntfyCancel(topic, seq) {
   fetch(`https://ntfy.sh/${encodeURIComponent(topic)}/${encodeURIComponent(seq)}/delete`, { mode: 'no-cors' }).catch(e => console.warn('ntfy', e));
 }
 /** Notifications push vers des membres précis (les sujets ntfy des autres ne sont connus que des parents) */
-export function pushTo(uids, title, message) {
+export function pushTo(uids, title, message, link = null) {
   if (S.be?.mode === 'demo') return;
-  for (const u of uids) { const m = S.members.find(x => x.uid === u); if (m && m.uid !== uid() && m.ntfyOn && m.ntfyTopic) ntfyPublish(m.ntfyTopic, { title, message }); }
+  const click = link ? `${APP_URL}#/${link}${link.includes('?') ? '&' : '?'}fam=${S.fid}` : APP_URL;
+  for (const u of uids) { const m = S.members.find(x => x.uid === u); if (m && m.uid !== uid() && m.ntfyOn && m.ntfyTopic) ntfyPublish(m.ntfyTopic, { title, message, click }); }
 }
 /** Rappels de relais programmés (≤ 3 jours à l'avance, sans doublon entre téléphones) */
 export async function scheduleReminders() {

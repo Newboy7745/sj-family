@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.8';
-import { createBackend } from './backend.js?v=6.8';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.8';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.8';
-import * as Home from './views-home.js?v=6.8';
-import * as Agenda from './views-agenda.js?v=6.8';
-import * as Plan from './views-planning.js?v=6.8';
-import * as Exch from './views-exchange.js?v=6.8';
-import * as Fam from './views-family.js?v=6.8';
-import * as Bud from './views-budget.js?v=6.8';
-import * as More from './views-more.js?v=6.8';
-import * as Admin from './views-admin.js?v=6.8';
-import * as Install from './install.js?v=6.8';
-import * as Sac from './views-sac.js?v=6.8';
-import * as Print from './print.js?v=6.8';
+import * as E from './engine.js?v=6.9';
+import { createBackend } from './backend.js?v=6.9';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.9';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.9';
+import * as Home from './views-home.js?v=6.9';
+import * as Agenda from './views-agenda.js?v=6.9';
+import * as Plan from './views-planning.js?v=6.9';
+import * as Exch from './views-exchange.js?v=6.9';
+import * as Fam from './views-family.js?v=6.9';
+import * as Bud from './views-budget.js?v=6.9';
+import * as More from './views-more.js?v=6.9';
+import * as Admin from './views-admin.js?v=6.9';
+import * as Install from './install.js?v=6.9';
+import * as Sac from './views-sac.js?v=6.9';
+import * as Print from './print.js?v=6.9';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -34,6 +34,7 @@ Object.assign(ACTIONS, {
   'close-sheet': () => closeSheet(),
   back() { if (S.nav > 0) { S.nav--; history.back(); } else go(S.backTo || 'home'); },
   logout: async () => {
+    if (S.acc === 'test') { LS.set('acc', 'main'); location.hash = '#/home'; location.reload(); return; }
     if (!(await confirmBox('Se déconnecter ?', 'Vous devrez saisir à nouveau votre e-mail et votre mot de passe.', 'Se déconnecter', true))) return;
     await guard(() => S.be.auth.signOut()); location.hash = '';
   },
@@ -106,7 +107,7 @@ function tabsHtml() {
 function shell(withTabs = true) {
   const app = $('#app'), key = withTabs ? (isParent() ? 'P' : 'R') : 'none';
   if (!app.querySelector('.top') || !app.querySelector('#view') || app.dataset.shell !== key) {
-    app.innerHTML = `<header class="top"><div class="top-l"></div><div class="top-t"></div><div class="top-r"></div></header><main id="view"></main>${withTabs ? `<nav class="tabs">${tabsHtml()}</nav>` : ''}`;
+    app.innerHTML = `<header class="top"><div class="top-l"></div><div class="top-t"></div><div class="top-r"></div></header><div id="tbar"></div><main id="view"></main>${withTabs ? `<nav class="tabs">${tabsHtml()}</nav>` : ''}`;
     app.dataset.shell = key;
   }
 }
@@ -140,15 +141,20 @@ function doRender() {
     return;
   }
   if (!S.family) return renderLoading();
+  if (r.params?.fam && r.params.fam !== S.fid && (S.profile?.familyIds || []).includes(r.params.fam) && S.ui.famJump !== r.params.fam) {
+    S.ui.famJump = r.params.fam; S.be.db.update(`users/${uid()}`, { currentFamily: r.params.fam }).catch(() => { }); return renderLoading();
+  }
   shell(true);
   const fn = VIEWS[r.view] || VIEWS.home;
   let out;
   try { out = fn(r.params || {}); } catch (e) { console.error(e); out = { title: 'Oups', html: `<div class="card"><b>Une erreur d'affichage est survenue.</b><p class="muted small">${esc(e.message)}</p><button class="btn primary" data-go="home">Retour à l'accueil</button></div>` }; }
   if (typeof out === 'string') out = { html: out };
   header(out);
-  const v = $('#view'); v.innerHTML = testBanner() + out.html; S.lastView = r.view;
-  { const tp = $('.top'), tb = $('.tabs'), st = document.documentElement.style;
-    st.setProperty('--top-h', (tp?.offsetHeight || 68) + 'px'); st.setProperty('--tabs-h', (tb && getComputedStyle(tb).display !== 'none' ? tb.offsetHeight : 0) + 'px'); }
+  const v = $('#view'), tbar = $('#tbar'); v.innerHTML = out.html; S.lastView = r.view;
+  if (tbar) { const b = testBanner(); if (tbar.innerHTML !== b) tbar.innerHTML = b; }
+  { const tp = $('.top'), tb = $('.tabs'), st = document.documentElement.style, hh = tp?.offsetHeight || 68;
+    st.setProperty('--hdr-h', hh + 'px'); st.setProperty('--top-h', (hh + (tbar?.offsetHeight || 0)) + 'px');
+    st.setProperty('--tabs-h', (tb && getComputedStyle(tb).display !== 'none' ? tb.offsetHeight : 0) + 'px'); }
   const tab = TAB_OF[r.view];
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
   const bx = $('#bx'), bs = $('#bs'), bl = $('#bl'), px = Exch.pendingForMe ? Exch.pendingForMe() : 0, ps = Sac.pendingCount ? Sac.pendingCount() : 0, pl = More.unreadNotes ? More.unreadNotes() : 0;
@@ -370,7 +376,9 @@ async function loadFamilyNames(ids = []) {
 async function start() {
   const demo = new URLSearchParams(location.search).has('demo') || LS.get('demo', false);
   if (demo) LS.set('demo', true);
-  try { S.be = await createBackend(demo ? 'demo' : 'firebase'); }
+  // Compte actif : principal, ou Maman TEST dans une session séparée (revenir à son compte ne déconnecte pas)
+  S.acc = LS.get('acc', 'main') === 'test' && LS.get('testAcc', null) ? 'test' : 'main';
+  try { S.be = await createBackend(demo ? 'demo' : 'firebase', S.acc === 'test' ? 'sjtest' : null); }
   catch (e) {
     console.error(e);
     $('#view').innerHTML = `<div class="card" style="margin-top:30px"><h3>Connexion impossible</h3><p class="muted">Le service n'a pas pu être chargé. Vérifiez votre connexion internet puis réessayez.</p><button class="btn primary block" onclick="location.reload()">Réessayer</button></div>`;
@@ -384,6 +392,11 @@ async function start() {
     S.user = u;
     if (unUser) { unUser(); unUser = null; }
     resetFamily(); S.fid = null; S.profile = null; S.families = {}; S.remindersDone = false;
+    if (!u && S.acc === 'test') {
+      const t = LS.get('testAcc', null);
+      S.be.auth.signIn(t.email, t.pw).catch(e => { console.warn('test', e); LS.set('acc', 'main'); location.reload(); });
+      renderLoading(); return;
+    }
     if (!u) { S.render(); return; }
     if (isAdminUser()) { S.profile = { admin: true }; S.admin = null; S.render(); return; }
     renderLoading();

@@ -19,16 +19,16 @@ export function randomId(n = 20) {
   let s = ''; for (const x of b) s += a[x % a.length]; return s;
 }
 
-export async function createBackend(mode) {
-  return mode === 'demo' ? createMock() : createFirebase();
+export async function createBackend(mode, name = null) {
+  return mode === 'demo' ? createMock(name) : createFirebase(name);
 }
 
 // ─────────────────────────── Firebase ───────────────────────────
-async function createFirebase() {
+async function createFirebase(name = null) {
   const [{ initializeApp, deleteApp }, A, F] = await Promise.all([
     import(`${SDK}/firebase-app.js`), import(`${SDK}/firebase-auth.js`), import(`${SDK}/firebase-firestore.js`),
   ]);
-  const app = initializeApp(FIREBASE_CONFIG);
+  const app = name ? initializeApp(FIREBASE_CONFIG, name) : initializeApp(FIREBASE_CONFIG);
   const auth = A.getAuth(app);
   try { auth.languageCode = 'fr'; } catch (e) { /* */ }
   let fs;
@@ -101,7 +101,8 @@ function clean(o) {
 }
 
 // ─────────────────────────── Démo (local) ───────────────────────────
-function createMock() {
+function createMock(name = null) {
+  const SK = name ? 'session_' + name : 'session';
   const KEY = 'sjf-demo-db-v2';
   let store; try { store = JSON.parse(localStorage.getItem(KEY)) || null; } catch (e) { store = null; }
   if (!store) store = { docs: {}, users: {}, session: null };
@@ -150,18 +151,18 @@ function createMock() {
   };
   const deepMerge = (a, b) => { const r = { ...a }; for (const [k, v] of Object.entries(b)) r[k] = v && typeof v === 'object' && !Array.isArray(v) && r[k] && typeof r[k] === 'object' ? deepMerge(r[k], v) : v; return r; };
   const authNotify = () => queueMicrotask(() => { for (const cb of authL) cb(cur()); });
-  const cur = () => store.session ? { uid: store.users[store.session].uid, email: store.session, emailVerified: true } : null;
+  const cur = () => store[SK] && store.users[store[SK]] ? { uid: store.users[store[SK]].uid, email: store[SK], emailVerified: true } : null;
   const err = code => { const e = new Error(code); e.code = code; return e; };
   return {
     mode: 'demo',
     auth: {
       onChange: cb => { authL.add(cb); queueMicrotask(() => cb(cur())); return () => authL.delete(cb); },
-      signIn: async (e, p) => { e = e.trim().toLowerCase(); const u = store.users[e]; if (!u) throw err('auth/invalid-credential'); if (u.pw !== p) throw err('auth/invalid-credential'); store.session = e; save(); authNotify(); },
+      signIn: async (e, p) => { e = e.trim().toLowerCase(); const u = store.users[e]; if (!u) throw err('auth/invalid-credential'); if (u.pw !== p) throw err('auth/invalid-credential'); store[SK] = e; save(); authNotify(); },
       signUp: async (e, p) => {
         e = e.trim().toLowerCase(); if (store.users[e]) throw err('auth/email-already-in-use'); if (p.length < 6) throw err('auth/weak-password');
-        store.users[e] = { uid: 'u_' + randomId(10), pw: p }; store.session = e; save(); authNotify(); return cur();
+        store.users[e] = { uid: 'u_' + randomId(10), pw: p }; store[SK] = e; save(); authNotify(); return cur();
       },
-      signOut: async () => { store.session = null; save(); authNotify(); },
+      signOut: async () => { store[SK] = null; save(); authNotify(); },
       reset: async () => { },
       current: cur,
       sendVerification: async () => { },
