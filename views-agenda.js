@@ -1,11 +1,11 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.13';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.13';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.13';
-import { vacRecap } from './views-sac.js?v=6.13';
-import { kidChips, cellBg } from './views-home.js?v=6.13';
-import { altText } from './views-more.js?v=6.13';
-import { openPrint } from './print.js?v=6.13';
+import * as E from './engine.js?v=6.14';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.14';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.14';
+import { vacRecap } from './views-sac.js?v=6.14';
+import { kidChips, cellBg } from './views-home.js?v=6.14';
+import { altText } from './views-more.js?v=6.14';
+import { openPrint } from './print.js?v=6.14';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
@@ -14,12 +14,14 @@ export const EV_CATS = [
 const catIcon = c => EV_CATS.find(x => x.v === c)?.i || '📌';
 const ym = iso => iso.slice(0, 7);
 function shiftMonth(m, k) { let [y, mo] = m.split('-').map(Number); mo += k; while (mo > 12) { mo -= 12; y++; } while (mo < 1) { mo += 12; y--; } return `${y}-${String(mo).padStart(2, '0')}`; }
+/** Croissant de l'Aïd (vert émeraude) */
+const MOON = (z = 11) => `<svg class="moon" width="${z}" height="${z}" viewBox="0 0 24 24" aria-hidden="true"><path d="M11.22,2.03A10,10 0 1,0 21.97,12.78A7.6,7.6 0 1,1 11.22,2.03Z" fill="#009473"/></svg>`;
 function legend() {
   const p = parents();
   return `<div class="legend"><span><i style="background:var(--pa)"></i>${esc(p.A.name)}</span><span><i style="background:var(--pb)"></i>${esc(p.B.name)}</span>
     <span><i style="background:var(--pb-l)"></i>École (${esc(p.B.name)})</span><span><i style="background:var(--pa-l)"></i>École (${esc(p.A.name)})</span>
     <span><i style="background:linear-gradient(90deg,var(--pa) 50%,var(--pb) 50%)"></i>Demi-journée</span>
-    <span><i style="background:var(--gold);height:5px;vertical-align:2px"></i>Vacances scolaires</span><span><i style="background:var(--err);border-radius:50%;width:9px;height:9px"></i>Férié</span><span>🌙 Aïd (fête musulmane, pas un jour férié)</span><span>🔁 Relais : heure et lieu dans la case</span><span><i style="border:2px dashed var(--navy);background:#fff"></i>Échange accepté</span></div>`;
+    <span><i style="background:var(--gold);height:5px;vertical-align:2px"></i>Vacances scolaires</span><span><i style="background:var(--err);border-radius:50%;width:9px;height:9px"></i>Férié</span><span>${MOON(13)}Fête de l'Aïd</span><span>🔁 Relais : heure et lieu dans la case</span><span><i style="border:2px dashed var(--navy);background:#fff"></i>Échange accepté</span></div>`;
 }
 function monthGrid(m) {
   const eng = engine(), ids = selIds(), today = E.todayISO();
@@ -38,7 +40,7 @@ function monthGrid(m) {
     const ovr = ids.some(id => eng.isOverridden(id, d));
     const dots = (byDay[d] || []).slice(0, 4).map(e => `<span class="dot" title="${esc(e.title)}" style="background:${e.icon === '🎂' ? 'var(--coral)' : 'var(--navy)'}"></span>`).join('');
     cells += `<button class="cday ${ym(d) !== m ? 'out' : ''} ${d === today ? 'today' : ''} ${d < today ? 'past' : ''} ${ovr ? 'ovr' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">
-      ${info.ferie ? '<span class="fer"></span>' : info.eid ? '<span class="eid" title="Aïd">🌙</span>' : ''}<span class="dn">${+d.slice(8)}</span>${hoCell(d)}
+      ${info.ferie ? '<span class="fer"></span>' : info.eid ? `<span class="eid" title="Fête de l'Aïd">${MOON(12)}</span>` : ''}<span class="dn">${+d.slice(8)}</span>${hoCell(d)}
       ${lbl ? `<span class="cm">${esc(lbl.length > 16 ? lbl.slice(0, 15) + '…' : lbl)}</span>` : ''}<span class="dots">${dots}</span>${info.holiday ? '<span class="hol"></span>' : ''}</button>`;
   }
   return `<div class="cal">${cells}</div>`;
@@ -222,7 +224,7 @@ export function openDay(d) {
   }).join('');
   const hs = eng.handovers(ids, d, d);
   const evs = E.expandEvents(S.events, d, d);
-  const tags = [info.ferie && `<span class="pill err">🎌 ${esc(info.ferie)}</span>`, info.eid && `<span class="pill" style="background:#E8F5EE;color:#0E6B45">🌙 ${esc(info.eid)} · fête musulmane</span>`, info.comment && info.comment !== info.ferie && info.comment !== info.eid && `<span class="pill navy">${esc(info.comment)}</span>`, info.holiday && `<span class="pill warn">${info.holiday.i} ${esc(info.holiday.n)}</span>`].filter(Boolean).join(' ');
+  const tags = [info.ferie && `<span class="pill err">🎌 ${esc(info.ferie)}</span>`, info.eid && `<span class="pill" style="background:#E3F4EE;color:#00664F">${MOON(13)} ${esc(info.eid)}</span>`, info.comment && info.comment !== info.ferie && info.comment !== info.eid && `<span class="pill navy">${esc(info.comment)}</span>`, info.holiday && `<span class="pill warn">${info.holiday.i} ${esc(info.holiday.n)}</span>`].filter(Boolean).join(' ');
   openSheet(`<h3 class="sh-title">${E.fmtDate(d, 'wdmy')}</h3>${tags ? `<div class="row wrap gap6 mb">${tags}</div>` : ''}
     ${kids || '<p class="muted">Aucun enfant.</p>'}
     ${hs.length ? `<div class="lbl">Relais</div>${hs.map(h => `<div class="tile"><span style="font-size:24px">🔁</span><div class="f1"><b>${hoTime(h)}</b> · ${esc(pName(h.from))} → ${esc(pName(h.to))}<div class="small muted">${esc(childNames(h.childIds))}${h.kind === 'matin' ? ' · le matin' : ''}${h.custom ? ' · horaire convenu' : ''}${esc(hoPlace(h))}</div>

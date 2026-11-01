@@ -25,6 +25,8 @@ function rel(d, today) {
   if (k > 1 && k < 7) return JOURS[dow(d)];
   return `${JC[dow(d)]} ${+d.slice(8)} ${MOC[+d.slice(5, 7) - 1]}`;
 }
+/** Croissant de l'Aïd, vert émeraude */
+function moon(st, sz) { const im = st.addImage(SFSymbol.named('moon.fill').image); im.tintColor = new Color('#009473'); im.imageSize = new Size(sz, sz); return im; }
 function dimC(c) { const h = c.hex.replace('#', ''), n = parseInt(h.slice(0, 6), 16); const f = (x, y) => Math.round(x * 0.8 + y * 0.2); const r = f(n >> 16, 0x5A), g = f((n >> 8) & 255, 0x6B), b = f(n & 255, 0x80); return new Color('#' + [r, g, b].map(x => x.toString(16).padStart(2, '0')).join(''), c.alpha); }
 function mix(hex, k) { const n = parseInt(hex.replace('#', ''), 16); const r = n >> 16, g = (n >> 8) & 255, b = n & 255; const f = x => Math.round(x + (255 - x) * k); return new Color('#' + [f(r), f(g), f(b)].map(x => x.toString(16).padStart(2, '0')).join('')); }
 
@@ -195,15 +197,15 @@ else {
         const cell = r.addStack(); cell.size = new Size(40, weeks > 5 ? 24 : 28); cell.cornerRadius = 6; cell.centerAlignContent();
         cell.backgroundColor = inM ? colorOf(c) : new Color('#ffffff', 0.06);
         if (inM && (c === 'X' || c === 'Y')) {
-          // deux gardes le même jour (Aïd, demi-journée) : case partagée verticalement, comme dans l'agenda
+          // deux gardes le même jour (Aïd, demi-journée) : case coupée horizontalement (en haut le matin, en bas l'après-midi)
           const l = c === 'X' ? colA : colB, rr = c === 'X' ? colB : colA, past = d < today, g = new LinearGradient();
           g.colors = [l, l, rr, rr].map(x => past ? dimC(new Color(x)) : new Color(x)); g.locations = [0, 0.5, 0.5, 1];
-          g.startPoint = new Point(0, 0.5); g.endPoint = new Point(1, 0.5); cell.backgroundGradient = g;
+          g.startPoint = new Point(0.5, 0); g.endPoint = new Point(0.5, 1); cell.backgroundGradient = g;
         } else if (inM && d < today) { cell.backgroundColor = dimC(colorOf(c)); cell.backgroundImage = pastCell(dimC(colorOf(c)), 40, weeks > 5 ? 24 : 28); }
         if (inM) cell.url = dayUrl(d);
         if (d === today) { cell.borderWidth = 2; cell.borderColor = WHITE; }
-        const fr = inM ? (feed.fer || {})[d] : 0; // 1 = férié (point rouge), 2 = Aïd (🌙)
-        cell.addSpacer(); if (fr === 1) txt(cell, '●', 7, { color: new Color('#E53935') }); else if (fr === 2) txt(cell, '🌙', 8);
+        const fr = inM ? (feed.fer || {})[d] : 0; // 1 = férié (point rouge), 2 = Aïd (croissant vert émeraude)
+        cell.addSpacer(); if (fr === 1) txt(cell, '●', 7, { color: new Color('#E53935') }); else if (fr === 2) moon(cell, 8);
         txt(cell, String(+d.slice(8)), 11, { bold: true, color: inM ? INK : new Color('#ffffff', 0.35) }); cell.addSpacer();
         if (i < 6) r.addSpacer(4);
       }
@@ -212,7 +214,7 @@ else {
     const lg = W.addStack(); lg.centerAlignContent(); dot(lg, new Color(colA), 9); lg.addSpacer(4); txt(lg, name('A'), 10, { op: 0.85 }); lg.addSpacer(10); dot(lg, new Color(colB), 9); lg.addSpacer(4); txt(lg, name('B'), 10, { op: 0.85 }); lg.addSpacer(10); dot(lg, mix(colB, .55), 9); lg.addSpacer(4); txt(lg, 'école', 10, { op: 0.85 });
     const mf = Object.entries(feed.fer || {}).filter(([k]) => k.startsWith(`${y}-${pad(m)}`)).map(([, v]) => v);
     if (mf.includes(1)) { lg.addSpacer(10); txt(lg, '● ', 9, { color: new Color('#E53935') }); txt(lg, 'férié', 10, { op: 0.85 }); }
-    if (mf.includes(2)) { lg.addSpacer(10); txt(lg, '🌙 Aïd', 10, { op: 0.85 }); }
+    if (mf.includes(2)) { lg.addSpacer(10); moon(lg, 9); lg.addSpacer(3); txt(lg, "Fête de l'Aïd", 10, { op: 0.85 }); }
     W.addSpacer(6);
     nextLine(W, 12);
     const ev = events.find(e => e.d >= today); if (ev) txt(W, `${ev.i} ${cap(rel(ev.d, today))}${ev.t ? ' ' + fmtT(ev.t) : ''} · ${ev.n}`, 11, { op: 0.85 });

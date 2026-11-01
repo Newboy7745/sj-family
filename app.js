@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.13';
-import { createBackend } from './backend.js?v=6.13';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.13';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.13';
-import * as Home from './views-home.js?v=6.13';
-import * as Agenda from './views-agenda.js?v=6.13';
-import * as Plan from './views-planning.js?v=6.13';
-import * as Exch from './views-exchange.js?v=6.13';
-import * as Fam from './views-family.js?v=6.13';
-import * as Bud from './views-budget.js?v=6.13';
-import * as More from './views-more.js?v=6.13';
-import * as Admin from './views-admin.js?v=6.13';
-import * as Install from './install.js?v=6.13';
-import * as Sac from './views-sac.js?v=6.13';
-import * as Print from './print.js?v=6.13';
+import * as E from './engine.js?v=6.14';
+import { createBackend } from './backend.js?v=6.14';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.14';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.14';
+import * as Home from './views-home.js?v=6.14';
+import * as Agenda from './views-agenda.js?v=6.14';
+import * as Plan from './views-planning.js?v=6.14';
+import * as Exch from './views-exchange.js?v=6.14';
+import * as Fam from './views-family.js?v=6.14';
+import * as Bud from './views-budget.js?v=6.14';
+import * as More from './views-more.js?v=6.14';
+import * as Admin from './views-admin.js?v=6.14';
+import * as Install from './install.js?v=6.14';
+import * as Sac from './views-sac.js?v=6.14';
+import * as Print from './print.js?v=6.14';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -213,6 +213,8 @@ function doRender() {
 function testBanner() {
   const t = LS.get('testAcc', null), me = S.user?.email || '';
   if (/^maman\.test\./.test(me)) return `<div class="testbar"><span>🧪 Vous êtes <b>Maman TEST</b></span><button class="btn soft sm" data-act="test-back">Revenir à mon compte</button></div>`;
+  const pr = Object.entries(t?.proches || {}).find(([, c]) => c.email === me);
+  if (pr) return `<div class="testbar"><span>🧪 Vous êtes <b>${esc(pr[0])} TEST</b> (proche)</span><button class="btn soft sm" data-act="test-back">Revenir à mon compte</button></div>`;
   if (t && S.fid === t.fid) return `<div class="testbar"><span>🧪 Cercle de test</span><button class="btn soft sm" data-act="fam-switch" data-id="${t.realFid || ''}">Mon vrai cercle</button></div>`;
   return '';
 }
@@ -421,6 +423,10 @@ async function loadFamilyNames(ids = []) {
   S.render();
 }
 
+function testCreds() {
+  const t = LS.get('testAcc', null), who = LS.get('testAs', 'maman');
+  return (who !== 'maman' && t?.proches?.[who]?.email ? t.proches[who] : t) || null;
+}
 async function start() {
   const demo = new URLSearchParams(location.search).has('demo') || LS.get('demo', false);
   if (demo) LS.set('demo', true);
@@ -440,9 +446,11 @@ async function start() {
     S.user = u;
     if (unUser) { unUser(); unUser = null; }
     resetFamily(); S.fid = null; S.profile = null; S.families = {}; S.remindersDone = false;
-    if (!u && S.acc === 'test') {
-      const t = LS.get('testAcc', null);
-      S.be.auth.signIn(t.email, t.pw).catch(e => { console.warn('test', e); LS.set('acc', 'main'); location.reload(); });
+    // session de test : Maman TEST ou un proche TEST (testAs)
+    const tc = S.acc === 'test' ? testCreds() : null;
+    if (tc && u && u.email !== tc.email.toLowerCase()) { S.be.auth.signOut(); renderLoading(); return; }
+    if (!u && tc) {
+      S.be.auth.signIn(tc.email, tc.pw).catch(e => { console.warn('test', e); LS.set('acc', 'main'); location.reload(); });
       renderLoading(); return;
     }
     if (!u) { S.render(); return; }

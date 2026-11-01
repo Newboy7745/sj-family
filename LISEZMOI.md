@@ -256,12 +256,21 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
 - **Calendrier annuel** : A4 paysage, aperçu en tête de la fenêtre (touchez pour agrandir), PDF, partage ou impression.
 - **Souvenirs** : chaque membre du cercle peut voir et télécharger les photos et vidéos.
 - **« Lieu habituel »** retiré partout.
-- **Aïd** : 🌙 dans la case (ce n'est pas un jour férié) avec sa légende ; les jours fériés gardent le point rouge.
-- **Widgets Android (APK version 11)** : les jours à deux gardes (Aïd, demi-journées) sont partagés verticalement en deux
-  couleurs, comme dans l'agenda ; point rouge pour les jours fériés, 🌙 pour l'Aïd (légende seulement si le mois en
-  contient). Relais : 🔁 sur une ligne, l'heure dessous, le lieu dessous (« Chez » + prénom). Le ⟳ télécharge le planning
-  au premier plan (contourne le blocage réseau en arrière-plan de certains téléphones). Le widget iPhone reçoit aussi les
-  cases partagées, le point rouge et le 🌙.
+- **Aïd** : croissant dans la case, avec sa légende « Fête de l'Aïd » ; les jours fériés gardent le point rouge.
+- **Widgets Android (APK version 11)** : relais sur trois lignes (🔁, l'heure, le lieu « Chez » + prénom) ; le ⟳ télécharge
+  le planning au premier plan (contourne le blocage réseau en arrière-plan de certains téléphones).
+
+## 10 nonies. Nouveautés 6.14
+
+- **Proches TEST** : Réglages › Mode test liste les quatre proches de test et l'accord qu'ils attendent. Dès que les deux
+  parents ont donné leur accord, « 👤 Devenir … » crée le compte du proche (la première fois), l'ajoute au cercle de test
+  et ouvre l'application en son nom (bandeau « Vous êtes … TEST (proche) », « Revenir à mon compte »).
+- **Fête de l'Aïd** : croissant **vert émeraude** dans l'agenda (case, fiche du jour, légende « Fête de l'Aïd »), dans le
+  calendrier annuel et dans les widgets.
+- **Widgets (APK version 12)** : un jour à deux gardes (Aïd, demi-journée) est coupé **horizontalement** — en haut la garde
+  du matin avec le relais de mi-journée, en bas celle de l'après-midi avec le relais du soir ; le texte s'ajuste à la case
+  pour rester lisible. Tous les autres jours, la case est d'une seule couleur, sans ligne de démarcation. Point rouge pour
+  les jours fériés, croissant vert émeraude pour l'Aïd. Widget iPhone : même coupure et même croissant.
 
 ## 11. Nettoyer les comptes de test (console Firebase)
 

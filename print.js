@@ -1,9 +1,9 @@
 // ═══════════════ Calendrier annuel imprimable — même organisation que les plannings officiels (PLANNING GARDE … 2026 / 2027) ═══════════════
 // 12 tableaux mensuels (N° · S. · Jour · Garde · Commentaire), totaux par mois et par an, à jour de tous les changements validés.
-import * as E from './engine.js?v=6.13';
-import { S, engine, parents, selIds, isParent, setFamily, guard } from './core.js?v=6.13';
-import { esc, openSheet, closeSheet, readForm, chips, toast, IC, download } from './ui.js?v=6.13';
-import { makePdf } from './sac-export.js?v=6.13';
+import * as E from './engine.js?v=6.14';
+import { S, engine, parents, selIds, isParent, setFamily, guard } from './core.js?v=6.14';
+import { esc, openSheet, closeSheet, readForm, chips, toast, IC, download } from './ui.js?v=6.14';
+import { makePdf } from './sac-export.js?v=6.14';
 
 const MO = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
 const JR = ['L', 'Ma', 'Me', 'J', 'V', 'S', 'D'];
@@ -54,7 +54,7 @@ export function drawYear(cv, { year, kidId, title, ini, k = 1.4 }) {
   g.fillStyle = GREY_T; g.fillRect(0, 0, W, 42);
   text(title, W / 2, 22, { font: F('bold', 21) });
   // légende
-  const leg = [[colB, `Garde ${pr.B.name} — ${ini.B}`, M], [colA, `Garde ${pr.A.name} — ${ini.A}`, M + 260], [ecoleB, "Jours d'école", M + 500], ['#000', 'Férié', M + 700], ['split', 'Aïd (fête musulmane, pas un jour férié) - 0,5 j chacun', M + 830]];
+  const leg = [[colB, `Garde ${pr.B.name} — ${ini.B}`, M], [colA, `Garde ${pr.A.name} — ${ini.A}`, M + 260], [ecoleB, "Jours d'école", M + 500], ['#000', 'Férié', M + 700], ['split', "Fête de l'Aïd - 0,5 j chacun", M + 830]];
   for (const [c, l, x] of leg) {
     if (c === 'split') split(x, 56, 34, 20, colA, colB); else rect(x, 56, 34, 20, c, c === '#000' ? '#000' : '#C9C9C9');
     text(l, x + 42, 66, { font: F('bold', 11), align: 'left' });

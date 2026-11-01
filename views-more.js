@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.13';
-import { randomId } from './backend.js?v=6.13';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.13';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.13';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.13';
-import { createFamily, procheText } from './views-family.js?v=6.13';
-import { openPrint } from './print.js?v=6.13';
+import * as E from './engine.js?v=6.14';
+import { randomId } from './backend.js?v=6.14';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.14';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.14';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.14';
+import { createFamily, procheText } from './views-family.js?v=6.14';
+import { openPrint } from './print.js?v=6.14';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -818,12 +818,23 @@ export async function seedTestProches() {
   } catch (e) { console.warn('proches de test', e); }
   finally { S.ui.seeding = false; }
 }
+/** Proches de test : état de l'accord des deux parents, et bascule dans leur identité une fois acceptés */
+function testProches(t) {
+  const rows = T_PROCHES.map(x => {
+    const i = (S.invites || []).find(v => v.prenom === x[0] && v.nom === 'TEST'), lien = procheText({ relation: x[1], side: x[2], uid: '_inv' }).replace(/ de .*/, '');
+    const st = !i ? '' : i.state === 'approval' ? `⏳ attend l'accord de ${esc(i.by === uid() ? (parents().B?.name || 'Maman TEST') : myName())}` : i.state === 'refused' ? '✗ refusé' : '';
+    const ok = i && (i.state === 'pending' || i.state === 'joined');
+    return `<div class="prow"><span>${esc(x[0])} <span class="small muted">${esc(lien)}</span></span>${ok ? `<button class="btn soft sm" data-act="test-as" data-id="${esc(x[0])}">👤 Devenir ${esc(x[0])}</button>` : `<span class="small muted">${st || '—'}</span>`}</div>`;
+  }).join('');
+  return `<div class="lbl mt">Proches TEST</div>${rows}<p class="small muted" style="margin:6px 0 0">Un proche n'est utilisable qu'après l'accord des deux parents (Cercle › Proches et invitations).</p>`;
+}
 function testCard() {
   const t = testAcc(), inTest = t && S.fid === t.fid;
   return `<div class="card testc"><h3>🧪 Mode test <span class="pill warn" style="font-size:11px">visible par vous seul</span></h3>
     <p class="small muted" style="margin-top:0">Un cercle d'essai séparé avec une <b>Maman TEST</b>, pour tout essayer (validations, listes des vacances, notes…) sans toucher à votre vrai cercle ni prévenir l'autre parent.</p>
     ${t ? `<div class="prow"><span>Compte Maman TEST</span><b class="small">${esc(t.email)}</b></div>
       <div class="row gap mt"><button class="btn primary f1" data-act="test-switch">👩 Passer en Maman TEST</button><button class="btn soft f1" data-act="test-creds">🔑 Identifiants</button></div>
+      ${inTest ? testProches(t) : ''}
       <button class="btn soft block mt" data-act="fam-switch" data-id="${inTest ? (t.realFid || '') : t.fid}">${inTest ? '🏠 Revenir à mon vrai cercle' : '🧪 Ouvrir le cercle de test'}</button>`
     : `<button class="btn primary block" data-act="test-create">🧪 Créer le cercle de test avec une Maman TEST</button>`}</div>`;
 }
@@ -869,7 +880,35 @@ Object.assign(actions, {
   },
   'test-creds': () => { const t = testAcc(); if (t) credsSheet(t); },
   // Maman TEST tourne dans une session séparée : votre compte reste connecté
-  'test-switch': () => { if (!testAcc() || (!testOwner() && S.acc !== 'test')) return; LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
+  'test-switch': () => { if (!testAcc() || (!testOwner() && S.acc !== 'test')) return; LS.set('testAs', 'maman'); LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
+  // Devenir un proche de test (accepté par les deux parents) : compte créé et ajouté au cercle de test la première fois
+  'test-as': async el => {
+    const t = testAcc(), who = el.dataset.id, x = T_PROCHES.find(y => y[0] === who);
+    if (!t || !x || S.fid !== t.fid || !testOwner()) return;
+    const inv = (S.invites || []).find(v => v.prenom === who && v.nom === 'TEST');
+    if (!inv || !['pending', 'joined'].includes(inv.state)) return toast(`${who} attend encore l'accord des deux parents.`, 'warn');
+    t.proches = t.proches || {};
+    if (!t.proches[who]?.uid) {
+      el.disabled = true; toast(`Création du compte de ${who}…`, 'ok', 2500);
+      const rnd = (String(t.email).match(/^maman\.test\.([a-z0-9]+)@/) || [])[1] || randomId(6).toLowerCase();
+      const c = { email: `${who.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()}.test.${rnd}@example.com`.toLowerCase(), pw: 'Test-' + randomId(6) };
+      const fid = S.fid, fam = await S.be.db.get(`families/${fid}`), owner = uid();
+      const ok = await guard(() => S.be.auth.side(c.email, c.pw, async ({ uid: pu, db: d2 }) => {
+        c.uid = pu;
+        await d2.set(`users/${pu}`, { prenom: who, nom: 'TEST', email: c.email, phone: '', familyIds: [fid], currentFamily: fid, [`lastSeen.${fid}`]: Date.now() + 5000, createdAt: Date.now() }, true);
+        await d2.set(`families/${fid}/members/${pu}`, { uid: pu, prenom: who, nom: 'TEST', name: who, email: c.email, phone: '', role: 'proche', relation: x[1], side: x[2], parentCode: null, joinCode: fam.joinCode, joinedAt: Date.now() });
+        await d2.update(`families/${fid}`, { memberUids: d2.arrayUnion(pu) });
+        const aid = d2.newId();
+        for (const r of [...new Set([pu, owner, fam.parents?.B?.uid].filter(Boolean))]) await d2.set(`families/${fid}/inbox/${r}/items/${aid}`, { cat: 'cercle', title: `${who} TEST a rejoint le cercle de test`, body: x[1], icon: '🤝', by: pu, byName: who, at: Date.now() }).catch(() => { });
+        return true;
+      }));
+      el.disabled = false;
+      if (!ok) return;
+      t.proches[who] = c; LS.set('testAcc', t);
+      await updItem('invites', inv.id, { state: 'joined', joinedUid: c.uid, joinedAt: Date.now() }).catch(() => { });
+    }
+    LS.set('testAs', who); LS.set('acc', 'test'); location.hash = '#/home'; location.reload();
+  },
   'test-back': async () => {
     if (S.acc === 'test') { LS.set('acc', 'main'); location.hash = '#/home'; location.reload(); return; }
     // ancienne bascule (avant 6.9) : la session principale avait été remplacée

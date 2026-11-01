@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.13';
-import { toast, esc } from './ui.js?v=6.13';
+import * as E from './engine.js?v=6.14';
+import { toast, esc } from './ui.js?v=6.14';
 
-export const VERSION = '6.13';
+export const VERSION = '6.14';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Version minimale de l'appli Android des widgets (numéro de compilation) : au-dessous, le widget propose la mise à jour */
-export const WIDGETS_APK = 11;
+export const WIDGETS_APK = 12;
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';
 /** Historique : les entrées antérieures à cette date restent dans l'ancien journal commun */

@@ -500,7 +500,7 @@ export function buildFeed({ engine, family, children, parents, events = [], task
     notes: notes.slice(0, 3).map(n => ({ x: String(n.text || '').slice(0, 140), at: n.at, by: n.byName || '', k: n.childIds || [] })),
     off: {},
   };
-  feed.fer = {}; // 1 = jour férié (point rouge), 2 = Aïd (🌙)
+  feed.fer = {}; // 1 = jour férié (point rouge), 2 = fête de l'Aïd (croissant vert émeraude)
   for (const iso of eachDay(from, to)) { const i = engine.dayInfo(iso); const lbl = i.comment || i.ferie || i.eid; if (lbl) feed.off[iso] = lbl; if (i.ferie) feed.fer[iso] = 1; else if (i.eid) feed.fer[iso] = 2; }
   return feed;
 }
