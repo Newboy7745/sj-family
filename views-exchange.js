@@ -1,8 +1,8 @@
 // ═══════════════ Échanges de garde & horaires de relais (avec validation de l'autre parent) ═══════════════
-import * as E from './engine.js?v=6.12';
-import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.12';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.12';
-import { placeSel, placeToggle, placeLabel } from './views-more.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.13';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.13';
+import { placeSel, placeToggle, placeLabel } from './views-more.js?v=6.13';
 
 const ST = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'], cancelled: ['', 'Annulée'] };
 // Réponse (ou annulation) faite par l'autre parent : visible dans son onglet jusqu'à ce qu'on l'ait vue puis quitté l'écran
@@ -34,8 +34,8 @@ function relayEd(k, label, h, pl) {
   if (!h) return `<div class="small muted mtx">🔁 ${label} : pas de relais (les enfants sont déjà chez ${esc(pName(pl.who))}).</div>`;
   const usual = h.dropPlace || h.place || '';
   return `<label class="lbl">🔁 ${label} · ${esc(dW(h.date))} · ${esc(pName(h.from))} → ${esc(pName(h.to))}</label>
-    <div class="two"><div><input class="in" type="time" name="${k}t" value="${h.time}"></div><div class="small muted" style="align-self:center">Habituel : ${hoTime(h)}${usual ? ' · ' + esc(usual) : ''}</div></div>
-    ${placeSel(k + 'pl', '', '', usual ? `Habituel (${usual})` : 'Lieu habituel')}`;
+    <div class="two"><div><input class="in" type="time" name="${k}t" value="${h.time}"></div><div class="small muted" style="align-self:center">Prévu : ${hoTime(h)}${usual ? ' · 📍 ' + esc(usual) : ''}</div></div>
+    ${placeSel(k + 'pl', '', '')}`;
 }
 function planHtml(pl) {
   if (!pl) return '';
@@ -111,7 +111,7 @@ function sheetHtml(o) {
       <label class="lbl">Date du relais</label><input class="in" type="date" name="tdate" value="${d}">
       <div class="mt" data-part="hos">${hosHtml(hos, o.kind)}</div>
       <label class="lbl">Nouvel horaire</label><input class="in" type="time" name="time" value="${o.time || ''}">
-      <label class="lbl">Lieu</label>${placeSel('xpl', '', '', 'Lieu habituel')}
+      <label class="lbl">Lieu</label>${placeSel('xpl', '', '')}
     </div>
     <label class="lbl">Message / motif</label><textarea class="in" name="reason" rows="3" placeholder="Ex. Déplacement professionnel, mariage…"></textarea>
     ${needsValidation() ? `<div class="hint">${esc(pName(E.other(me)))} devra accepter la demande pour qu'elle s'applique.</div>` : `<div class="hint">L'autre parent n'a pas encore rejoint le cercle : l'échange s'appliquera directement.</div>`}

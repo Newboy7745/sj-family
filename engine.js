@@ -134,6 +134,8 @@ export function mapKJ(str, kaIs = 'A') {
 }
 
 // ───────────── Moteur ─────────────
+/** Aïd el-Fitr, Aïd el-Kébir… : fête musulmane (pas un jour férié en France) */
+export const isEid = s => /\b(a[iï]d|eid)\b/i.test(String(s || ''));
 /** Horaire régulier du matin (avant midi) : le relais a lieu le jour choisi, la garde de la veille se prolonge jusque-là */
 export const isMorningRule = r => !!r?.time && t2m(r.time) < 12 * 60;
 /**
@@ -295,10 +297,13 @@ export function makeEngine({ plannings = [], exchanges = [], settings = {} } = {
     }
     return s;
   }
+  /** Jour : férié (jour légal) ou Aïd (fête musulmane, ce n'est pas un jour férié), commentaire, vacances */
   function dayInfo(iso) {
+    const f = feries[iso] || ferieName(iso) || null, eid = !!f && isEid(f);
     return {
-      ferie: feries[iso] || ferieName(iso),
-      comment: comments[iso] || null,
+      ferie: eid ? null : f,
+      eid: eid ? f : null,
+      comment: comments[iso] || (eid ? f : null),
       holiday: holidays.find(p => p.s <= iso && iso <= p.e) || null,
     };
   }
@@ -495,7 +500,8 @@ export function buildFeed({ engine, family, children, parents, events = [], task
     notes: notes.slice(0, 3).map(n => ({ x: String(n.text || '').slice(0, 140), at: n.at, by: n.byName || '', k: n.childIds || [] })),
     off: {},
   };
-  for (const iso of eachDay(from, to)) { const i = engine.dayInfo(iso); const lbl = i.comment || i.ferie; if (lbl) feed.off[iso] = lbl; }
+  feed.fer = {}; // 1 = jour férié (point rouge), 2 = Aïd (🌙)
+  for (const iso of eachDay(from, to)) { const i = engine.dayInfo(iso); const lbl = i.comment || i.ferie || i.eid; if (lbl) feed.off[iso] = lbl; if (i.ferie) feed.fer[iso] = 1; else if (i.eid) feed.fer[iso] = 2; }
   return feed;
 }
 function pick(p) { return p ? { name: p.name || '', short: p.name || '', color: p.color || '' } : null; } // widgets : prénom (jamais Papa / Maman)

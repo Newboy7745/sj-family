@@ -1,9 +1,9 @@
 // ═══════════════ Cercle familial : création, adhésion, statut, enfants, membres, invitations ═══════════════
-import * as E from './engine.js?v=6.12';
-import { randomId } from './backend.js?v=6.12';
-import { stat } from './core.js?v=6.12';
-import { S, engine, parents, pName, hoTime, hoPlace, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, SHARE_URL, PARENT_COLORS, CHILD_EMOJIS, avatar, kidAvatar, groupAvatar, kidFull, CHILD_DETAIL_KEYS, PERM_KEYS, memberName, hasOtherParent, countdown } from './core.js?v=6.12';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, copyText, closeSheetsThen, compressImage, squarePhoto } from './ui.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { randomId } from './backend.js?v=6.13';
+import { stat } from './core.js?v=6.13';
+import { S, engine, parents, pName, hoTime, hoPlace, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, SHARE_URL, PARENT_COLORS, CHILD_EMOJIS, avatar, kidAvatar, groupAvatar, kidFull, CHILD_DETAIL_KEYS, PERM_KEYS, memberName, hasOtherParent, countdown } from './core.js?v=6.13';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, copyText, closeSheetsThen, compressImage, squarePhoto } from './ui.js?v=6.13';
 
 const STATUS = { separes: '🔶 Séparés', divorces: '📋 Divorcés' };
 const code6 = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const b = new Uint8Array(6); crypto.getRandomValues(b); return [...b].map(x => a[x % a.length]).join(''); };
@@ -125,6 +125,15 @@ export function procheText(m) {
   return rel ? `${rel}${adj ? ' ' + adj : ''}${kids}` : 'Proche';
 }
 const sideChips = (val, rel = '') => { const p = parents(); if (val === 'pat' || val === 'mat') val = ['A', 'B'].find(c => String(p[c].short).toLowerCase() === (val === 'pat' ? 'papa' : 'maman')) || ''; return chips('side', [{ v: 'A', l: `Côté ${esc(p.A.name)}${sideAdj('A', rel).startsWith('côté') ? '' : ' (' + sideAdj('A') + ')'}` }, { v: 'B', l: `Côté ${esc(p.B.name)}${sideAdj('B', rel).startsWith('côté') ? '' : ' (' + sideAdj('B') + ')'}` }, { v: '', l: 'Aucun (nounou, ami…)' }], [val || '']); };
+/** Un proche ajouté : en attente de l'accord de l'autre parent, puis invitation à envoyer */
+function invRow(i) {
+  const me = uid(), ap = i.state === 'approval', mine = i.by === me, other = parents()[E.other(myCode() || 'A')]?.name || "l'autre parent";
+  const lien = i.role === 'parent' ? 'Parent' : procheText({ relation: i.relation, side: i.side, uid: '_inv' });
+  return `<div class="li"><div class="le">${ap ? '⏳' : '✉️'}</div><div class="f1"><div class="lt">${esc(i.prenom)} ${esc(i.nom || '')}</div><div class="ls">${esc(lien)}${i.phone || i.email ? ' · ' + esc(i.phone || i.email) : ''}</div>
+    <div class="ls">${ap ? (mine ? `⏳ En attente de l'accord de ${esc(other)}` : `<b>Ajouté par ${esc(i.byName || '')} : votre accord est nécessaire</b>`) : `✅ Accord des deux parents${i.okByName ? ' (' + esc(i.okByName) + ')' : ''} · invitation à envoyer`}</div>
+    ${ap && !mine && isParent() ? `<div class="row gap6 mtx"><button class="btn ok sm" data-act="inv-ok" data-id="${i.id}">✓ Donner mon accord</button><button class="btn danger sm" data-act="inv-no" data-id="${i.id}">✗ Refuser</button></div>` : ''}</div>
+    ${ap ? '' : `<button class="ib" data-act="inv-send" data-id="${i.id}">${IC.share}</button>`}${mine || !ap ? `<button class="ib" data-act="inv-del" data-id="${i.id}">${IC.trash}</button>` : ''}</div>`;
+}
 function memberRow(m, p, u) {
   const proche = !m.parentCode;
   const pend = m.pendingPerms;
@@ -136,7 +145,7 @@ export const views = {
     const f = S.family, p = parents(), myc = myCode(), u = uid(), par = isParent();
     const fams = (S.profile?.familyIds || []).map(id => S.families[id] || { id, name: '…' });
     const sel = (S.ui.famSel || []).filter(id => S.children.some(c => c.id === id));
-    const invites = S.invites.filter(i => i.state === 'pending');
+    const invites = S.invites.filter(i => i.state === 'pending' || i.state === 'approval');
     const circles = `<div class="card"><h3>👨‍👩‍👧‍👦 Mes cercles (${fams.length}) <a class="act" data-act="fam-menu">${IC.plus}</a></h3>
         ${fams.map(x => `<button class="tile ${x.id === S.fid ? 'sel' : ''}" style="width:100%;text-align:left" data-act="fam-switch" data-id="${x.id}"><div class="f1"><div class="b">${esc(x.name)}</div>${x.id === S.fid ? `<div class="small muted">${esc(p.A.name)} & ${p.B.uid ? esc(p.B.name) : 'en attente'} · ${S.children.length} enfant${S.children.length > 1 ? 's' : ''}</div>` : ''}</div>${x.id === S.fid ? '<span class="pill ok">✓ Actif</span>' : ''}</button>`).join('')}</div>`;
     const kids = `<div class="card"><h3>🧒 Enfants ${par ? `<a class="act" data-act="kid-add">${IC.plus} Ajouter</a>` : ''}</h3>
@@ -157,8 +166,7 @@ export const views = {
       <div class="card"><h3>🤝 Membres (${S.members.length})</h3>
         ${S.members.map(m => memberRow(m, p, u)).join('')}
         <div class="hint">Touchez un proche pour choisir ce qu'il peut voir. ${hasOtherParent() ? "Chaque changement d'accès doit être validé par l'autre parent." : ''}</div>
-        ${invites.length ? `<div class="lbl">Invitations en attente</div>${invites.map(i => `<div class="li"><div class="le">✉️</div><div class="f1"><div class="lt">${esc(i.prenom)} ${esc(i.nom || '')}</div><div class="ls">${esc(i.relation || (i.role === 'parent' ? 'Parent' : 'Proche'))} · ${esc(i.phone || i.email || '')} · active dès la création de son compte</div></div>
-          <button class="ib" data-act="inv-send" data-id="${i.id}">${IC.share}</button><button class="ib" data-act="inv-del" data-id="${i.id}">${IC.trash}</button></div>`).join('')}` : ''}
+        ${invites.length ? `<div class="lbl">Proches et invitations</div>${invites.map(invRow).join('')}` : ''}
         <button class="btn ghost block mt" data-act="inv-new">✉️ Inviter un parent ou un proche</button></div>
 
       <div class="card center"><h3 style="justify-content:center">🔑 Code du cercle</h3><div style="font-size:34px;font-weight:800;letter-spacing:8px;color:var(--navy)">${esc(f.joinCode || '—')}</div>
@@ -435,9 +443,23 @@ export const actions = {
   'inv-save': async el => {
     const f = readForm(el.closest('.sheet'));
     if (!f.prenom || (!f.phone && !f.email)) return toast('Prénom et téléphone ou e-mail requis.', 'warn');
-    const data = { prenom: f.prenom, nom: f.nom, role: f.role || 'proche', relation: f.relation || '', side: f.side || '', phone: f.phone, email: (f.email || '').toLowerCase(), state: 'pending', by: uid(), byName: myName(), at: Date.now() };
-    const id = await guard(async () => { const i = await addItem('invites', data); await log('cercle', `Invitation envoyée à ${f.prenom}`); return i; });
-    if (id) closeSheetsThen(() => sendInviteSheet(data));
+    // un parent n'enregistre pas un proche sans l'accord de l'autre parent
+    const ask = (f.role || 'proche') === 'proche' && hasOtherParent();
+    const data = { prenom: f.prenom, nom: f.nom, role: f.role || 'proche', relation: f.relation || '', side: f.side || '', phone: f.phone, email: (f.email || '').toLowerCase(), state: ask ? 'approval' : 'pending', by: uid(), byName: myName(), at: Date.now() };
+    const lien = data.role === 'proche' ? procheText({ relation: data.relation, side: data.side, uid: '_inv' }) : 'parent';
+    const id = await guard(async () => { const i = await addItem('invites', data); await log('cercle', ask ? `Proche à valider : ${f.prenom} (${lien})` : `Invitation préparée pour ${f.prenom}`, { body: ask ? 'Votre accord est nécessaire' : '', link: 'family', icon: ask ? '👥' : '✉️' }); return i; });
+    if (id && ask) { closeSheet(); toast(`${f.prenom} ajouté : en attente de l'accord de l'autre parent`, 'ok', 3500); }
+    else if (id) closeSheetsThen(() => sendInviteSheet(data));
+  },
+  'inv-ok': async el => {
+    const i = S.invites.find(x => x.id === el.dataset.id); if (!i || i.by === uid()) return;
+    if (!(await confirmInfo(`Accepter ${i.prenom} ?`, `${esc(i.prenom)} (${esc(procheText({ relation: i.relation, side: i.side, uid: '_inv' }))}) peut être invité(e) dans le cercle.`, "Votre accord, et l'invitation prête à envoyer.", i.byName || "l'autre parent", 'Donner mon accord'))) return;
+    await guard(async () => { await updItem('invites', i.id, { state: 'pending', okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('cercle', `Proche accepté : ${i.prenom}`, { body: "L'invitation peut être envoyée", link: 'family', icon: '✅' }); }, 'Accord donné ✓');
+  },
+  'inv-no': async el => {
+    const i = S.invites.find(x => x.id === el.dataset.id); if (!i || i.by === uid()) return;
+    if (!(await confirmInfo(`Refuser ${i.prenom} ?`, `${esc(i.prenom)} ne sera pas invité(e).`, 'Votre refus, et une notification.', i.byName || "l'autre parent", 'Refuser', true))) return;
+    await guard(async () => { await updItem('invites', i.id, { state: 'refused', okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('cercle', `Proche refusé : ${i.prenom}`, { link: 'family', icon: '✗' }); }, 'Refusé');
   },
   'inv-send': el => { const i = S.invites.find(x => x.id === el.dataset.id); if (i) sendInviteSheet(i); },
   'inv-del': async el => { const i = S.invites.find(x => x.id === el.dataset.id); if (!i) return; if (!(await confirmBox('Supprimer cette invitation ?', esc(i.prenom), 'Supprimer', true))) return; await guard(() => S.be.db.del(fpath('invites', i.id)), 'Invitation supprimée'); },

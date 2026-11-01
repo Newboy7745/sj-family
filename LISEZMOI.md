@@ -236,6 +236,33 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   (encadrée) tant qu'on n'a pas quitté l'écran, puis passe dans l'historique.
 - **Nouvel arrivant** : aucune notification ni historique d'avant son arrivée dans le cercle.
 
+## 10 octies. Nouveautés 6.13
+
+- **Proches avec l'accord des deux parents** (tous les cercles) : un proche ajouté par un parent reste « ⏳ En attente de
+  l'accord de … » ; l'autre parent voit « Proche à valider » (accueil, notifications, Cercle) et répond « ✓ Donner mon
+  accord » / « ✗ Refuser ». L'invitation n'est envoyable qu'après l'accord. Cercle de test : Rachid (oncle paternel) et
+  Samira (tante paternelle) ajoutés par Khalid, Fatima (grand-mère maternelle) et Karim (oncle maternel) par Maman TEST,
+  tous en attente de l'accord de l'autre parent.
+- **Tâches** : « Confiée à » propose aussi l'autre parent.
+- **Validation avant chaque notification** : toute action qui prévient l'autre parent (échange, dépense, événement,
+  document, souvenir, tâche, note, horaire, envoi d'une liste type vers Vacances…) ouvre d'abord une fenêtre « Ce que ça
+  fait / Ce que … verra ». Rien n'est demandé si l'autre parent n'est pas encore dans le cercle.
+- **Boutons reliés** : ouvrir un écran (échanges, Cercle, tâches…) marque comme lues les notifications qui y mènent ; le
+  badge et le cadre « À traiter » suivent.
+- **Vacances** : « 📅 À venir » dans l'ordre chronologique à partir d'aujourd'hui (les vacances en cours en premier) et
+  « 🗄️ Archives » (vacances passées), toujours visibles en haut de la page.
+- **Sac** : boutons des listes types dans l'ordre Hiver, Pâques, Été, Toussaint, Noël ; dans « Tous », les totaux
+  s'affichent sans « × ».
+- **Calendrier annuel** : A4 paysage, aperçu en tête de la fenêtre (touchez pour agrandir), PDF, partage ou impression.
+- **Souvenirs** : chaque membre du cercle peut voir et télécharger les photos et vidéos.
+- **« Lieu habituel »** retiré partout.
+- **Aïd** : 🌙 dans la case (ce n'est pas un jour férié) avec sa légende ; les jours fériés gardent le point rouge.
+- **Widgets Android (APK version 11)** : les jours à deux gardes (Aïd, demi-journées) sont partagés verticalement en deux
+  couleurs, comme dans l'agenda ; point rouge pour les jours fériés, 🌙 pour l'Aïd (légende seulement si le mois en
+  contient). Relais : 🔁 sur une ligne, l'heure dessous, le lieu dessous (« Chez » + prénom). Le ⟳ télécharge le planning
+  au premier plan (contourne le blocage réseau en arrière-plan de certains téléphones). Le widget iPhone reçoit aussi les
+  cases partagées, le point rouge et le 🌙.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

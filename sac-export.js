@@ -1,5 +1,5 @@
 // ═══════════════ Export d'une liste des vacances en JPG ou PDF (circuit complet : demande, envoi, réception, retour) ═══════════════
-import { toast, download } from './ui.js?v=6.12';
+import { toast, download } from './ui.js?v=6.13';
 
 const PW = 1240, PH = 1754, M = 48, TW = PW - 2 * M;
 const COLW = [364, 156, 156, 156, 156, 156];
@@ -88,11 +88,11 @@ export function drawPages(doc) {
   pages.forEach((p, i) => { const g = p.getContext('2d'); g.fillStyle = MUTED; g.font = `500 16px ${FONT}`; g.fillText(`Page ${i + 1}/${pages.length}`, PW - M - 110, PH - 30); });
   return pages;
 }
-/** PDF minimal : une image JPEG pleine page A4 par page */
-function makePdf(jpgs, w, h) {
+/** PDF minimal : une image JPEG pleine page par page (A4 portrait par défaut, paysage : 841.89 × 595.28) */
+export function makePdf(jpgs, w, h, W = 595.28, H = 841.89) {
   const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
   const push = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
-  const W = 595.28, H = 841.89, n = jpgs.length;
+  const n = jpgs.length;
   push(new Uint8Array([37, 80, 68, 70, 45, 49, 46, 52, 10, 37, 226, 227, 207, 211, 10]));
   const obj = (num, body) => { offs[num] = len; push(`${num} 0 obj\n`); (Array.isArray(body) ? body : [body]).forEach(push); push('\nendobj\n'); };
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');

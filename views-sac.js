@@ -1,9 +1,9 @@
 // ═══════════════ Sac : affaires de chaque relais, listes des vacances (demande / envoi, aller / retour) et listes type ═══════════════
-import * as E from './engine.js?v=6.12';
-import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.12';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.12';
-import { kidChips } from './views-home.js?v=6.12';
-import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.13';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.13';
+import { kidChips } from './views-home.js?v=6.13';
+import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.13';
 
 const runKey = h => `${h.date}_${h.time.replace(':', '')}_${h.to}`;
 const relaisItems = () => S.sac.filter(i => !i.kind);
@@ -34,7 +34,7 @@ const sumTxt = arr => (arr.length > 1 ? `${arr.join('+')}=${arr.reduce((t, x) =>
 
 // ───── Vacances : nom court + année (« Toussaint 27 »)
 const VAC = { tou: ['Toussaint', '🎃', 'Affaires de la Toussaint'], noel: ['Noël', '🎄', 'Affaires de Noël'], hiv: ['Hiver', '⛄', "Affaires d'hiver"], pri: ['Pâques', '🌼', 'Affaires de Pâques'], ete: ['Été', '☀️', "Affaires d'été"] };
-const VKEYS = Object.keys(VAC);
+const VKEYS = ['hiv', 'pri', 'ete', 'tou', 'noel']; // ordre chronologique : Hiver, Pâques, Été, Toussaint, Noël
 const vacOf = id => (String(id || '').match(/^(tou|noel|hiv|pri|ete)\d/) || [])[1] || null;
 const yy = p => String(p?.s || '').slice(2, 4);
 const vShort = p => VAC[vacOf(p?.id)]?.[0] || String(p?.n || '').replace(/^Vacances (de la |de |d')/, '').replace(/^./, c => c.toUpperCase());
@@ -54,7 +54,7 @@ const tplKids = it => S.children.filter(c => tplQty(it, c) > 0);
 function tplQtyTxt(it, oc) {
   if (oc) return `×${tplQty(it, oc)}`;
   if (!it.q) return `×${it.qty || 1}`;
-  const ks = tplKids(it); return ks.length > 1 ? `×${sumTxt(ks.map(c => tplQty(it, c)))}` : `×${tplQty(it, ks[0])} · ${ks[0]?.prenom || ''}`;
+  const ks = tplKids(it); return ks.length > 1 ? sumTxt(ks.map(c => tplQty(it, c))) : `×${tplQty(it, ks[0])} · ${ks[0]?.prenom || ''}`;
 }
 async function tplUpd(data) { await S.be.db.update(`users/${uid()}`, data); }
 function vacPeriods(v) {
@@ -101,7 +101,7 @@ function relQtyTxt(i) {
   const one = oneKid();
   if (!i.q) return i.qty > 1 ? `×${i.qty}` : '';
   if (one) return `×${relQ(i, kidOf(one))}`;
-  const ks = relKids(i); return ks.length > 1 ? `×${sumTxt(ks.map(c => relQ(i, c)))}` : `×${relQ(i, ks[0])}`;
+  const ks = relKids(i); return ks.length > 1 ? sumTxt(ks.map(c => relQ(i, c))) : `×${relQ(i, ks[0])}`;
 }
 const relWho = i => (i.q && !oneKid() && relKids(i).length > 1 ? relKids(i).map(c => `${c.prenom} ${relQ(i, c)}`).join(' + ') : i.childIds?.length ? childNames(i.childIds) : '');
 function itemRow(i, run, h) {
@@ -231,7 +231,8 @@ function vacTab(ids) {
 }
 /** Listes type : privées (profil de la personne qui les crée), une par vacances, quantités par enfant, envoyables élément par élément */
 function tplTab() {
-  const v = VKEYS.includes(S.ui.tplVac) ? S.ui.tplVac : 'tou', t = tpl(v), me = myCode() || 'A', o = other(me), dir = t.dir || 'request';
+  const nextV = () => { const st = settings(); return vacOf(E.schoolHolidays(st.zone || 'B', st.customHolidays || []).find(p => p.e > today() && vacOf(p.id))?.id) || 'noel'; };
+  const v = VKEYS.includes(S.ui.tplVac) ? S.ui.tplVac : nextV(), t = tpl(v), me = myCode() || 'A', o = other(me), dir = t.dir || 'request';
   const one = oneKid(), oc = one ? kidOf(one) : null;
   const items = tplItems(v).filter(([, it]) => !oc || !it.q || tplQty(it, oc) > 0);
   const ps = vacPeriods(v), pid = ps.some(p => p.id === S.ui.tplPer) ? S.ui.tplPer : ps[0]?.id, per = ps.find(p => p.id === pid);
@@ -266,7 +267,7 @@ function renderEls(l, items, ph, me, cl) {
 const kindLabel = (l, it) => (it.src === 'extra' ? 'reçu en plus' : it.src === 'extraR' ? 'rendu en plus' : it.src === 'req' ? 'demandé' : l.dir === 'request' ? 'demandé' : 'prévu');
 function groupCard(l, g, ph, me, cl) {
   const it0 = g[0][1], qs = g.map(([, it]) => +it.qty || 1), done = g.every(([i]) => stOf(l, ph, i).done), got = g.every(([i]) => stOf(l, ph, i).got);
-  return `<div class="vi grp ${done ? 'done' : ''} ${got ? 'got' : ''}"><div class="b">${esc(it0.name)} <span class="pill">${kindLabel(l, it0)} ×${sumTxt(qs)}</span></div>
+  return `<div class="vi grp ${done ? 'done' : ''} ${got ? 'got' : ''}"><div class="b">${esc(it0.name)} <span class="pill">${kindLabel(l, it0)} ${sumTxt(qs)}</span></div>
     <div class="tiny muted">${g.map(([, it]) => `${esc(kidLabel(it.cid))} ${it.qty || 1}`).join(' + ')}</div>${it0.desc ? `<div class="small muted">${esc(it0.desc)}</div>` : ''}
     ${g.map(([iid, it]) => vlistItem(l, iid, it, ph, me, cl, true)).join('')}</div>`;
 }
@@ -320,7 +321,7 @@ export function vacRecap(pid) {
     const rows = groupsOf(all).map(g => {
       const it = g[0][1], st = ph => (g.every(([i]) => stOf(l, ph, i).got) ? '✅' : g.every(([i]) => stOf(l, ph, i).done) ? '📤' : g.some(([i]) => stOf(l, ph, i).done || stOf(l, ph, i).got) ? '◐' : '·');
       const q = g.length > 1 ? sumTxt(g.map(([, x]) => +x.qty || 1)) : `${it.qty || 1}${it.cid && kids.length > 1 ? ' · ' + (kidOf(it.cid)?.prenom || '') : ''}`;
-      return `<div class="rc-r"><span class="f1">${esc(it.name)} <span class="muted">×${esc(q)}</span>${it.src ? ` <span class="tiny muted">(${kindLabel(l, it)})</span>` : ''}${it.refused ? ' <span class="tiny" style="color:var(--err)">refusé</span>' : ''}</span><span class="rc-s" title="Aller">${st('aller')}</span><span class="rc-s" title="Retour">${st('retour')}</span></div>`;
+      return `<div class="rc-r"><span class="f1">${esc(it.name)} <span class="muted">${g.length > 1 ? '' : '×'}${esc(q)}</span>${it.src ? ` <span class="tiny muted">(${kindLabel(l, it)})</span>` : ''}${it.refused ? ' <span class="tiny" style="color:var(--err)">refusé</span>' : ''}</span><span class="rc-s" title="Aller">${st('aller')}</span><span class="rc-s" title="Retour">${st('retour')}</span></div>`;
     }).join('');
     return `<div class="rc-l"><button class="row gap" style="width:100%;text-align:left" data-go="sacl" data-params='${JSON.stringify({ id: l.id })}'><div style="font-size:24px">${cl ? '🔒' : l.dir === 'request' ? '📥' : '📤'}</div><div class="f1"><div class="b">${esc(ltitle(l))}</div>
       <div class="small muted">${esc(dirText(l))} · ${all.length} élément${all.length > 1 ? 's' : ''}</div>
@@ -607,6 +608,10 @@ function liveSum(sh) {
   ins.forEach(i => i.addEventListener('input', upd)); upd();
 }
 const toWho = () => nm(other(myCode() || 'A'));
+/** L'autre parent est dans le cercle (il reçoit donc les notifications) */
+const otherIn = () => !!parents()[other(myCode() || 'A')]?.uid;
+/** Validation avant une action qui prévient l'autre parent (rien à valider s'il n'est pas encore dans le cercle) */
+const askNotify = (...a) => (otherIn() ? confirmInfo(...a) : Promise.resolve(true));
 async function delEls(l, ids) {
   const db = S.be.db, data = {};
   for (const i of ids) { data[`items.${i}`] = db.deleteField(); data[`st.aller.${i}`] = db.deleteField(); data[`st.retour.${i}`] = db.deleteField(); }
@@ -696,13 +701,13 @@ function mergeRows(gr, rows) {
       const cs = rows.map(r => r.cells[k]); if (cs.every(c => c[0] === '—')) return ['—', '', false];
       const qs = cs.filter(c => c[0] !== '—').map(c => +c[0].slice(1)), miss = rows.filter((r, n) => cs[n][0] === '—').map(r => r.kid);
       const det = uniq(cs.map(c => c[1])), d = det.length === 1 ? det[0] : rows.map((r, n) => (cs[n][1] ? `${r.kid} : ${cs[n][1]}` : '')).filter(Boolean).join(' ; ');
-      return [`×${sumTxt(qs)}`, [d, miss.length ? `${miss.join(', ')} : —` : ''].filter(Boolean).join(' ; '), cs.some(c => c[2])];
+      return [qs.length > 1 ? sumTxt(qs) : `×${qs[0]}`, [d, miss.length ? `${miss.join(', ')} : —` : ''].filter(Boolean).join(' ; '), cs.some(c => c[2])];
     }),
   };
 }
 function exportSheet(l) {
   const one = oneKid(), all = Object.entries(l.items || {}).sort((a, b) => (a[1].order || 0) - (b[1].order || 0)).filter(([, it]) => !one || !it.cid || it.cid === one);
-  const items = (one || S.children.length < 2 ? all.map(e => [e]) : groupsOf(all)).map(g => [g.map(e => e[0]).join(','), g.length > 1 ? `${g[0][1].name} ×${sumTxt(g.map(e => +e[1].qty || 1))}` : `${elName(g[0][1])} ×${g[0][1].qty || 1}`]);
+  const items = (one || S.children.length < 2 ? all.map(e => [e]) : groupsOf(all)).map(g => [g.map(e => e[0]).join(','), g.length > 1 ? `${g[0][1].name} ${sumTxt(g.map(e => +e[1].qty || 1))}` : `${elName(g[0][1])} ×${g[0][1].qty || 1}`]);
   openSheet(`<h3 class="sh-title">📄 Exporter « ${esc(ltitle(l))} »</h3><p class="small muted" style="margin-top:0">Avec le circuit de chaque élément : demande, envoi, réception, retour (quantités, dates, prénoms).${one ? ` <b>${esc(kidLabel(one))} uniquement</b> (touchez « Tous » pour additionner les enfants).` : S.children.length > 1 ? ' Quantités des enfants additionnées (8+8=16), avec le détail.' : ''}</p>
     <label class="lbl">Format</label>${chips('fmt', [{ v: 'pdf', l: '📄 PDF' }, { v: 'jpg', l: '🖼️ Image JPG' }], ['pdf'])}
     <label class="row gap mt"><span class="sw"><input type="checkbox" name="photos" checked><span></span></span><span class="f1">Avec les photos</span></label>
@@ -730,6 +735,7 @@ export const actions = {
     if (!f.name) return toast("Donnez un nom à l'affaire.", 'warn');
     const q = {}; for (const c of S.children) { const n = Math.max(0, +f['q_' + c.id] || 0); if (n) q[c.id] = n; }
     if (S.children.length && !Object.keys(q).length) return toast('Indiquez au moins un nombre.', 'warn');
+    if (!id && !(await askNotify(`Ajouter « ${f.name} » ?`, `L'affaire est ajoutée ${f.perm ? 'à chaque relais' : 'à ce relais'}.`, "L'affaire dans le sac du relais, et une notification.", nm(other(myCode() || 'A'))))) return;
     const data = { name: f.name, desc: f.desc || '', ...(S.children.length ? { q, qty: Object.values(q).reduce((t, n) => t + n, 0), childIds: Object.keys(q) } : { qty: Math.max(1, +f.qty || 1), childIds: [] }), perm: !!f.perm, runKey: f.perm ? '' : (el.dataset.k || ''), photo: sh._photo || null };
     if (!data.perm && !data.runKey) { const h = S.ui.sacPick; if (h) data.runKey = runKey(h); else data.perm = true; }
     el.disabled = true;
@@ -845,7 +851,7 @@ export const actions = {
   'tpl-send': async el => {
     const v = el.dataset.v, iids = el.dataset.all ? tplItems(v).map(([id]) => id) : [el.dataset.i], dir = tpl(v).dir || 'request';
     const per = vacPeriods(v).find(p => p.id === S.ui.tplPer) || vacPeriods(v)[0], late = per && today() >= per.s;
-    if ((el.dataset.all || late) && per && !(await confirmInfo(`${dir === 'request' ? 'Demander' : 'Envoyer'} ${el.dataset.all ? 'la liste' : "l'élément"} · ${vacName(per)} ?`,
+    if (per && !(await askNotify(`${dir === 'request' ? 'Demander' : 'Envoyer'} ${el.dataset.all ? 'la liste' : "l'élément"} · ${vacName(per)} ?`,
       `${el.dataset.all ? 'Les éléments de la liste type' : "L'élément"} ${oneKid() ? `de ${esc(kidOf(oneKid())?.prenom || '')} ` : ''}rejoignent la liste « ${esc(VAC[v][2])} ${yy(per)} » (créée si besoin).${late ? ` Ajout daté du ${dd(Date.now())} : la période est commencée, ce sera définitif.` : ' Vous pourrez les modifier ou les supprimer tant que la période n\'a pas commencé et que rien n\'a été fait de l\'autre côté.'}`,
       `${dir === 'request' ? 'Votre demande, avec les éléments à fournir' : 'Les éléments que vous fournissez, à cocher « Reçu »'}, et une notification.`, toWho(), dir === 'request' ? 'Demander' : 'Envoyer'))) return;
     el.disabled = true;
@@ -860,6 +866,7 @@ export const actions = {
     if (!f.title) return toast('Donnez un titre à la liste.', 'warn');
     const per = periods().find(x => x.id === f.per); if (!per) return toast('Choisissez les vacances.', 'warn');
     const dir = f.dir || 'request', giver = dir === 'request' ? other(me) : me;
+    if (!(await askNotify(`Créer « ${f.title} » ?`, `La liste ${dir === 'request' ? `de demande à ${esc(nm(other(me)))}` : `d'envoi à ${esc(nm(other(me)))}`} est créée pour ${esc(vacName(per))}. Vous seul(e) pourrez la modifier ou la supprimer.`, `La liste ${dir === 'request' ? 'avec les éléments à fournir' : 'avec les éléments à recevoir'}, et une notification.`, nm(other(me)), 'Créer'))) return;
     el.disabled = true;
     const ok = await guard(async () => {
       const src = f.from ? L(f.from) : null, items = {};
@@ -890,8 +897,8 @@ export const actions = {
     const kids = listKids(l), parts = (kids.length ? kids.map(c => [c, Math.max(0, +f['q_' + c.id] || 0)]) : [[null, Math.max(0, +f.qty || 0)]]).filter(([, n]) => n > 0);
     if (!parts.length) return toast('Indiquez au moins un nombre.', 'warn');
     const now = Date.now(), late = mode !== 'add' || datedAdd(l) ? today() : null, qty = sumTxt(parts.map(x => x[1]));
-    if (started(l) && !(await confirmInfo(ADD_T[mode].replace(/^\S+ /, '') + ' ?', `${esc(f.name)} ×${esc(qty)}${parts.length > 1 ? ` (${parts.map(([c, n]) => `${esc(c.prenom)} ${n}`).join(' + ')})` : ''}, daté du ${dd(now)}. Définitif : la période est commencée, il ne pourra plus être supprimé.`,
-      `${{ add: 'Le nouvel élément', req: 'Votre demande', extra: "L'élément reçu en plus, à confirmer ou contester", extraR: "L'élément rendu en plus, à cocher « Récupéré » ou contester" }[mode]}, daté du ${dd(now)}, et une notification.`, toWho()))) return;
+    if (!(await (started(l) ? confirmInfo : askNotify)(ADD_T[mode].replace(/^\S+ /, '') + ' ?', `${esc(f.name)} ×${esc(qty)}${parts.length > 1 ? ` (${parts.map(([c, n]) => `${esc(c.prenom)} ${n}`).join(' + ')})` : ''}, ${late ? `daté du ${dd(now)}. ` : ''}${started(l) ? 'Définitif : la période est commencée, il ne pourra plus être supprimé.' : "Vous pourrez le modifier ou le supprimer tant que la période n'a pas commencé et que rien n'a été fait de l'autre côté."}`,
+      `${{ add: 'Le nouvel élément', req: 'Votre demande', extra: "L'élément reçu en plus, à confirmer ou contester", extraR: "L'élément rendu en plus, à cocher « Récupéré » ou contester" }[mode]}${late ? `, daté du ${dd(now)}` : ''}, et une notification.`, toWho()))) return;
     el.disabled = true;
     const ok = await guard(async () => {
       const photos = await uploadPhotos([...sh.querySelectorAll('[data-vi]')].flatMap(i => [...i.files]));
@@ -917,6 +924,7 @@ export const actions = {
     if (+cur.qty !== qty) ch.push(`Quantité ${cur.qty || 1} → ${qty}`);
     if ((cur.desc || '') !== (f.desc || '')) ch.push('Précisions modifiées');
     if (!ch.length) return closeSheet();
+    if (!(await askNotify('Enregistrer la modification ?', `${esc(ch.join(' · '))}, daté du ${dd(Date.now())}.`, "L'élément modifié avec la date, et une notification.", nm(other(myCode() || 'A'))))) return;
     const ok = await guard(async () => {
       await vupd(l.id, { [`items.${iid}.name`]: f.name, [`items.${iid}.qty`]: qty, [`items.${iid}.desc`]: f.desc || '', [`items.${iid}.hist`]: [...(cur.hist || []), { at: Date.now(), by: uid(), txt: ch.join(' · ') }] });
       await slog(l, `✏️ ${ltitle(l)} : ${cur.name}`, { body: ch.join(' · '), icon: '✏️' }); return true;
@@ -1022,7 +1030,7 @@ export const actions = {
     else if (a === 'okR' && own) { upd[`items.${i}.okR`] = stamp; msg = 'Accepté'; ping = `✓ Retour accepté : ${it.name}`; }
     else if (a === 'gotA' || a === 'gotR') { if (a === 'gotR' && !own) return; return finalSheet(l, i, a === 'gotA' ? 'aller' : 'retour'); }
     else if (a === 'retNow') { Object.assign(upd, { [`st.retour.${i}.done`]: true, [`st.retour.${i}.qty`]: retQty(l, i), [`st.retour.${i}.by`]: uid(), [`st.retour.${i}.byName`]: myName(), [`st.retour.${i}.at`]: now }); msg = 'Rendu'; ping = `↩️ ${it.name} rendu`; }
-    else if (a === 'ping') { await guard(() => slog(l, `🔔 ${ltitle(l)} : ${it.name}`, { body: `${myName()} vous relance (${ph})`, icon: '🔔', ph }), 'Relance envoyée 🔔'); return; }
+    else if (a === 'ping') { if (!(await askNotify('Relancer ?', `Une relance pour « ${esc(elName(it))} » (${ph}).`, 'Une notification de relance.', o, 'Relancer'))) return; await guard(() => slog(l, `🔔 ${ltitle(l)} : ${it.name}`, { body: `${myName()} vous relance (${ph})`, icon: '🔔', ph }), 'Relance envoyée 🔔'); return; }
     else return;
     await guard(async () => { await vupd(l.id, upd); await slog(l, `${ltitle(l)} : ${ping}`, { icon: '⚠️', ph }); }, msg);
   },
@@ -1104,7 +1112,7 @@ function readImport(k) {
   catch (e) { return null; }
 }
 /** Quantité d'un élément importé : nombre, ou { prénom: nombre } → texte « 8+8=16 » */
-const impTxt = q => (q && typeof q === 'object' ? (Object.keys(q).length > 1 ? ' ×' + sumTxt(Object.values(q)) : ` ×${Object.values(q)[0]} · ${Object.keys(q)[0].replace(/^./, c => c.toUpperCase())}`) : q > 1 ? ' ×' + q : '');
+const impTxt = q => (q && typeof q === 'object' ? (Object.keys(q).length > 1 ? ' ' + sumTxt(Object.values(q)) : ` ×${Object.values(q)[0]} · ${Object.keys(q)[0].replace(/^./, c => c.toUpperCase())}`) : q > 1 ? ' ×' + q : '');
 function findPeriod(id) { const st = settings(); return E.schoolHolidays(st.zone || 'B', st.customHolidays || []).find(p => p.id === id) || null; }
 views.import = p => {
   const d = p.k ? readImport(p.k) : S.ui.importData;

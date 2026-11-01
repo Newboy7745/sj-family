@@ -1,8 +1,8 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.12';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.13';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.12';
+import { esc, fmtAgo } from './ui.js?v=6.13';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -79,6 +79,7 @@ export function pendingItems() {
     const n = todo.length, quiet = todo.every(isMuted);
     out.push({ i: g.sub === 'docs' ? '📁' : '📸', t: `${subLabel(g.sub, n)} de ${g.byName || 'un membre'} à valider`, s: `Disparaît dans ${leftText(g.exp - Date.now())} sans validation${quiet ? ' · 🔕 rappels coupés' : ''}`, go: g.sub, mute: quiet ? null : { c: g.sub, g: g.grp } });
   }
+  for (const i of S.invites.filter(x => x.state === 'approval' && x.by !== me)) out.push({ i: '👥', t: `Proche à valider : ${i.prenom} ${i.nom || ''}`.trim(), s: `Ajouté par ${i.byName || "l'autre parent"}${i.relation ? ' · ' + i.relation : ''} · votre accord est nécessaire`, go: 'family' });
   for (const m of S.members.filter(x => x.pendingPerms && x.pendingPerms.by !== me)) out.push({ i: '🔐', t: `Accès de ${m.prenom || m.name} à valider`, s: `Proposé par ${m.pendingPerms.byName || memberName(m.pendingPerms.by)}`, go: 'family' });
   return out;
 }
@@ -125,7 +126,7 @@ function lastNotes() {
 const MODULES = [
   { go: 'plannings', i: '📅', bg: '#E8EEF6', t: 'Planning', s: 'Rythmes & calendriers', parent: true },
   { go: 'budget', i: '💰', bg: '#FBF3E2', t: 'Budget', s: 'Dépenses & solde', perm: 'expenses' },
-  { go: 'tasks', i: '✅', bg: '#E5F5EC', t: 'Tâches', s: 'À faire', perm: 'tasks', badge: () => S.tasks.filter(t => !t.done && (t.assignee === uid() || t.assignee === 'all')).length },
+  { go: 'tasks', i: '✅', bg: '#E5F5EC', t: 'Tâches', s: 'À faire', perm: 'tasks', badge: () => S.tasks.filter(t => !t.done && (t.assignee === uid() || t.assignee === 'all' || (!!myCode() && t.assignee === myCode()))).length },
   { go: 'docs', i: '📁', bg: '#EEF0F4', t: 'Documents', s: 'Coffre numérique', perm: 'docs' },
   { go: 'contacts', i: '📞', bg: '#FCEDE9', t: 'Répertoire', s: 'Contacts', perm: 'contacts' },
   { go: 'memories', i: '📸', bg: '#F7F1E6', t: 'Souvenirs', s: 'Moments partagés' },

@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.12';
-import { randomId } from './backend.js?v=6.12';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.12';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.12';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.12';
-import { createFamily } from './views-family.js?v=6.12';
-import { openPrint } from './print.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { randomId } from './backend.js?v=6.13';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.13';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.13';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.13';
+import { createFamily, procheText } from './views-family.js?v=6.13';
+import { openPrint } from './print.js?v=6.13';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -19,6 +19,18 @@ const sinceJoin = a => (a.at || 0) >= joinedAt() - 60000;
 /** Non lue : reçue après la dernière remise à zéro et pas encore touchée */
 export const isUnread = a => !!a.id && received(a) && a.at > (S.profile?.lastSeen?.[S.fid] || 0) && !readMap()[a.id];
 export function unreadCount() { return S.activity.filter(a => sinceJoin(a) && isUnread(a)).length; }
+/** Les écrans et les notifications agissent ensemble : ouvrir un écran marque comme lues les notifications qui y mènent */
+export function autoRead(view, params = {}) {
+  if (!S.fid || view === 'notifs' || view === 'home') return;
+  const ids = S.activity.filter(a => isUnread(a) && a.id).filter(a => {
+    const [lv, lq] = notifLink(a).split('?'); if (lv !== view) return false;
+    const q = Object.fromEntries(new URLSearchParams(lq || ''));
+    return !q.id || !params.id || q.id === params.id;
+  }).map(a => a.id);
+  if (!ids.length) return;
+  const upd = {}; for (const id of ids) upd[`nread.${S.fid}.${id}`] = Date.now();
+  S.be.db.update(`users/${uid()}`, upd).catch(() => { });
+}
 /** Marque une notification comme lue (toucher la notification, ou l'ouvrir depuis le téléphone) */
 export async function markRead(id) {
   if (!id || !S.fid || readMap()[id]) return;
@@ -29,16 +41,29 @@ export async function markRead(id) {
   } catch (e) { console.warn('lu', e); }
 }
 export function unreadNotes() { const me = uid(); return S.notes.filter(n => n.createdBy !== me && noteForMe(n) && !(n.ackBy || {})[me]).length; }
+/** Bouton « Télécharger » d'un souvenir (photo ou vidéo), pour tout le cercle */
+function memDl(url, m, ext) {
+  const name = `${(m.title || 'souvenir').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/\s+/g, '-') || 'souvenir'}-${m.date || ''}.${ext}`;
+  return `<a class="btn soft block mt" href="${url}" download="${esc(name)}">${IC.download} Télécharger ${ext === 'mp4' ? 'la vidéo' : 'la photo'}</a>`;
+}
 // ───────────── Tâches
 const TCATS = [{ v: 'admin', l: '🗂️ Administratif' }, { v: 'ecole', l: '📚 École' }, { v: 'sante', l: '🩺 Santé' }, { v: 'maison', l: '🏠 Maison' }, { v: 'courses', l: '🛒 Courses' }, { v: 'relais', l: '🎒 Valise du relais' }, { v: 'autre', l: '📌 Autre' }];
-function assigneeLabel(a) { if (a === 'all') return 'Tout le monde'; const m = S.members.find(x => x.uid === a); return m ? (m.uid === uid() ? 'Moi' : m.prenom || m.name) : '—'; }
+function assigneeLabel(a) {
+  if (a === 'all') return 'Tout le monde';
+  const p = parents(); if (a === 'A' || a === 'B') return p[a].uid === uid() ? 'Moi' : p[a].name;
+  const m = S.members.find(x => x.uid === a); return m ? (m.uid === uid() ? 'Moi' : m.prenom || m.name) : '—';
+}
+/** Tâche pour moi : confiée à tout le monde, à moi, ou à mon rôle de parent */
+export const taskForMe = t => t.assignee === 'all' || t.assignee === uid() || (!!myCode() && t.assignee === myCode());
 function taskSheet(t = null) {
   const x = t || { childIds: selIds(), assignee: 'all', cat: 'autre' };
   openSheet(`<h3 class="sh-title">${t ? '✏️ Modifier la tâche' : '✅ Nouvelle tâche'}</h3>
     <label class="lbl">Tâche</label><input class="in" name="title" value="${esc(x.title || '')}" placeholder="Ex. Renouveler la carte d'identité">
     <label class="lbl">Échéance</label><input class="in" type="date" name="due" value="${x.due || ''}">
     <label class="lbl">Catégorie</label>${chips('cat', TCATS, [x.cat])}
-    <label class="lbl">Confiée à</label>${chips('assignee', [{ v: 'all', l: '👪 Tout le monde' }, ...S.members.map(m => ({ v: m.uid, l: m.uid === uid() ? '🙋 Moi' : esc(m.prenom || m.name) }))], [x.assignee])}
+    <label class="lbl">Confiée à</label>${(() => { const p = parents(), oc = myCode() ? E.other(myCode()) : null, op = oc ? p[oc] : null;
+      const opts = [{ v: 'all', l: '👪 Tout le monde' }, { v: uid(), l: '🙋 Moi' }, ...(op ? [{ v: op.uid || oc, l: `👤 ${esc(op.name)}` }] : []), ...S.members.filter(m => m.uid !== uid() && m.uid !== op?.uid).map(m => ({ v: m.uid, l: esc(m.prenom || m.name) }))];
+      return chips('assignee', opts, [x.assignee === oc && op?.uid ? op.uid : x.assignee]); })()}
     <label class="lbl">Enfants</label>${kidChipsForm(x.childIds)}
     <label class="lbl">Note</label><textarea class="in" name="note" rows="2">${esc(x.note || '')}</textarea>
     <div class="sh-actions">${t ? `<button class="btn danger" data-act="task-del" data-id="${t.id}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="task-save" data-id="${t?.id || ''}">Enregistrer</button></div>`);
@@ -488,9 +513,9 @@ export const actions = {
       try {
         const parts = []; for (let i = 0; i < (m.chunks || 0); i++) { const c = await S.be.db.get(fpath('blobs', `${m.id}_v${i}`)); if (!c) throw new Error('morceau manquant'); parts.push(c.data); }
         const url = URL.createObjectURL(base64ToBlob(parts, m.mime || 'video/mp4'));
-        box.innerHTML = `<video class="receipt" style="max-height:70vh;background:#000" src="${url}" poster="${m.thumb}" controls playsinline></video>`;
+        box.innerHTML = `<video class="receipt" style="max-height:70vh;background:#000" src="${url}" poster="${m.thumb}" controls playsinline></video>${memDl(url, m, 'mp4')}`;
       } catch (e) { box.innerHTML = '<p class="muted">Vidéo indisponible.</p>'; }
-    } else { const b = await S.be.db.get(fpath('blobs', m.blobId)).catch(() => null); if (b) box.innerHTML = `<img class="receipt" style="max-height:70vh" src="${b.data}">`; }
+    } else { const b = await S.be.db.get(fpath('blobs', m.blobId)).catch(() => null); if (b) box.innerHTML = `<img class="receipt" style="max-height:70vh" src="${b.data}">${memDl(URL.createObjectURL(dataURLtoBlob(b.data)), m, 'jpg')}`; }
   },
   'mem-del': async el => {
     const m = S.memories.find(x => x.id === el.dataset.id); if (!m) return; if (!(await confirmBox('Supprimer ce souvenir ?', '', 'Supprimer', true))) return;
@@ -770,6 +795,29 @@ function ruleFromForm(f, old = null) {
 const testAcc = () => LS.get('testAcc', null);
 /** Mode test : uniquement pour la personne qui a créé le cercle (jamais pour l'autre parent ni les proches) */
 export const testOwner = () => isParent() && !!S.family?.ownerUid && S.family.ownerUid === uid();
+// Cercle de test : les proches ajoutés par chacun des deux parents, en attente de l'accord de l'autre
+const T_PROCHES = [['Rachid', 'Oncle', 'A', 1], ['Samira', 'Tante', 'A', 1], ['Fatima', 'Grand-mère', 'B', 0], ['Karim', 'Oncle', 'B', 0]];
+export async function seedTestProches() {
+  const t = testAcc(); if (!t || S.fid !== t.fid || !testOwner() || S.family?.seedProches || S.ui.seeding || !S.loaded.invites) return;
+  S.ui.seeding = true;
+  try {
+    await setFamily({ seedProches: 1 });
+    const fid = S.fid, me = uid(), now = Date.now(), lien = x => procheText({ relation: x[1], side: x[2], uid: '_inv' });
+    const inv = (x, by, byName) => ({ prenom: x[0], nom: 'TEST', role: 'proche', relation: x[1], side: x[2], phone: '', email: `${x[0].toLowerCase()}.test@example.com`, state: 'approval', by, byName, at: now, createdAt: now, createdBy: by, createdByName: byName });
+    for (const x of T_PROCHES.filter(x => x[3])) {
+      await S.be.db.set(fpath('invites', S.be.db.newId()), inv(x, me, myName()));
+      await log('cercle', `Proche à valider : ${x[0]} (${lien(x)})`, { body: 'Votre accord est nécessaire', link: 'family', icon: '👥' });
+    }
+    await S.be.auth.side(t.email, t.pw, async ({ uid: mu, db: d2 }) => {
+      for (const x of T_PROCHES.filter(x => !x[3])) {
+        await d2.set(`families/${fid}/invites/${d2.newId()}`, inv(x, mu, 'Maman TEST'));
+        const nid = d2.newId(), item = { cat: 'cercle', title: `Proche à valider : ${x[0]} (${lien(x)})`, body: 'Votre accord est nécessaire', link: 'family', icon: '👥', by: mu, byName: 'Maman TEST', at: Date.now(), fid };
+        for (const r of [me, mu]) await d2.set(`families/${fid}/inbox/${r}/items/${nid}`, item);
+      }
+    });
+  } catch (e) { console.warn('proches de test', e); }
+  finally { S.ui.seeding = false; }
+}
 function testCard() {
   const t = testAcc(), inTest = t && S.fid === t.fid;
   return `<div class="card testc"><h3>🧪 Mode test <span class="pill warn" style="font-size:11px">visible par vous seul</span></h3>

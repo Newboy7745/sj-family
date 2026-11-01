@@ -1,13 +1,16 @@
 // ═══════════════ Calendrier annuel imprimable — même organisation que les plannings officiels (PLANNING GARDE … 2026 / 2027) ═══════════════
 // 12 tableaux mensuels (N° · S. · Jour · Garde · Commentaire), totaux par mois et par an, à jour de tous les changements validés.
-import * as E from './engine.js?v=6.12';
-import { S, engine, parents, selIds, isParent, setFamily, guard } from './core.js?v=6.12';
-import { esc, openSheet, closeSheet, readForm, chips, toast, IC, download } from './ui.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { S, engine, parents, selIds, isParent, setFamily, guard } from './core.js?v=6.13';
+import { esc, openSheet, closeSheet, readForm, chips, toast, IC, download } from './ui.js?v=6.13';
+import { makePdf } from './sac-export.js?v=6.13';
 
 const MO = ['JANVIER', 'FÉVRIER', 'MARS', 'AVRIL', 'MAI', 'JUIN', 'JUILLET', 'AOÛT', 'SEPTEMBRE', 'OCTOBRE', 'NOVEMBRE', 'DÉCEMBRE'];
 const JR = ['L', 'Ma', 'Me', 'J', 'V', 'S', 'D'];
-const W = 2063, H = 1792, TW = 327, GAP = (W - 6 * TW) / 5, RH = 21.75;
-const CX = [0, 33, 66, 101, 148, TW]; // N° · S. · Jour · Garde · Commentaire
+// A4 paysage (rapport 1,414) : 6 mois par ligne, marges égales
+const W = 2534, H = 1792, M = 30, GAP = 22, TW = Math.floor((W - 2 * M - 5 * GAP) / 6), RH = 21.75;
+const CX = [0, 38, 76, 120, 178, TW]; // N° · S. · Jour · Garde · Commentaire
+const CC = i => (CX[i] + CX[i + 1]) / 2;
 const GREY_T = '#BFBFBF', GREY_H = '#D9D9D9', GREY_C = '#E4E4E4', WK_ODD = '#C8C8C8', WK_EVEN = '#ECECEC', EMPTY = '#F2F2F2', LINE = '#A9A9A9', INK = '#111111';
 
 function lighten(hex, k) {
@@ -51,14 +54,14 @@ export function drawYear(cv, { year, kidId, title, ini, k = 1.4 }) {
   g.fillStyle = GREY_T; g.fillRect(0, 0, W, 42);
   text(title, W / 2, 22, { font: F('bold', 21) });
   // légende
-  const leg = [[colB, `Garde ${pr.B.name} — ${ini.B}`, 22], [colA, `Garde ${pr.A.name} — ${ini.A}`, 262], [ecoleB, "Jours d'école", 487], ['#000', 'Férié', 678], ['split', 'Aïd - 0,5 j chacun', 800]];
+  const leg = [[colB, `Garde ${pr.B.name} — ${ini.B}`, M], [colA, `Garde ${pr.A.name} — ${ini.A}`, M + 260], [ecoleB, "Jours d'école", M + 500], ['#000', 'Férié', M + 700], ['split', 'Aïd (fête musulmane, pas un jour férié) - 0,5 j chacun', M + 830]];
   for (const [c, l, x] of leg) {
     if (c === 'split') split(x, 56, 34, 20, colA, colB); else rect(x, 56, 34, 20, c, c === '#000' ? '#000' : '#C9C9C9');
     text(l, x + 42, 66, { font: F('bold', 11), align: 'left' });
   }
   const tot = { A: 0, B: 0 };
   for (let m = 0; m < 12; m++) {
-    const x0 = (m % 6) * (TW + GAP), y0 = m < 6 ? 93 : 878, mm = String(m + 1).padStart(2, '0'), nd = E.monthDays(year, m + 1);
+    const x0 = M + (m % 6) * (TW + GAP), y0 = m < 6 ? 93 : 878, mm = String(m + 1).padStart(2, '0'), nd = E.monthDays(year, m + 1);
     rect(x0, y0, TW, 31, GREY_H); text(MO[m], x0 + TW / 2, y0 + 16, { font: F('bold', 14) });
     ['N°', 'S.', 'Jour', 'Garde', 'Commentaire'].forEach((h, i) => { rect(x0 + CX[i], y0 + 31, CX[i + 1] - CX[i], 25, GREY_C); text(h, x0 + (CX[i] + CX[i + 1]) / 2, y0 + 44, { font: F('bold', 10) }); });
     const cnt = { A: 0, B: 0 };
@@ -70,16 +73,16 @@ export function drawYear(cv, { year, kidId, title, ini, k = 1.4 }) {
       if (c === 'A') cnt.A++; else if (c === 'B') cnt.B++; else if (half) { cnt.A += .5; cnt.B += .5; }
       const dayCol = c === 'A' ? colA : c === 'B' ? colB : c === 'a' ? ecoleA : c === 'b' || half ? ecoleB : '#fff';
       // N°
-      rect(...cell(0), '#fff'); text(d, x0 + 16.5, y + RH / 2 + .5, { font: F('bold', 10) });
+      rect(...cell(0), '#fff'); text(d, x0 + CC(0), y + RH / 2 + .5, { font: F('bold', 10) });
       // S. (semaines impaires foncées) — numéro le 1er du mois et chaque lundi
-      rect(...cell(1), wk % 2 ? WK_ODD : WK_EVEN); if (d === 1 || wd === 0) text(wk, x0 + 49.5, y + RH / 2 + .5, { font: F('normal', 9.5, true), color: '#555' });
+      rect(...cell(1), wk % 2 ? WK_ODD : WK_EVEN); if (d === 1 || wd === 0) text(wk, x0 + CC(1), y + RH / 2 + .5, { font: F('normal', 9.5, true), color: '#555' });
       // Jour
-      rect(...cell(2), dayCol); text(JR[wd], x0 + 83.5, y + RH / 2 + .5, { font: F('normal', 10) });
+      rect(...cell(2), dayCol); text(JR[wd], x0 + CC(2), y + RH / 2 + .5, { font: F('normal', 10) });
       // Garde
       const code = c === 'A' ? ini.A : c === 'B' ? ini.B : c === 'X' ? `${ini.A}/${ini.B}` : c === 'Y' ? `${ini.B}/${ini.A}` : '';
-      if (half) { split(...cell(3), c === 'X' ? colA : colB, c === 'X' ? colB : colA); text(code, x0 + 124.5, y + RH / 2 + .5, { font: F('bold', 9.5) }); }
-      else if (fer && (counted || E.isDefault(c))) { rect(...cell(3), '#000', '#000'); text(code, x0 + 124.5, y + RH / 2 + .5, { font: F('bold', 10), color: '#fff' }); }
-      else { rect(...cell(3), counted ? dayCol : c === '.' ? '#fff' : dayCol); text(code, x0 + 124.5, y + RH / 2 + .5, { font: F('bold', 10) }); }
+      if (half) { split(...cell(3), c === 'X' ? colA : colB, c === 'X' ? colB : colA); text(code, x0 + CC(3), y + RH / 2 + .5, { font: F('bold', 9.5) }); }
+      else if (fer && (counted || E.isDefault(c))) { rect(...cell(3), '#000', '#000'); text(code, x0 + CC(3), y + RH / 2 + .5, { font: F('bold', 10), color: '#fff' }); }
+      else { rect(...cell(3), counted ? dayCol : c === '.' ? '#fff' : dayCol); text(code, x0 + CC(3), y + RH / 2 + .5, { font: F('bold', 10) }); }
       // Commentaire
       const ov = eng.isOverridden(kidId, iso);
       const com = info.comment || info.ferie || (ov ? 'Échange validé' : '');
@@ -97,11 +100,11 @@ export function drawYear(cv, { year, kidId, title, ini, k = 1.4 }) {
   const par = { A: [0, 0], B: [0, 0] };
   for (const iso of E.eachDay(`${year}-01-01`, `${year}-12-31`)) { if (E.dow(iso) < 5) continue; const c = eng.code(kidId, iso); if ((c === 'A' || c === 'B') && !eng.dayInfo(iso).holiday) par[c][E.isoWeek(iso).week % 2]++; }
   const lab = c => par[c][0] + par[c][1] > 4 ? (par[c][0] > par[c][1] * 2 ? ' (sem. paires)' : par[c][1] > par[c][0] * 2 ? ' (sem. impaires)' : '') : '';
-  text(`TOTAL JOURS DE GARDE ${year}`, 22, 1672, { font: F('bold', 14), align: 'left' });
-  rect(22, 1686, 465, 32, colB); text(`Garde ${pr.B.name}${lab('B')} : ${String(tot.B).replace('.', ',')} jours`, 22 + 232, 1702.5, { font: F('bold', 11.5) });
-  rect(508, 1686, 465, 32, colA); text(`Garde ${pr.A.name}${lab('A')} : ${String(tot.A).replace('.', ',')} jours`, 508 + 232, 1702.5, { font: F('bold', 11.5) });
-  rect(995, 1686, 296, 32, GREY_C); text(`TOTAL : ${String(tot.A + tot.B).replace('.', ',')} jours`, 995 + 148, 1702.5, { font: F('bold', 11.5) });
-  text(`Édité le ${E.fmtDate(E.todayISO(), 'num')} avec SJ Family · changements validés inclus`, W - 22, 1770, { font: F('normal', 9.5, true), color: '#888', align: 'right' });
+  text(`TOTAL JOURS DE GARDE ${year}`, M, 1672, { font: F('bold', 14), align: 'left' });
+  rect(M, 1686, 560, 32, colB); text(`Garde ${pr.B.name}${lab('B')} : ${String(tot.B).replace('.', ',')} jours`, M + 280, 1702.5, { font: F('bold', 11.5) });
+  rect(M + 580, 1686, 560, 32, colA); text(`Garde ${pr.A.name}${lab('A')} : ${String(tot.A).replace('.', ',')} jours`, M + 860, 1702.5, { font: F('bold', 11.5) });
+  rect(M + 1160, 1686, 340, 32, GREY_C); text(`TOTAL : ${String(tot.A + tot.B).replace('.', ',')} jours`, M + 1330, 1702.5, { font: F('bold', 11.5) });
+  text(`Édité le ${E.fmtDate(E.todayISO(), 'num')} avec SJ Family · changements validés inclus`, W - M, 1770, { font: F('normal', 9.5, true), color: '#888', align: 'right' });
   return { tot };
 }
 
@@ -123,7 +126,7 @@ function render(sh) {
   drawYear(cv, { year, kidId: kids[0].id, title, ini });
   last = { cv, year, title, ini };
   const url = cv.toDataURL('image/png');
-  sh.querySelector('[data-part="pv"]').innerHTML = `<img class="print-pv" src="${url}" alt="Aperçu">`;
+  sh.querySelector('[data-part="pv"]').innerHTML = `<img class="print-pv" src="${url}" alt="Aperçu" data-act="print-zoom">`;
   sh.querySelector('[data-part="warn"]').innerHTML = !same && f.kid === '*' ? '<div class="hint">Les enfants n\'ont pas exactement le même planning cette année : choisissez un enfant.</div>' : '';
 }
 export function openPrint(year = null) {
@@ -132,12 +135,13 @@ export function openPrint(year = null) {
   const kidOpts = [...(S.children.length > 1 ? [{ v: '*', l: 'Tous' }] : []), ...S.children.map(c => ({ v: c.id, l: esc(c.prenom) }))];
   const kidSel = S.children.length > 1 && same && sel.length === ids.length ? '*' : sel[0] || ids[0];
   const sh = openSheet(`<h3 class="sh-title">🖨️ Calendrier annuel</h3>
-    <p class="small muted" style="margin-top:0">Même présentation que vos plannings officiels, avec tous les changements validés (échanges, plannings).</p>
+    <p class="small muted" style="margin-top:0">Aperçu au format A4 paysage, avec tous les changements validés (échanges, plannings). Touchez l'aperçu pour l'agrandir.</p>
+    <div data-part="pv" class="mb"><div class="boot" style="height:120px"><div class="spin"></div></div></div>
     <label class="lbl">Année</label>${chips('year', ys.map(v => ({ v: String(v), l: String(v) })), [String(y)])}
     <label class="lbl">Enfants</label>${chips('kid', kidOpts, [kidSel])}
     <div class="two"><div><label class="lbl">Initiales ${esc(parents().A.name)}</label><input class="in" name="iniA" maxlength="4" value="${esc(initials('A'))}"></div><div><label class="lbl">Initiales ${esc(parents().B.name)}</label><input class="in" name="iniB" maxlength="4" value="${esc(initials('B'))}"></div></div>
-    <div data-part="warn"></div><div data-part="pv" class="mt"><div class="boot" style="height:120px"><div class="spin"></div></div></div>
-    <div class="sh-actions"><button class="btn soft f1" data-act="print-share">${IC.share} Partager</button><button class="btn primary f1" data-act="print-go">${IC.print} Imprimer</button></div>`, { cls: 'full' });
+    <div data-part="warn"></div>
+    <div class="sh-actions"><button class="btn primary f1" data-act="print-pdf">${IC.download} PDF</button><button class="btn soft f1" data-act="print-share">${IC.share} Partager</button><button class="btn soft" data-act="print-go" title="Imprimer">${IC.print}</button></div>`, { cls: 'full' });
   const upd = () => setTimeout(() => render(sh), 30);
   sh.addEventListener('chipchange', upd); sh.addEventListener('change', upd);
   upd();
@@ -148,7 +152,18 @@ async function saveIni(sh) {
   for (const c of ['A', 'B']) { const v = (f['ini' + c] || '').toUpperCase(); if (v && v !== (fam[c]?.ini || '')) data[`parents.${c}.ini`] = v; }
   if (Object.keys(data).length) await guard(() => setFamily(data));
 }
+const fileName = () => `${last.title.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9& -]/g, '').trim().replace(/\s+/g, '-')}`;
 export const actions = {
+  // aperçu en grand (avant de télécharger)
+  'print-zoom': el => openSheet(`<div style="overflow:auto;max-height:78vh"><img src="${el.src}" style="width:220%;max-width:none" alt=""></div><button class="btn primary block mt" data-act="close-sheet">Fermer</button>`, { cls: 'full' }),
+  // PDF A4 paysage, une page
+  'print-pdf': async el => {
+    const sh = el.closest('.sheet'); render(sh); if (!last) return; saveIni(sh);
+    const blob = await new Promise(r => last.cv.toBlob(r, 'image/jpeg', 0.92));
+    const jpg = new Uint8Array(await blob.arrayBuffer());
+    download(fileName() + '.pdf', new Blob([makePdf([jpg], last.cv.width, last.cv.height, 841.89, 595.28)], { type: 'application/pdf' }));
+    toast('PDF enregistré dans Téléchargements');
+  },
   'print-go': async el => {
     const sh = el.closest('.sheet'); render(sh); if (!last) return; saveIni(sh);
     let box = document.getElementById('printpage'); if (!box) { box = document.createElement('div'); box.id = 'printpage'; document.body.appendChild(box); }
@@ -161,7 +176,7 @@ export const actions = {
   },
   'print-share': async el => {
     const sh = el.closest('.sheet'); render(sh); if (!last) return; saveIni(sh);
-    const name = `${last.title.replace(/[^\wÀ-ÿ& -]/g, '').replace(/\s+/g, '-')}.png`;
+    const name = `${fileName()}.png`;
     const blob = await new Promise(r => last.cv.toBlob(r, 'image/png'));
     const file = new File([blob], name, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: last.title }); return; } catch (e) { if (e?.name === 'AbortError') return; } }

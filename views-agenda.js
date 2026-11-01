@@ -1,11 +1,11 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.12';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.12';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.12';
-import { vacRecap } from './views-sac.js?v=6.12';
-import { kidChips, cellBg } from './views-home.js?v=6.12';
-import { altText } from './views-more.js?v=6.12';
-import { openPrint } from './print.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.13';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.13';
+import { vacRecap } from './views-sac.js?v=6.13';
+import { kidChips, cellBg } from './views-home.js?v=6.13';
+import { altText } from './views-more.js?v=6.13';
+import { openPrint } from './print.js?v=6.13';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
@@ -19,7 +19,7 @@ function legend() {
   return `<div class="legend"><span><i style="background:var(--pa)"></i>${esc(p.A.name)}</span><span><i style="background:var(--pb)"></i>${esc(p.B.name)}</span>
     <span><i style="background:var(--pb-l)"></i>École (${esc(p.B.name)})</span><span><i style="background:var(--pa-l)"></i>École (${esc(p.A.name)})</span>
     <span><i style="background:linear-gradient(90deg,var(--pa) 50%,var(--pb) 50%)"></i>Demi-journée</span>
-    <span><i style="background:var(--gold);height:5px;vertical-align:2px"></i>Vacances scolaires</span><span><i style="background:var(--err);border-radius:50%;width:9px;height:9px"></i>Férié</span><span>🔁 Relais : heure et lieu dans la case</span><span><i style="border:2px dashed var(--navy);background:#fff"></i>Échange accepté</span></div>`;
+    <span><i style="background:var(--gold);height:5px;vertical-align:2px"></i>Vacances scolaires</span><span><i style="background:var(--err);border-radius:50%;width:9px;height:9px"></i>Férié</span><span>🌙 Aïd (fête musulmane, pas un jour férié)</span><span>🔁 Relais : heure et lieu dans la case</span><span><i style="border:2px dashed var(--navy);background:#fff"></i>Échange accepté</span></div>`;
 }
 function monthGrid(m) {
   const eng = engine(), ids = selIds(), today = E.todayISO();
@@ -30,7 +30,7 @@ function monthGrid(m) {
   const byDay = {}; for (const e of evs) (byDay[e.occ] ||= []).push(e);
   for (const c of S.children) if (c.birth && ids.includes(c.id)) for (const yy of [y - 1, y, y + 1]) { const d = `${yy}${c.birth.slice(4)}`; if (d >= start && d <= end) (byDay[d] ||= []).push({ icon: '🎂', title: `Anniversaire ${c.prenom}` }); }
   const hoBy = {}; for (const h of eng.handovers(ids, start, end)) (hoBy[h.date] ||= []).push(h);
-  const hoCell = d => (hoBy[d] || []).length ? '<span class="rel">🔁</span>' + hoBy[d].map(h => { const pl = h.dropPlace || h.place || ''; return `<span class="rl">${E.fmtTime(h.time)}${pl ? `<i>${esc(pl.replace(/^Chez /, ''))}</i>` : ''}</span>`; }).join('') : '';
+  const hoCell = d => (hoBy[d] || []).length ? '<span class="rel">🔁</span>' + hoBy[d].map(h => { const pl = h.dropPlace || h.place || ''; return `<span class="rl">${E.fmtTime(h.time)}${pl ? `<i>${esc(pl)}</i>` : ''}</span>`; }).join('') : '';
   let cells = E.JOURS_L.map(j => `<div class="dh">${j}</div>`).join('');
   for (const d of E.eachDay(start, end)) {
     const codes = ids.map(id => eng.code(id, d)), info = eng.dayInfo(d);
@@ -38,7 +38,7 @@ function monthGrid(m) {
     const ovr = ids.some(id => eng.isOverridden(id, d));
     const dots = (byDay[d] || []).slice(0, 4).map(e => `<span class="dot" title="${esc(e.title)}" style="background:${e.icon === '🎂' ? 'var(--coral)' : 'var(--navy)'}"></span>`).join('');
     cells += `<button class="cday ${ym(d) !== m ? 'out' : ''} ${d === today ? 'today' : ''} ${d < today ? 'past' : ''} ${ovr ? 'ovr' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">
-      ${info.ferie ? '<span class="fer"></span>' : ''}<span class="dn">${+d.slice(8)}</span>${hoCell(d)}
+      ${info.ferie ? '<span class="fer"></span>' : info.eid ? '<span class="eid" title="Aïd">🌙</span>' : ''}<span class="dn">${+d.slice(8)}</span>${hoCell(d)}
       ${lbl ? `<span class="cm">${esc(lbl.length > 16 ? lbl.slice(0, 15) + '…' : lbl)}</span>` : ''}<span class="dots">${dots}</span>${info.holiday ? '<span class="hol"></span>' : ''}</button>`;
   }
   return `<div class="cal">${cells}</div>`;
@@ -65,7 +65,7 @@ function yearView(y) {
     let g = E.JOURS_L.map(j => `<div class="h">${j}</div>`).join('') + '<div></div>'.repeat(pad);
     for (let d = 1; d <= E.monthDays(y, mo); d++) {
       const iso = `${m}-${String(d).padStart(2, '0')}`, info = eng.dayInfo(iso);
-      g += `<div class="c ${info.ferie ? 'fe' : ''}" style="background:${cellBg(ids.map(id => eng.code(id, iso)))}" title="${esc(info.comment || info.ferie || '')}">${d}</div>`;
+      g += `<div class="c ${info.ferie ? 'fe' : info.eid ? 'ei' : ''}" style="background:${cellBg(ids.map(id => eng.code(id, iso)))}" title="${esc(info.comment || info.ferie || '')}">${d}</div>`;
     }
     months += `<button class="ym" data-act="ag-month" data-m="${m}" style="text-align:left"><div class="ymt">${E.MOIS[mo - 1]}</div><div class="g">${g}</div></button>`;
   }
@@ -148,20 +148,23 @@ export const views = {
   },
   vacances(p) {
     const st = settings(), zone = p.zone || st.zone || 'B', eng = engine(), ids = selIds(), today = E.todayISO();
-    const list = E.schoolHolidays(zone, st.customHolidays || []).filter(h => h.e >= E.addDays(today, -200));
+    // à venir : par ordre chronologique à partir d'aujourd'hui (les vacances en cours en premier) ; passées : dans « Archives »
+    const all = E.schoolHolidays(zone, st.customHolidays || []), arch = p.tab === 'arch';
+    const next = all.filter(h => h.e >= today).sort((a, b) => a.s.localeCompare(b.s)), past = all.filter(h => h.e < today).sort((a, b) => b.s.localeCompare(a.s));
+    const list = arch ? past : next;
     const rows = list.map(h => {
       const parts = eng.blocks(ids[0], h.s, h.e).filter(b => b.key !== '.');
       const desc = parts.length ? parts.map(b => `<span class="pill" style="background:${b.code === 'A' || b.code === 'a' ? 'var(--pa)' : b.code === 'B' || b.code === 'b' ? 'var(--pb)' : '#eee'};color:#13233A">${esc(E.isHalf(b.code) ? '½ / ½' : pShort(E.first(b.code)))} · ${E.fmtDate(b.start, 'short')}${b.end !== b.start ? '→' + E.fmtDate(b.end, 'short') : ''}</span>`).join(' ') : '<span class="muted small">Pas de planning</span>';
       const ho = eng.handovers(ids, E.addDays(h.s, -1), E.addDays(h.e, 1)).filter(x => x.kind !== 'midi');
       const nL = h.s >= '2026-12-01' ? S.sac.filter(l => l.kind === 'vlist' && l.period?.id === h.id).length : 0;
-      return `<button class="per" style="align-items:flex-start;width:100%;text-align:left" data-go="vacp" data-params='${JSON.stringify({ id: h.id, zone })}'><div class="pi">${h.i}</div><div class="f1"><div class="pn">${esc(h.n)} ${h.s.slice(2, 4)} ${h.e < today ? '<span class="pill">passées</span>' : ''}</div>
+      return `<button class="per" style="align-items:flex-start;width:100%;text-align:left" data-go="vacp" data-params='${JSON.stringify({ id: h.id, zone })}'><div class="pi">${h.i}</div><div class="f1"><div class="pn">${esc(h.n)} ${h.s.slice(2, 4)} ${h.e < today ? '<span class="pill">passées</span>' : h.s <= today ? '<span class="pill ok">en cours</span>' : ''}</div>
         <div class="pd">Du ${E.fmtDate(h.s)} au ${E.fmtDate(h.e)}</div><div class="row wrap gap6 mt" style="margin-top:6px">${desc}</div>
         ${ho.length ? `<div class="tiny muted" style="margin-top:6px">🔁 ${ho.map(x => `${E.fmtDate(x.date, 'wdm')} ${hoTime(x)} → ${esc(pName(x.to))}`).join(' · ')}</div>` : ''}
         ${isParent() && nL ? `<div class="tiny b" style="margin-top:6px">🎒 ${nL} liste${nL > 1 ? 's' : ''} du Sac</div>` : ''}</div><span class="lnk" style="align-self:center">›</span></button>`;
     }).join('');
     return {
       title: 'Vacances', back: 'home',
-      html: `${kidChips()}<div class="card"><div class="row between"><b>Zone</b><div class="zone" style="margin:0">${['A', 'B', 'C'].map(z => `<button class="${z === zone ? 'on' : ''}" data-go="vacances" data-params='{"zone":"${z}"}'>${z}</button>`).join('')}</div></div>
+      html: `<div class="stick">${kidChips()}<div class="seg mtx" style="margin-bottom:0"><button class="${arch ? '' : 'on'}" data-go="vacances" data-params='${JSON.stringify({ zone })}'>📅 À venir (${next.length})</button><button class="${arch ? 'on' : ''}" data-go="vacances" data-params='${JSON.stringify({ zone, tab: 'arch' })}'>🗄️ Archives (${past.length})</button></div></div><div class="card"><div class="row between"><b>Zone</b><div class="zone" style="margin:0">${['A', 'B', 'C'].map(z => `<button class="${z === zone ? 'on' : ''}" data-go="vacances" data-params='{"zone":"${z}"}'>${z}</button>`).join('')}</div></div>
         <div class="hint">${esc(E.ACADEMIES[zone])}</div>${ids.length > 1 ? `<div class="hint">Répartition affichée pour ${esc(childNames(ids.slice(0, 1)))} (touchez un prénom pour changer).</div>` : ''}<div class="hint">Touchez une période pour son récapitulatif complet.</div></div>${rows}`,
     };
   },
@@ -219,7 +222,7 @@ export function openDay(d) {
   }).join('');
   const hs = eng.handovers(ids, d, d);
   const evs = E.expandEvents(S.events, d, d);
-  const tags = [info.ferie && `<span class="pill err">🎌 ${esc(info.ferie)}</span>`, info.comment && info.comment !== info.ferie && `<span class="pill navy">${esc(info.comment)}</span>`, info.holiday && `<span class="pill warn">${info.holiday.i} ${esc(info.holiday.n)}</span>`].filter(Boolean).join(' ');
+  const tags = [info.ferie && `<span class="pill err">🎌 ${esc(info.ferie)}</span>`, info.eid && `<span class="pill" style="background:#E8F5EE;color:#0E6B45">🌙 ${esc(info.eid)} · fête musulmane</span>`, info.comment && info.comment !== info.ferie && info.comment !== info.eid && `<span class="pill navy">${esc(info.comment)}</span>`, info.holiday && `<span class="pill warn">${info.holiday.i} ${esc(info.holiday.n)}</span>`].filter(Boolean).join(' ');
   openSheet(`<h3 class="sh-title">${E.fmtDate(d, 'wdmy')}</h3>${tags ? `<div class="row wrap gap6 mb">${tags}</div>` : ''}
     ${kids || '<p class="muted">Aucun enfant.</p>'}
     ${hs.length ? `<div class="lbl">Relais</div>${hs.map(h => `<div class="tile"><span style="font-size:24px">🔁</span><div class="f1"><b>${hoTime(h)}</b> · ${esc(pName(h.from))} → ${esc(pName(h.to))}<div class="small muted">${esc(childNames(h.childIds))}${h.kind === 'matin' ? ' · le matin' : ''}${h.custom ? ' · horaire convenu' : ''}${esc(hoPlace(h))}</div>

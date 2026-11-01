@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.12';
-import { createBackend } from './backend.js?v=6.12';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.12';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.12';
-import * as Home from './views-home.js?v=6.12';
-import * as Agenda from './views-agenda.js?v=6.12';
-import * as Plan from './views-planning.js?v=6.12';
-import * as Exch from './views-exchange.js?v=6.12';
-import * as Fam from './views-family.js?v=6.12';
-import * as Bud from './views-budget.js?v=6.12';
-import * as More from './views-more.js?v=6.12';
-import * as Admin from './views-admin.js?v=6.12';
-import * as Install from './install.js?v=6.12';
-import * as Sac from './views-sac.js?v=6.12';
-import * as Print from './print.js?v=6.12';
+import * as E from './engine.js?v=6.13';
+import { createBackend } from './backend.js?v=6.13';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.13';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.13';
+import * as Home from './views-home.js?v=6.13';
+import * as Agenda from './views-agenda.js?v=6.13';
+import * as Plan from './views-planning.js?v=6.13';
+import * as Exch from './views-exchange.js?v=6.13';
+import * as Fam from './views-family.js?v=6.13';
+import * as Bud from './views-budget.js?v=6.13';
+import * as More from './views-more.js?v=6.13';
+import * as Admin from './views-admin.js?v=6.13';
+import * as Install from './install.js?v=6.13';
+import * as Sac from './views-sac.js?v=6.13';
+import * as Print from './print.js?v=6.13';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -40,6 +40,40 @@ Object.assign(ACTIONS, {
   },
 });
 
+// ───── Toute action qui prévient l'autre parent passe par une fenêtre de validation (ce que ça fait / ce qu'il ou elle verra)
+const NOTIF_CONFIRM = {
+  'ev-save': ["Enregistrer l'événement ?", "L'événement est enregistré dans l'agenda.", "L'événement dans l'agenda, et une notification."],
+  'exp-save': ['Enregistrer la dépense ?', 'La dépense est enregistrée dans le budget.', 'La dépense dans le budget (à valider si besoin), et une notification.'],
+  'exp-reopen': ['Rouvrir la dépense ?', 'La dépense revient dans le solde.', 'La dépense rouverte, et une notification.'],
+  'inv-save': ['Enregistrer ce proche ?', "Le proche est ajouté ; l'invitation ne pourra être envoyée qu'après l'accord de l'autre parent.", 'Le proche à valider dans le Cercle, et une notification.'],
+  'kid-save': ["Enregistrer la fiche de l'enfant ?", 'Les informations sont enregistrées.', 'La fiche à jour, et une notification.'],
+  'kid-multi-go': ['Enregistrer ?', 'Les informations sont enregistrées.', 'Les fiches à jour, et une notification.'],
+  'kid-attach': ['Ajouter ce document ?', 'Le document est joint à la fiche.', 'Le document sur la fiche, et une notification.'],
+  'par-save': ['Enregistrer ?', 'Les informations du parent sont enregistrées.', 'Les informations à jour, et une notification.'],
+  'perm-save': ['Enregistrer les accès ?', "Les accès du proche sont enregistrés (à valider par l'autre parent).", 'Les accès à valider, et une notification.'],
+  'perm-ok': ['Valider les accès ?', 'Les accès proposés sont appliqués.', 'Les accès validés, et une notification.'],
+  'perm-no': ['Refuser les accès ?', 'La proposition est retirée.', 'Le refus, et une notification.'],
+  'st-save': ['Enregistrer la situation ?', 'La situation familiale est proposée.', 'La proposition à valider, et une notification.'],
+  'st-validate': ['Valider la situation ?', 'La situation familiale est appliquée.', 'La validation, et une notification.'],
+  'st-refuse': ['Refuser la situation ?', 'La proposition est retirée.', 'Le refus, et une notification.'],
+  'ct-save': ['Enregistrer le contact ?', 'Le contact est enregistré dans le répertoire.', 'Le contact dans le répertoire, et une notification.'],
+  'doc-save': ['Enregistrer le document ?', 'Le document est ajouté (à valider sous 48 h).', 'Le document à valider, et une notification.'],
+  'mem-save': ['Envoyer ce souvenir ?', 'Le souvenir est ajouté (à valider sous 48 h).', 'Le souvenir à valider, et une notification.'],
+  'note-save': ['Envoyer la note ?', 'La note est ajoutée au cahier de liaison.', 'La note, et une notification.'],
+  'note-file': ['Joindre ce fichier ?', 'Le fichier est joint à la note.', 'Le fichier, et une notification.'],
+  'task-save': ['Enregistrer la tâche ?', 'La tâche est enregistrée.', 'La tâche, et une notification.'],
+  'task-done': ['Changer la tâche ?', 'La tâche est marquée faite (ou à refaire).', 'Le changement, et une notification.'],
+  'set-relais-save': ['Enregistrer les horaires ?', "Les horaires de relais sont enregistrés (à valider par l'autre parent s'il est dans le cercle).", 'Les nouveaux horaires, et une notification.'],
+  'set-relais-ok': ['Valider les horaires ?', 'Les horaires proposés sont appliqués à tous les relais.', 'Les horaires validés, et une notification.'],
+  'set-relais-no': ['Refuser les horaires ?', 'La proposition est retirée.', 'Le refus, et une notification.'],
+  'set-zone-save': ['Enregistrer la zone ?', 'La zone et les vacances sont mises à jour.', 'Le calendrier des vacances à jour, et une notification.'],
+  'x-save': ["Envoyer la demande d'échange ?", "La demande est enregistrée : elle s'applique dès qu'elle est acceptée.", 'La demande à accepter ou refuser, et une notification.'],
+  'x-revert': ["Demander l'annulation ?", "Une demande de retour au planning d'origine est envoyée.", 'La demande à accepter, et une notification.'],
+  'pl-validate': ['Valider le planning ?', 'Le planning devient actif.', 'Le planning validé, et une notification.'],
+  'pl-cancel': ['Retirer le planning ?', 'La proposition de planning est retirée.', 'Le retrait, et une notification.'],
+  'grp-photo-del': ['Retirer la photo ?', 'La photo de groupe est retirée.', 'Le changement, et une notification.'],
+};
+const notifiedName = () => { if (!isParent()) return 'les parents'; const p = parents(), c = p.A.uid === uid() ? 'B' : 'A'; return p[c].uid ? p[c].name : null; };
 // ───── Clics délégués
 document.addEventListener('click', e => {
   const g = e.target.closest('[data-go]');
@@ -52,7 +86,15 @@ document.addEventListener('click', e => {
   }
   const a = e.target.closest('[data-act]');
   if (a && !a.disabled) {
-    const fn = ACTIONS[a.dataset.act];
+    const fn = ACTIONS[a.dataset.act], cf = NOTIF_CONFIRM[a.dataset.act], who = cf && notifiedName();
+    if (fn && cf && who) {
+      const req = a.closest('.sheet')?.querySelector('input[name=title],input[name=name],input[name=prenom]');
+      if (!req || req.value.trim()) {
+        e.preventDefault();
+        confirmInfo(cf[0], cf[1], cf[2], who).then(ok => { if (ok) { try { const r = fn(a, e); if (r && r.catch) r.catch(err => { console.error(err); toast(errMsg(err), 'err', 4500); }); } catch (err) { console.error(err); toast(errMsg(err), 'err', 4500); } } });
+        return;
+      }
+    }
     if (fn) { e.preventDefault(); try { const r = fn(a, e); if (r && r.catch) r.catch(err => { console.error(err); toast(errMsg(err), 'err', 4500); }); } catch (err) { console.error(err); toast(errMsg(err), 'err', 4500); } }
     else console.warn('action inconnue', a.dataset.act);
   }
@@ -133,6 +175,7 @@ function doRender() {
   if (ae && view && view.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && S.lastView === S.route.view) { deferred = true; return; }
   const r = S.route;
   if (S.ui.xView && r.view !== 'exchanges') Exch.leaveExchanges(); // réponses vues : dans l'historique en quittant l'écran
+  if (S.family && S.activity.length) More.autoRead(r.view, r.params || {}); // les notifications qui mènent à cet écran sont lues
   S.ui.xView = r.view === 'exchanges';
   if (r.view === 'join' && r.params.code) { LS.set('pendingJoin', r.params.code.toUpperCase()); location.hash = '#/family'; return; }
   if (!S.fid || (!S.family && S.familyGone)) {
@@ -278,6 +321,7 @@ function listenSub(sub, path, opts = null, into = null) {
     if (isParent()) scheduleMigrate();
     if (AP_SUBS.has(sub)) queueApprovals();
     if (sub === 'sac' || sub === 'members') Sac.queueSacReminders();
+    if (sub === 'invites') setTimeout(() => More.seedTestProches(), 1500);
   }, opts, err => { console.warn(sub, err?.code || err); S.loaded[sub] = true; S.render(); }));
 }
 /** (Ré)abonne les données quand le rôle ou les autorisations changent */
