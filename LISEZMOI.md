@@ -172,6 +172,24 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   Retour confirmé sans alerte = **transfert clos** (lecture seule, liste gardée dans sa période).
   Export JPG / PDF d'un, plusieurs ou tous les éléments, avec ou sans photos ; partager ou télécharger.
 
+## 10 quinquies. Nouveautés 6.10
+
+- **Quantités par enfant partout dans le Sac** (listes type, listes des vacances, affaires de chaque relais) : chaque
+  élément a un nombre par enfant (0 = pas pour cet enfant). Sur un prénom : ses éléments et ses quantités seulement.
+  Sur « Tous » : les éléments du même nom sont regroupés et additionnés avec le détail (« Caleçons ×8+8=16 »,
+  « Selman 8 + Jandal 8 »), y compris dans l'export JPG / PDF.
+- **Supprimer pour un enfant** : l'élément est retiré pour cet enfant seulement, puis l'application **propose** de le
+  retirer aussi pour l'autre (rien n'est supprimé automatiquement).
+- **Boutons des listes type** : ils affichent les prochaines vacances avec l'année (« 🎃 Toussaint 27 », « 🎄 Noël 26 »)
+  au lieu du nombre d'éléments.
+- **Vacances (accueil)** : toucher une période ouvre son récapitulatif complet : garde de chaque enfant (jours par
+  parent), relais, échanges, événements, listes du Sac (état aller / retour, total par enfant, éléments), tâches,
+  dépenses et souvenirs de la période.
+- **Proches** : ni récapitulatif des vacances, ni listes des vacances du Sac (seulement les affaires du relais si le
+  Sac leur est ouvert).
+- Lien d'import des listes type v3 (`tools/mktpl.py`) : nombres par prénom (`{"selman": 8, "jandal": 8}`).
+- Les fichiers téléchargés n'ont plus d'accents dans leur nom (Chrome les renommait « download »).
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

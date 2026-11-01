@@ -361,3 +361,14 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .grid3 .ph .pb{position:absolute;right:5px;top:5px;font-size:15px;background:#fff;border-radius:50%;width:24px;height:24px;display:grid;place-items:center}
 .grid3 .ph.pend img{opacity:.6}
 .vidwait img{opacity:.6}
+
+/* 6.10 : éléments regroupés par enfant (Tous : 8+8=16), récapitulatif des vacances */
+.vi.grp{padding:12px 12px 4px}
+.vi.vsub{box-shadow:none;border-radius:14px;background:#F7F9FC;margin:10px 0 8px;padding:10px;border-left-width:4px}
+.vi.grp>.vi.vsub:first-of-type{margin-top:10px}
+.rc-l{padding:10px 0;border-top:1px solid #E8EDF4}.rc-l:first-of-type{border-top:0;padding-top:0}
+.rc-r,.rc-h{display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px dashed #E8EDF4;font-size:14px}
+.rc-h{border-bottom:1px solid #E3E8F0;margin-top:6px}
+.rc-s{width:46px;text-align:center;flex:none}
+.vp-sec{margin-bottom:12px}.vp-sec h3{margin-bottom:6px}
+.vp-k{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid #EEF2F7}.vp-k:first-of-type{border-top:0}

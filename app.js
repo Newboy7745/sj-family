@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.9';
-import { createBackend } from './backend.js?v=6.9';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.9';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.9';
-import * as Home from './views-home.js?v=6.9';
-import * as Agenda from './views-agenda.js?v=6.9';
-import * as Plan from './views-planning.js?v=6.9';
-import * as Exch from './views-exchange.js?v=6.9';
-import * as Fam from './views-family.js?v=6.9';
-import * as Bud from './views-budget.js?v=6.9';
-import * as More from './views-more.js?v=6.9';
-import * as Admin from './views-admin.js?v=6.9';
-import * as Install from './install.js?v=6.9';
-import * as Sac from './views-sac.js?v=6.9';
-import * as Print from './print.js?v=6.9';
+import * as E from './engine.js?v=6.10';
+import { createBackend } from './backend.js?v=6.10';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.10';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox } from './ui.js?v=6.10';
+import * as Home from './views-home.js?v=6.10';
+import * as Agenda from './views-agenda.js?v=6.10';
+import * as Plan from './views-planning.js?v=6.10';
+import * as Exch from './views-exchange.js?v=6.10';
+import * as Fam from './views-family.js?v=6.10';
+import * as Bud from './views-budget.js?v=6.10';
+import * as More from './views-more.js?v=6.10';
+import * as Admin from './views-admin.js?v=6.10';
+import * as Install from './install.js?v=6.10';
+import * as Sac from './views-sac.js?v=6.10';
+import * as Print from './print.js?v=6.10';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));

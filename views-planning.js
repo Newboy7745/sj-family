@@ -1,9 +1,9 @@
 // ═══════════════ Plannings : liste, import 2026-2027, assistant 4 étapes, validation ═══════════════
-import * as E from './engine.js?v=6.9';
-import { SJ_PLANNINGS } from './sj-data.js?v=6.9';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily } from './core.js?v=6.9';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox } from './ui.js?v=6.9';
-import { cellBg } from './views-home.js?v=6.9';
+import * as E from './engine.js?v=6.10';
+import { SJ_PLANNINGS } from './sj-data.js?v=6.10';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily } from './core.js?v=6.10';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox } from './ui.js?v=6.10';
+import { cellBg } from './views-home.js?v=6.10';
 
 const ICONS = ['📅', '🗓️', '🏠', '🔁', '🏖️', '⭐', '🎒', '❤️', '🌙', '☀️'];
 const STATE = { active: ['ok', 'Actif'], pending: ['warn', 'En attente de validation'], 'pending-archive': ['warn', 'Archivage demandé'], refused: ['err', 'Refusé'], archived: ['', 'Archivé'], cancelled: ['', 'Annulé'] };

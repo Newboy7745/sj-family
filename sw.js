@@ -1,5 +1,5 @@
 // SJ Family — service worker : réseau d'abord (toujours la dernière version), cache en secours hors-ligne
-const CACHE = 'sjfamily-v6.9';
+const CACHE = 'sjfamily-v6.10';
 const SHELL = ['./', './index.html', './app.css', './app.js', './core.js', './engine.js', './ui.js', './backend.js', './sj-data.js',
   './views-home.js', './views-agenda.js', './views-planning.js', './views-exchange.js', './views-family.js', './views-budget.js', './views-more.js', './views-admin.js', './install.js', './views-sac.js', './sac-export.js', './print.js',
   './logo-top.png', './logo-full.png', './icon-192.png', './favicon.png', './manifest.json'];

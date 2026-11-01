@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — utilitaires d'interface
 // ═══════════════════════════════════════════════════════════════
-import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.9';
+import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.10';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -217,7 +217,9 @@ export function dataURLtoBlob(d) {
 }
 export function download(name, content, mime = 'text/plain') {
   const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  // Chrome remplace un nom accentué par « download » : on enlève les accents (Noël → Noel)
+  const safe = String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\x20-\x7E]/g, '').replace(/\s+/g, ' ').trim() || 'fichier';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = safe;
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
 }
 export async function copyText(t) {

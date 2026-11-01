@@ -1,9 +1,10 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.9';
-import { S, engine, parents, pName, pShort, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS } from './core.js?v=6.9';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen } from './ui.js?v=6.9';
-import { kidChips, cellBg } from './views-home.js?v=6.9';
-import { openPrint } from './print.js?v=6.9';
+import * as E from './engine.js?v=6.10';
+import { S, engine, parents, pName, pShort, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.10';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.10';
+import { vacRecap } from './views-sac.js?v=6.10';
+import { kidChips, cellBg } from './views-home.js?v=6.10';
+import { openPrint } from './print.js?v=6.10';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
@@ -150,16 +151,53 @@ export const views = {
       const parts = eng.blocks(ids[0], h.s, h.e).filter(b => b.key !== '.');
       const desc = parts.length ? parts.map(b => `<span class="pill" style="background:${b.code === 'A' || b.code === 'a' ? 'var(--pa)' : b.code === 'B' || b.code === 'b' ? 'var(--pb)' : '#eee'};color:#13233A">${esc(E.isHalf(b.code) ? '½ / ½' : pShort(E.first(b.code)))} · ${E.fmtDate(b.start, 'short')}${b.end !== b.start ? '→' + E.fmtDate(b.end, 'short') : ''}</span>`).join(' ') : '<span class="muted small">Pas de planning</span>';
       const ho = eng.handovers(ids, E.addDays(h.s, -1), h.e).filter(x => x.kind === 'soir');
-      return `<div class="per" style="align-items:flex-start"><div class="pi">${h.i}</div><div class="f1"><div class="pn">${esc(h.n)} ${h.e < today ? '<span class="pill">passées</span>' : ''}</div>
+      const nL = S.sac.filter(l => l.kind === 'vlist' && l.period?.id === h.id).length;
+      return `<button class="per" style="align-items:flex-start;width:100%;text-align:left" data-go="vacp" data-params='${JSON.stringify({ id: h.id, zone })}'><div class="pi">${h.i}</div><div class="f1"><div class="pn">${esc(h.n)} ${h.s.slice(2, 4)} ${h.e < today ? '<span class="pill">passées</span>' : ''}</div>
         <div class="pd">Du ${E.fmtDate(h.s)} au ${E.fmtDate(h.e)}</div><div class="row wrap gap6 mt" style="margin-top:6px">${desc}</div>
-        ${ho.length ? `<div class="tiny muted" style="margin-top:6px">🔁 ${ho.map(x => `${E.fmtDate(x.date, 'wdm')} ${E.fmtTime(x.time)} → ${esc(pShort(x.to))}`).join(' · ')}</div>` : ''}</div></div>`;
+        ${ho.length ? `<div class="tiny muted" style="margin-top:6px">🔁 ${ho.map(x => `${E.fmtDate(x.date, 'wdm')} ${E.fmtTime(x.time)} → ${esc(pShort(x.to))}`).join(' · ')}</div>` : ''}
+        ${isParent() && nL ? `<div class="tiny b" style="margin-top:6px">🎒 ${nL} liste${nL > 1 ? 's' : ''} du Sac</div>` : ''}</div><span class="lnk" style="align-self:center">›</span></button>`;
     }).join('');
     return {
       title: 'Vacances', back: 'home',
       html: `${kidChips()}<div class="card"><div class="row between"><b>Zone</b><div class="zone" style="margin:0">${['A', 'B', 'C'].map(z => `<button class="${z === zone ? 'on' : ''}" data-go="vacances" data-params='{"zone":"${z}"}'>${z}</button>`).join('')}</div></div>
-        <div class="hint">${esc(E.ACADEMIES[zone])}</div>${ids.length > 1 ? `<div class="hint">Répartition affichée pour ${esc(childNames(ids.slice(0, 1)))} (touchez un prénom pour changer).</div>` : ''}</div>${rows}`,
+        <div class="hint">${esc(E.ACADEMIES[zone])}</div>${ids.length > 1 ? `<div class="hint">Répartition affichée pour ${esc(childNames(ids.slice(0, 1)))} (touchez un prénom pour changer).</div>` : ''}<div class="hint">Touchez une période pour son récapitulatif complet.</div></div>${rows}`,
     };
   },
+};
+/** Récapitulatif complet d'une période de vacances : garde, relais, échanges, événements, Sac (listes), tâches, dépenses, souvenirs */
+views.vacp = p => {
+  const st = settings(), zone = p.zone || st.zone || 'B', h = E.schoolHolidays(zone, st.customHolidays || []).find(x => x.id === p.id);
+  if (!h) return { title: 'Vacances', back: 'vacances', html: '<div class="card empty">Période introuvable.</div>' };
+  const eng = engine(), pr = parents(), yy = h.s.slice(2, 4), days = Math.round(E.d2n(h.e) - E.d2n(h.s)) + 1;
+  const head = `<div class="card"><div class="row gap"><div style="font-size:34px">${h.i}</div><div class="f1"><div class="b" style="font-size:19px">${esc(h.n)} ${yy}</div>
+    <div class="small muted">Du ${E.fmtDate(h.s, 'wdmy')} au ${E.fmtDate(h.e, 'wdmy')} · ${days} jour${days > 1 ? 's' : ''} · zone ${zone}</div></div></div></div>`;
+  if (!isParent()) return { title: `${h.n} ${yy}`, back: 'home', html: `${head}<div class="card empty">Récapitulatif réservé aux parents.</div>` };
+  const inP = d => d && d >= h.s && d <= h.e, kids = S.children;
+  const pill = b => `<span class="pill" style="background:${E.first(b.code) === 'A' ? 'var(--pa)' : E.first(b.code) === 'B' ? 'var(--pb)' : '#eee'};color:#13233A">${esc(E.isHalf(b.code) ? '½ / ½' : pShort(E.first(b.code)))} · ${E.fmtDate(b.start, 'short')}${b.end !== b.start ? '→' + E.fmtDate(b.end, 'short') : ''}</span>`;
+  const custody = kids.map(c => {
+    const bl = eng.blocks(c.id, h.s, h.e).filter(b => b.key !== '.'), cnt = { A: 0, B: 0 };
+    for (const d of E.eachDay(h.s, h.e)) { const k = eng.code(c.id, d); if (k === '.') continue; if (E.isHalf(k)) { cnt[E.first(k)] += 0.5; cnt[E.last(k)] += 0.5; } else cnt[E.first(k)]++; }
+    return `<div class="vp-k"><div style="font-size:22px">${esc(c.emoji || '🧒')}</div><div class="f1"><div class="b">${esc(c.prenom)}</div>
+      ${bl.length ? `<div class="row wrap gap6 mtx">${bl.map(pill).join('')}</div><div class="tiny muted mtx">${esc(pr.A.name)} : ${E.fmtNum(cnt.A)} j · ${esc(pr.B.name)} : ${E.fmtNum(cnt.B)} j</div>` : '<div class="small muted">Pas de planning sur cette période.</div>'}</div></div>`;
+  }).join('');
+  const ho = eng.handovers(kids.map(c => c.id), E.addDays(h.s, -1), h.e);
+  const xs = S.exchanges.filter(x => (x.changes || []).some(c => inP(c.d)) && x.state !== 'cancelled').sort((a, b) => (a.proposedAt || 0) - (b.proposedAt || 0));
+  const XS = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'] };
+  const evs = E.expandEvents(S.events, h.s, h.e);
+  const tasks = can('tasks') ? S.tasks.filter(t => inP(t.due)).sort((a, b) => a.due.localeCompare(b.due)) : [];
+  const exps = can('expenses') ? S.expenses.filter(e => inP(e.date)).sort((a, b) => a.date.localeCompare(b.date)) : [];
+  const mems = S.memories.filter(m => inP(m.date) && shownItem(m)), nMem = new Set(mems.map(m => m.grp || m.id)).size;
+  const sec = (t, n, body, more = '') => `<div class="card vp-sec"><h3>${t}${n != null ? ` <span class="pill">${n}</span>` : ''}${more}</h3>${body}</div>`;
+  const html = `${head}
+    ${sec('👨‍👩‍👧 Garde', null, custody || '<div class="small muted">Aucun enfant.</div>')}
+    ${sec('🔁 Relais', ho.length, ho.length ? ho.map(x => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${x.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(x.date, 'wdm')} · ${E.fmtTime(x.time)}${x.custom ? ' <span class="pill warn">convenu</span>' : ''}</div><div class="ls">${esc(pName(x.from))} → ${esc(pName(x.to))} · ${esc(childNames(x.childIds))}${x.place ? ' · ' + esc(x.place) : ''}</div></div></button>`).join('') : '<div class="small muted">Aucun relais pendant ces vacances.</div>')}
+    ${sec('🔄 Échanges', xs.length, xs.length ? xs.map(x => { const [c, l] = XS[x.state] || ['', x.state]; return `<button class="li" style="width:100%;text-align:left" data-go="exchanges" data-params='${JSON.stringify({ tab: x.state === 'pending' ? (x.proposedBy === uid() ? 'mine' : 'todo') : 'hist' })}'><div class="le">${x.type === 'time' ? '⏰' : '🔄'}</div><div class="f1"><div class="lt">${esc(x.summary || 'Échange')}</div><div class="ls">${esc(childNames(x.childIds))} · demandé par ${esc(x.proposedByName || '')} le ${fmtStamp(x.proposedAt)}</div></div><span class="pill ${c}">${l}</span></button>`; }).join('') : '<div class="small muted">Aucun échange sur cette période.</div>')}
+    ${sec('🗓️ Événements', evs.length, evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.occ, 'wdm')}${e.time ? ' · ' + E.fmtTime(e.time) : ''}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.place ? ' · ' + esc(e.place) : ''}</div></div></button>`).join('') : '<div class="small muted">Aucun événement.</div>', ` <a class="act" data-act="ev-new" data-d="${h.s}">${IC.plus}</a>`)}
+    ${vacRecap(h.id)}
+    ${can('tasks') ? sec('✅ Tâches', tasks.length, tasks.length ? tasks.map(t => `<button class="li" style="width:100%;text-align:left" data-act="task-open" data-id="${t.id}"><div class="le">${t.done ? '✅' : '⬜'}</div><div class="f1"><div class="lt">${esc(t.title)}</div><div class="ls">📅 ${E.fmtDate(t.due, 'wdm')}${t.childIds?.length ? ' · ' + esc(childNames(t.childIds)) : ''}${t.done ? ' · fait' : ''}</div></div></button>`).join('') : '<div class="small muted">Aucune tâche à échéance pendant ces vacances.</div>') : ''}
+    ${can('expenses') ? sec('💰 Dépenses', exps.length, exps.length ? `${exps.map(e => `<div class="li"><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.date, 'wdm')} · payé par ${esc(pr[e.paidBy]?.name || '')}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}</div></div><b>${fmtMoney(e.amount)}</b></div>`).join('')}<div class="row between mt"><b>Total</b><b>${fmtMoney(exps.reduce((t, e) => t + (+e.amount || 0), 0))}</b></div>` : '<div class="small muted">Aucune dépense datée de ces vacances.</div>', ` <a class="act" data-go="budget">Budget ›</a>`) : ''}
+    ${nMem ? sec('📸 Souvenirs', nMem, `<button class="btn soft block" data-go="memories">Voir les souvenirs ›</button>`) : ''}`;
+  return { title: `${h.n} ${yy}`, back: 'vacances', html };
 };
 export function coveredYears() {
   const ys = new Set();

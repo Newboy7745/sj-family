@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.9';
-import { randomId } from './backend.js?v=6.9';
-import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.9';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.9';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.9';
-import { createFamily } from './views-family.js?v=6.9';
-import { openPrint } from './print.js?v=6.9';
+import * as E from './engine.js?v=6.10';
+import { randomId } from './backend.js?v=6.10';
+import { S, engine, parents, pName, pShort, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.10';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.10';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.10';
+import { createFamily } from './views-family.js?v=6.10';
+import { openPrint } from './print.js?v=6.10';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
