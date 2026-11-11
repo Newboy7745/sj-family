@@ -1,5 +1,5 @@
 rules_version = '2';
-// SJ Family v6.7 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// SJ Family 6.15 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
 // Parents : tout le cercle. Proches : agenda à jour, souvenirs, notes qui leur sont adressées, et les rubriques
 // ouvertes par les parents (validées par l'autre parent). Historique personnel pour chacun (inbox).
 service cloud.firestore {
@@ -205,3 +205,4 @@ service cloud.firestore {
     }
   }
 }
+// FIN des règles SJ Family 6.15 — si cette ligne est la dernière collée, tout est bien copié
