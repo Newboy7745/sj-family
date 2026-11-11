@@ -99,6 +99,9 @@ else {
   const next = hand[0];
   const nextDate = next ? (() => { const d = parseISO(next.d); d.setHours(Math.floor(t2m(next.t) / 60), t2m(next.t) % 60, 0, 0); return d; })() : null;
   const events = (feed.events || []).filter(e => !e.k.length || e.k.some(id => kidIds.includes(id)));
+  // lieu d'un événement : « Club de foot », ou « École → Chez Jounayda » si dépose et récupération diffèrent
+  const evPlace = e => { const dp = e.dp || '', pp = e.pp || ''; if (!dp && !pp) return e.w || ''; return !dp || !pp || dp === pp ? dp || pp : `${dp} → ${pp}`; };
+  const evTxt = e => `${e.i} ${cap(rel(e.d, today))}${e.t ? ' ' + fmtT(e.t) + (e.t2 ? '–' + fmtT(e.t2) : '') : ''} · ${e.n}${evPlace(e) ? ' · 📍 ' + evPlace(e) : ''}`;
   const tasks = (feed.tasks || []).filter(t => !t.k.length || t.k.some(id => kidIds.includes(id)));
   const kidNames = ids => all.filter(c => ids.includes(c.id)).map(c => c.name).join(' & ');
 
@@ -177,7 +180,7 @@ else {
     W.addSpacer(8);
     nextLine(W, 12);
     const ev = events.find(e => e.d >= today);
-    if (ev) { W.addSpacer(2); txt(W, `${ev.i} ${cap(rel(ev.d, today))}${ev.t ? ' ' + fmtT(ev.t) : ''} · ${ev.n}`, 11, { op: 0.85 }); }
+    if (ev) { W.addSpacer(2); txt(W, evTxt(ev), 11, { op: 0.85 }); }
   } else if (view2 === 'mois') {
     W.setPadding(12, 12, 10, 12);
     const [y, m] = today.split('-').map(Number);
@@ -206,7 +209,9 @@ else {
         if (d === today) { cell.borderWidth = 2; cell.borderColor = WHITE; }
         const fr = inM ? (feed.fer || {})[d] : 0; // 1 = férié (point rouge), 2 = Aïd (croissant vert émeraude)
         cell.addSpacer(); if (fr === 1) txt(cell, '●', 7, { color: new Color('#E53935') }); else if (fr === 2) moon(cell, 8);
-        txt(cell, String(+d.slice(8)), 11, { bold: true, color: inM ? INK : new Color('#ffffff', 0.35) }); cell.addSpacer();
+        txt(cell, String(+d.slice(8)), 11, { bold: true, color: inM ? INK : new Color('#ffffff', 0.35) });
+        const de = inM ? events.filter(e => e.d === d) : []; if (de.length) txt(cell, de[0].i, 7); // événement du jour
+        cell.addSpacer();
         if (i < 6) r.addSpacer(4);
       }
     }
@@ -217,7 +222,7 @@ else {
     if (mf.includes(2)) { lg.addSpacer(10); moon(lg, 9); lg.addSpacer(3); txt(lg, "Fête de l'Aïd", 10, { op: 0.85 }); }
     W.addSpacer(6);
     nextLine(W, 12);
-    const ev = events.find(e => e.d >= today); if (ev) txt(W, `${ev.i} ${cap(rel(ev.d, today))}${ev.t ? ' ' + fmtT(ev.t) : ''} · ${ev.n}`, 11, { op: 0.85 });
+    const ev = events.find(e => e.d >= today); if (ev) txt(W, evTxt(ev), 11, { op: 0.85 });
   } else {
     // programme
     W.setPadding(12, 14, 10, 14);
@@ -226,7 +231,7 @@ else {
     const max = family === 'large' || family === 'extraLarge' ? 10 : 4;
     const items = [];
     for (const h of hand.slice(0, 3)) items.push({ k: h.d + h.t, s: `🔁 ${cap(rel(h.d, today))} ${fmtT(h.t)}${h.t2 ? '–' + fmtT(h.t2) : ''} · ${kidNames(h.k)} → ${name(h.to)}${h.dp && h.dp !== h.p ? ' (dépose : ' + h.dp + ')' : h.p ? ' (' + h.p + ')' : ''}` });
-    for (const e of events.filter(e => e.d >= today).slice(0, 8)) items.push({ k: e.d + (e.t || '00:00'), s: `${e.i} ${cap(rel(e.d, today))}${e.t ? ' ' + fmtT(e.t) : ''} · ${e.n}${e.k.length && K.length > 1 ? ' (' + kidNames(e.k) + ')' : ''}` });
+    for (const e of events.filter(e => e.d >= today).slice(0, 8)) items.push({ k: e.d + (e.t || '00:00'), s: `${evTxt(e)}${e.k.length && K.length > 1 ? ' (' + kidNames(e.k) + ')' : ''}` });
     items.sort((a, b) => a.k.localeCompare(b.k));
     const lines = items.slice(0, max).map(i => i.s);
     for (const t of tasks.slice(0, 2)) if (lines.length < max) lines.push(`✅ ${t.n}${t.d ? ' · ' + rel(t.d, today) : ''}`);

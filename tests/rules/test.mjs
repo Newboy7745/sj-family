@@ -54,7 +54,9 @@ await t('proche lit les échanges acceptés', getDocs(query(collection(pr, `fami
 await t('proche ne liste pas tous les échanges', getDocs(collection(pr, `families/${F}/exchanges`)), false);
 await t('proche ne lit pas private', getDoc(doc(pr, `families/${F}/private/main`)), false);
 await t('proche écrit aux parents', setDoc(doc(pr, `families/${F}/notes/n1`), { text: 'coucou', to: ['pa'], createdBy: 'pr' }));
-await t('proche n\'écrit pas à un autre proche', setDoc(doc(pr, `families/${F}/notes/n2`), { text: 'x', to: ['zz'], createdBy: 'pr' }), false);
+await t('proche écrit à un autre proche (lu par les parents)', setDoc(doc(pr, `families/${F}/notes/n2`), { text: 'x', to: ['zz'], createdBy: 'pr' }));
+await t('proche n\'écrit pas sans destinataire', setDoc(doc(pr, `families/${F}/notes/n3`), { text: 'x', to: [], createdBy: 'pr' }), false);
+await t('parent lit la note entre proches', getDoc(doc(pa, `families/${F}/notes/n2`)));
 await t('proche lit ses notes (créées)', getDocs(query(collection(pr, `families/${F}/notes`), where('createdBy', '==', 'pr'))));
 await t('proche lit les notes qui lui sont adressées', getDocs(query(collection(pr, `families/${F}/notes`), where('to', 'array-contains', 'pr'))));
 await t('proche ne liste pas toutes les notes', getDocs(collection(pr, `families/${F}/notes`)), false);
@@ -68,6 +70,17 @@ await t('proche lit les souvenirs publiés', getDocs(query(collection(pr, `famil
 await t('proche ne liste pas tous les souvenirs', getDocs(collection(pr, `families/${F}/memories`)), false);
 await t('proche ne valide pas son souvenir', updateDoc(doc(pr, `families/${F}/memories/m1`), { pub: true }), false);
 await t('parent valide le souvenir', updateDoc(doc(pa, `families/${F}/memories/m1`), { pub: true, okBy: 'pa' }));
+// photos et vidéos privées des parents
+await t('proche ne crée pas de souvenir privé', setDoc(doc(pr, `families/${F}/memories/mp0`), { createdBy: 'pr', title: 'X', pub: false, priv: true }), false);
+await t('parent ne crée pas de privé publié', setDoc(doc(pa, `families/${F}/memories/mp1`), { createdBy: 'pa', title: 'X', pub: true, priv: true }), false);
+await t('parent crée un souvenir privé', setDoc(doc(pa, `families/${F}/memories/mp2`), { createdBy: 'pa', title: 'Privé', pub: false, priv: true, createdAt: Date.now(), sentAt: Date.now() }));
+await t('proche ne lit pas le souvenir privé', getDoc(doc(pr, `families/${F}/memories/mp2`)), false);
+await t('parent ne publie pas un privé', updateDoc(doc(pa, `families/${F}/memories/mp2`), { pub: true }), false);
+await t('parent ne retire pas « privé »', updateDoc(doc(pa, `families/${F}/memories/mp2`), { priv: false }), false);
+await t('parent modifie le titre du privé', updateDoc(doc(pa, `families/${F}/memories/mp2`), { title: 'Privé 2' }));
+await t('proche ne crée pas de blob privé', setDoc(doc(pr, `families/${F}/blobs/bp0`), { kind: 'pmem', by: 'pr', data: 'x' }), false);
+await t('parent crée un blob privé', setDoc(doc(pa, `families/${F}/blobs/bp1`), { kind: 'pmem', by: 'pa', data: 'x' }));
+await t('proche ne lit pas le blob privé', getDoc(doc(pr, `families/${F}/blobs/bp1`)), false);
 await t('proche ajoute un événement', setDoc(doc(pr, `families/${F}/events/e1`), { createdBy: 'pr', title: 'Anniv' }));
 await t('proche notifie un parent', setDoc(doc(pr, `families/${F}/inbox/pa/items/i2`), { by: 'pr', at: 2 }));
 await t('proche ne lit pas l\'historique d\'un parent', getDocs(collection(pr, `families/${F}/inbox/pa/items`)), false);

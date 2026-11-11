@@ -1,11 +1,11 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.14';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.14';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.14';
-import { vacRecap } from './views-sac.js?v=6.14';
-import { kidChips, cellBg } from './views-home.js?v=6.14';
-import { altText } from './views-more.js?v=6.14';
-import { openPrint } from './print.js?v=6.14';
+import * as E from './engine.js?v=6.15';
+import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.15';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.15';
+import { vacRecap } from './views-sac.js?v=6.15';
+import { kidChips, cellBg } from './views-home.js?v=6.15';
+import { altText, whoChips, placeSel, placeToggle, placeLabel, dpText } from './views-more.js?v=6.15';
+import { openPrint } from './print.js?v=6.15';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
@@ -28,7 +28,7 @@ function monthGrid(m) {
   const first = `${m}-01`, start = E.mondayOf(first);
   const [y, mo] = m.split('-').map(Number), last = `${m}-${String(E.monthDays(y, mo)).padStart(2, '0')}`;
   const end = E.addDays(E.mondayOf(last), 6);
-  const evs = E.expandEvents(S.events, start, end).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
+  const evs = E.expandEvents(S.events, start, end, settings()).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
   const byDay = {}; for (const e of evs) (byDay[e.occ] ||= []).push(e);
   for (const c of S.children) if (c.birth && ids.includes(c.id)) for (const yy of [y - 1, y, y + 1]) { const d = `${yy}${c.birth.slice(4)}`; if (d >= start && d <= end) (byDay[d] ||= []).push({ icon: '🎂', title: `Anniversaire ${c.prenom}` }); }
   const hoBy = {}; for (const h of eng.handovers(ids, start, end)) (hoBy[h.date] ||= []).push(h);
@@ -38,7 +38,7 @@ function monthGrid(m) {
     const codes = ids.map(id => eng.code(id, d)), info = eng.dayInfo(d);
     const lbl = info.comment || info.ferie;
     const ovr = ids.some(id => eng.isOverridden(id, d));
-    const dots = (byDay[d] || []).slice(0, 4).map(e => `<span class="dot" title="${esc(e.title)}" style="background:${e.icon === '🎂' ? 'var(--coral)' : 'var(--navy)'}"></span>`).join('');
+    const de = byDay[d] || [], dots = de.slice(0, 2).map(e => `<span class="evl" title="${esc(e.title)}">${e.icon || '📌'}${e.time ? E.fmtTime(e.time) : ''}</span>`).join('') + (de.length > 2 ? `<span class="evl more">+${de.length - 2}</span>` : '');
     cells += `<button class="cday ${ym(d) !== m ? 'out' : ''} ${d === today ? 'today' : ''} ${d < today ? 'past' : ''} ${ovr ? 'ovr' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">
       ${info.ferie ? '<span class="fer"></span>' : info.eid ? `<span class="eid" title="Fête de l'Aïd">${MOON(12)}</span>` : ''}<span class="dn">${+d.slice(8)}</span>${hoCell(d)}
       ${lbl ? `<span class="cm">${esc(lbl.length > 16 ? lbl.slice(0, 15) + '…' : lbl)}</span>` : ''}<span class="dots">${dots}</span>${info.holiday ? '<span class="hol"></span>' : ''}</button>`;
@@ -49,13 +49,13 @@ function monthLists(m) {
   const eng = engine(), ids = selIds(), [y, mo] = m.split('-').map(Number);
   const from = `${m}-01`, to = `${m}-${String(E.monthDays(y, mo)).padStart(2, '0')}`;
   const hs = eng.handovers(ids, E.addDays(from, -1), to);
-  const evs = E.expandEvents(S.events, from, to).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
+  const evs = E.expandEvents(S.events, from, to, settings()).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
   const tab = S.ui.agTab || 'relais';
   const body = tab === 'relais'
     ? (hs.length ? hs.map(h => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${h.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(h.date, 'wdm')} · ${hoTime(h)}${h.custom ? ' <span class="pill warn">convenu</span>' : ''}</div>
         <div class="ls">${esc(pName(h.from))} → ${esc(pName(h.to))} · ${esc(childNames(h.childIds))}${h.kind === 'midi' ? ' · mi-journée' : h.kind === 'matin' ? ' · le matin' : ''}${esc(hoPlace(h))}</div></div></button>`).join('') : '<div class="empty">Aucun relais ce mois-ci.</div>')
     : (evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div>
-        <div class="ls">${E.fmtDate(e.occ, 'wdm')}${e.time ? ' · ' + E.fmtTime(e.time) + (e.endTime ? '–' + E.fmtTime(e.endTime) : '') : ''}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.repeat && e.repeat !== 'none' ? ' · 🔁' : ''}</div></div></button>`).join('') : '<div class="empty">Aucun événement ce mois-ci.</div>');
+        <div class="ls">${E.fmtDate(e.occ, 'wdm')} · ${esc(evText(e, false))}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${E.evKind(e) !== 'date' ? ' · 🔁' : ''}</div></div></button>`).join('') : '<div class="empty">Aucun événement ce mois-ci.</div>');
   return `<div class="card"><div class="seg"><button class="${tab === 'relais' ? 'on' : ''}" data-act="ag-tab" data-t="relais">🔁 Relais (${hs.length})</button><button class="${tab === 'events' ? 'on' : ''}" data-act="ag-tab" data-t="events">🗓️ Événements (${evs.length})</button></div>${body}</div>`;
 }
 function yearView(y) {
@@ -190,7 +190,7 @@ views.vacp = p => {
   const ho = eng.handovers(kids.map(c => c.id), E.addDays(h.s, -1), h.e);
   const xs = S.exchanges.filter(x => (x.changes || []).some(c => inP(c.d)) && x.state !== 'cancelled').sort((a, b) => (a.proposedAt || 0) - (b.proposedAt || 0));
   const XS = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'] };
-  const evs = E.expandEvents(S.events, h.s, h.e);
+  const evs = E.expandEvents(S.events, h.s, h.e, settings());
   const tasks = can('tasks') ? S.tasks.filter(t => inP(t.due)).sort((a, b) => a.due.localeCompare(b.due)) : [];
   const exps = can('expenses') ? S.expenses.filter(e => inP(e.date)).sort((a, b) => a.date.localeCompare(b.date)) : [];
   const mems = S.memories.filter(m => inP(m.date) && shownItem(m)), nMem = new Set(mems.map(m => m.grp || m.id)).size;
@@ -199,7 +199,7 @@ views.vacp = p => {
     ${sec('👨‍👩‍👧 Garde', null, custody || '<div class="small muted">Aucun enfant.</div>')}
     ${sec('🔁 Relais', ho.length, ho.length ? ho.map(x => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${x.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(x.date, 'wdm')} · ${hoTime(x)}${x.custom ? ' <span class="pill warn">convenu</span>' : ''}</div><div class="ls">${esc(pName(x.from))} → ${esc(pName(x.to))} · ${esc(childNames(x.childIds))}${esc(hoPlace(x))}</div></div></button>`).join('') : '<div class="small muted">Aucun relais pendant ces vacances.</div>')}
     ${sec('🔄 Échanges', xs.length, xs.length ? xs.map(x => { const [c, l] = XS[x.state] || ['', x.state]; return `<button class="li" style="width:100%;text-align:left" data-go="exchanges" data-params='${JSON.stringify({ tab: x.state === 'pending' ? (x.proposedBy === uid() ? 'mine' : 'todo') : 'hist' })}'><div class="le">${x.type === 'time' ? '⏰' : '🔄'}</div><div class="f1"><div class="lt">${esc(x.summary || 'Échange')}</div><div class="ls">${esc(childNames(x.childIds))} · demandé par ${esc(x.proposedByName || '')} le ${fmtStamp(x.proposedAt)}</div></div><span class="pill ${c}">${l}</span></button>`; }).join('') : '<div class="small muted">Aucun échange sur cette période.</div>')}
-    ${sec('🗓️ Événements', evs.length, evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.occ, 'wdm')}${e.time ? ' · ' + E.fmtTime(e.time) : ''}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.place ? ' · ' + esc(e.place) : ''}</div></div></button>`).join('') : '<div class="small muted">Aucun événement.</div>', ` <a class="act" data-act="ev-new" data-d="${h.s}">${IC.plus}</a>`)}
+    ${sec('🗓️ Événements', evs.length, evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.occ, 'wdm')} · ${esc(evText(e, false))}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}</div></div></button>`).join('') : '<div class="small muted">Aucun événement.</div>', ` <a class="act" data-act="ev-new" data-d="${h.s}">${IC.plus}</a>`)}
     ${vacRecap(h.id)}
     ${can('tasks') ? sec('✅ Tâches', tasks.length, tasks.length ? tasks.map(t => `<button class="li" style="width:100%;text-align:left" data-act="task-open" data-id="${t.id}"><div class="le">${t.done ? '✅' : '⬜'}</div><div class="f1"><div class="lt">${esc(t.title)}</div><div class="ls">📅 ${E.fmtDate(t.due, 'wdm')}${t.childIds?.length ? ' · ' + esc(childNames(t.childIds)) : ''}${t.done ? ' · fait' : ''}</div></div></button>`).join('') : '<div class="small muted">Aucune tâche à échéance pendant ces vacances.</div>') : ''}
     ${can('expenses') ? sec('💰 Dépenses', exps.length, exps.length ? `${exps.map(e => `<div class="li"><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.date, 'wdm')} · payé par ${esc(pr[e.paidBy]?.name || '')}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}</div></div><b>${fmtMoney(e.amount)}</b></div>`).join('')}<div class="row between mt"><b>Total</b><b>${fmtMoney(exps.reduce((t, e) => t + (+e.amount || 0), 0))}</b></div>` : '<div class="small muted">Aucune dépense datée de ces vacances.</div>', ` <a class="act" data-go="budget">Budget ›</a>`) : ''}
@@ -223,36 +223,124 @@ export function openDay(d) {
     return `<div class="li"><div class="le" style="background:${cellBg([code])}">${esc(c.emoji || '🧒')}</div><div class="f1"><div class="lt">${esc(c.prenom)}</div><div class="ls">${esc(txt)}${eng.isOverridden(c.id, d) ? ' · <b>échange</b>' : ''}${p ? ' · ' + esc(p.title) : ''}</div></div></div>`;
   }).join('');
   const hs = eng.handovers(ids, d, d);
-  const evs = E.expandEvents(S.events, d, d);
+  const evs = E.expandEvents(S.events, d, d, settings());
   const tags = [info.ferie && `<span class="pill err">🎌 ${esc(info.ferie)}</span>`, info.eid && `<span class="pill" style="background:#E3F4EE;color:#00664F">${MOON(13)} ${esc(info.eid)}</span>`, info.comment && info.comment !== info.ferie && info.comment !== info.eid && `<span class="pill navy">${esc(info.comment)}</span>`, info.holiday && `<span class="pill warn">${info.holiday.i} ${esc(info.holiday.n)}</span>`].filter(Boolean).join(' ');
   openSheet(`<h3 class="sh-title">${E.fmtDate(d, 'wdmy')}</h3>${tags ? `<div class="row wrap gap6 mb">${tags}</div>` : ''}
     ${kids || '<p class="muted">Aucun enfant.</p>'}
     ${hs.length ? `<div class="lbl">Relais</div>${hs.map(h => `<div class="tile"><span style="font-size:24px">🔁</span><div class="f1"><b>${hoTime(h)}</b> · ${esc(pName(h.from))} → ${esc(pName(h.to))}<div class="small muted">${esc(childNames(h.childIds))}${h.kind === 'matin' ? ' · le matin' : ''}${h.custom ? ' · horaire convenu' : ''}${esc(hoPlace(h))}</div>
         ${h.alt && isParent() && !h.custom ? `<button class="btn soft sm mtx" data-act="x-alt" data-d="${d}" data-kind="${h.kind}" data-kids="${h.childIds.join(',')}">↩️ Si impossible : ${esc(altText(h.alt, h))}</button>` : ''}</div>
       ${isParent() ? `<button class="btn soft sm" data-act="x-time" data-d="${d}" data-kind="${h.kind}" data-time="${h.time}" title="Changer l'horaire de ce relais">${IC.clock}</button>` : ''}</div>`).join('')}` : ''}
-    <div class="lbl">Événements</div>${evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${d}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${e.time ? E.fmtTime(e.time) + (e.endTime ? '–' + E.fmtTime(e.endTime) : '') : 'Journée'}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${e.place ? ' · ' + esc(e.place) : ''}</div></div></button>`).join('') : '<p class="muted small">Aucun événement.</p>'}
+    <div class="lbl">Événements</div>${evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${d}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${esc(evText(e, false))}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${E.evKind(e) !== 'date' ? ' · 🔁 ' + esc(evText(e).split(' · ')[0]) : ''}</div></div></button>`).join('') : '<p class="muted small">Aucun événement.</p>'}
     <div class="row gap mt"><button class="btn primary f1" data-act="ev-new" data-d="${d}">${IC.plus} Événement</button>${isParent() ? `<button class="btn ghost f1" data-act="x-new" data-d="${d}">🔄 Échange</button>` : ''}</div>`);
 }
 
-// ───── Événements
+// ───── Événements : mêmes conditions que les relais habituels (quand, heures, dépose, récupération, lieux, repli)
+// en plus des siennes (titre, catégorie, enfants, plusieurs jours, chaque mois, chaque année, notes).
+// Quand deux réglages se ressemblent, c'est celui des relais qui est gardé (pas de doublon).
+const ucf = x => x ? x.charAt(0).toUpperCase() + x.slice(1) : x;
+const schoolY = iso => (+iso.slice(5, 7) >= 8 ? +iso.slice(0, 4) : +iso.slice(0, 4) - 1);
+/** Anciens événements (répétition, « qui accompagne », lieu libre) lus avec les nouveaux réglages */
+function evForm(ev, date) {
+  if (!ev) return { kind: 'date', date, dow: E.dow(date), every: 1, parity: E.isoWeek(date).week % 2 ? 'impair' : 'pair', school: false, cat: 'activite', childIds: selIds(), from: '', to: '', dropAt: '', pickAt: '' };
+  const e = { ...ev };
+  if (!e.kind) {
+    const r = e.repeat || 'none';
+    e.kind = r === 'none' ? 'date' : r === 'weekly' || r === 'biweekly' ? 'dow' : r;
+    e.dow = E.dow(e.date); e.every = r === 'biweekly' ? 2 : 1; e.parity = E.isoWeek(e.date).week % 2 ? 'impair' : 'pair';
+    if (e.who === 'A' || e.who === 'B') { e.from = e.who; e.to = e.who; }
+    if (e.place && !e.pickAt) { e.pickAt = 'autre'; e.pickTxt = e.place; }
+    e.timeEnd = e.endTime || '';
+  }
+  return e;
+}
+/** « Chaque mercredi des semaines paires en période scolaire · 14h–15h30 · déposés par Khalid (Club) · récupérés… » */
+export function evText(e, withWhen = true) {
+  const k = E.evKind(e);
+  let when = '';
+  if (withWhen) {
+    if (k === 'date') when = E.fmtDate(e.date, 'wdm') + (e.endDate && e.endDate > e.date ? ' → ' + E.fmtDate(e.endDate, 'wdm') : '');
+    else if (k === 'dow') when = `${+e.every === 2 ? 'le ' : 'chaque '}${E.JOURS[+(e.dow ?? E.dow(e.date))]}${+e.every === 2 ? ` des semaines ${e.parity === 'impair' ? 'impaires' : 'paires'}` : ''}${e.school ? ' en période scolaire' : ''}`;
+    else if (k === 'vacStart') when = 'veille des vacances scolaires';
+    else if (k === 'vacEnd') when = 'dernier jour des vacances scolaires';
+    else if (k === 'monthly') when = `chaque mois le ${+e.date.slice(8)}`;
+    else if (k === 'yearly') when = `chaque année le ${E.fmtDate(e.date, 'dm')}`;
+    else if (k === 'weekly') when = `chaque ${E.JOURS[E.dow(e.date)]}`;
+    else if (k === 'biweekly') when = `un ${E.JOURS[E.dow(e.date)]} sur deux`;
+    if (e.year) when += ` (année ${e.year}-${+e.year + 1})`;
+  }
+  const end = e.timeEnd || e.endTime, tm = e.time ? E.fmtTime(e.time) + (end ? '–' + E.fmtTime(end) : '') : 'toute la journée';
+  const legacy = !e.kind && e.place ? ` · 📍 ${e.place}` : '';
+  return `${when ? ucf(when) + ' · ' : ''}${tm}${e.kind ? dpText(e, e.pickPlace ?? placeLabel(e.pickAt || '', e.pickTxt || '')) : legacy}`;
+}
 function eventSheet(ev = null, date = E.todayISO()) {
-  const e = ev || { date, cat: 'activite', childIds: selIds(), repeat: 'none', who: 'custodian' };
+  const e = evForm(ev, date);
   const ro = !!ev && !isParent() && ev.createdBy !== uid();
-  const p = parents();
+  const k0 = e.kind === 'dow' && +e.every === 2 ? (e.parity === 'impair' ? 'dowI' : 'dowP') : e.kind;
+  const today = E.todayISO(), sy = schoolY(today), wk = E.isoWeek(today).week;
   const sh = openSheet(`<h3 class="sh-title">${ev ? '✏️ Modifier' : '🗓️ Nouvel'} événement</h3>
     <label class="lbl">Titre</label><input class="in" name="title" value="${esc(e.title || '')}" placeholder="Ex. Dentiste, Foot, Réunion parents-profs" autofocus>
     <label class="lbl">Catégorie</label>${chips('cat', EV_CATS.map(c => ({ v: c.v, l: `${c.i} ${c.l}` })), [e.cat])}
     <label class="lbl">Enfants concernés</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), e.childIds || [], { multi: true })}
-    <div class="two"><div><label class="lbl">Date</label><input class="in" type="date" name="date" value="${e.date}"></div><div><label class="lbl">Jusqu'au (option)</label><input class="in" type="date" name="endDate" value="${e.endDate || ''}"></div></div>
-    <div class="two"><div><label class="lbl">Début</label><input class="in" type="time" name="time" value="${e.time || ''}"></div><div><label class="lbl">Fin</label><input class="in" type="time" name="endTime" value="${e.endTime || ''}"></div></div>
+    <label class="lbl">Quand ?</label>${chips('kind', [{ v: 'date', l: '📌 Une date' }, { v: 'dow', l: '📅 Chaque semaine' }, { v: 'dowP', l: '2️⃣ Semaines paires' }, { v: 'dowI', l: '1️⃣ Semaines impaires' }, { v: 'vacStart', l: '🎒 Veille des vacances' }, { v: 'vacEnd', l: '🏁 Fin des vacances' }, { v: 'monthly', l: '🗓️ Chaque mois' }, { v: 'yearly', l: '🎂 Chaque année' }], [k0])}
+    <div data-part="par" class="hint hide">Cette semaine : n° ${wk} (semaine ${wk % 2 ? 'impaire' : 'paire'}).</div>
+    <div class="two"><div><label class="lbl" data-part="dl">Date</label><input class="in" type="date" name="date" value="${e.date}"></div><div data-part="end"><label class="lbl">Jusqu'au (option)</label><input class="in" type="date" name="endDate" value="${e.endDate || ''}"></div></div>
+    <div data-part="year"><label class="lbl">Année scolaire</label>${chips('year', [{ v: '', l: 'Toutes les années' }, ...[sy, sy + 1].map(y => ({ v: String(y), l: `${y}-${y + 1}` }))], [e.year || ''])}</div>
+    <div data-part="dow"><label class="lbl">Jour</label>${chips('dow', E.JOURS.map((j, i) => ({ v: String(i), l: ucf(j) })), [String(e.dow ?? E.dow(e.date))])}
+      <label class="row gap mt"><span class="sw"><input type="checkbox" name="school" ${e.school ? 'checked' : ''}><span></span></span><span class="f1">Seulement en période scolaire (pas pendant les vacances)</span></label></div>
+    <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="${e.time || ''}"></div><div><label class="lbl">Jusqu'à (option)</label><input class="in" type="time" name="timeEnd" value="${e.timeEnd || ''}"></div></div>
     <div class="hint">Laissez l'heure vide pour un événement sur la journée.</div>
-    <label class="lbl">Répétition</label><select class="in" name="repeat">${[['none', 'Aucune'], ['weekly', 'Chaque semaine'], ['biweekly', 'Toutes les 2 semaines'], ['monthly', 'Chaque mois'], ['yearly', 'Chaque année']].map(([v, l]) => `<option value="${v}" ${e.repeat === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
-    <label class="lbl">Répéter jusqu'au</label><input class="in" type="date" name="until" value="${e.until || ''}">
-    <label class="lbl">Qui accompagne / s'en occupe ?</label>${chips('who', [{ v: 'custodian', l: '👪 Parent de garde' }, { v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }, { v: 'both', l: 'Les deux' }], [e.who || 'custodian'])}
-    <label class="lbl">Lieu</label><input class="in" name="place" value="${esc(e.place || '')}" placeholder="Adresse, salle…">
+    <label class="lbl">Qui dépose les enfants ?</label>${whoChips('from', e.from)}
+    <label class="lbl">Lieu de dépose</label>${placeSel('dropAt', e.dropAt || '', e.dropTxt || '', 'Non précisé')}
+    <label class="lbl">Qui récupère les enfants ?</label>${whoChips('to', e.to)}
+    <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', e.pickAt || '', e.pickTxt || '', 'Non précisé')}
+    <label class="row gap mt"><span class="sw"><input type="checkbox" name="altOn" ${e.alt?.on ? 'checked' : ''}><span></span></span><span class="f1">Si impossible : solution de repli</span></label>
+    <div data-part="alt" class="hide">
+      <label class="lbl">Quand ?</label>${chips('altWhen', [{ v: 'veille', l: 'La veille' }, { v: 'jour', l: 'Le jour même' }], [e.alt?.when || 'jour'])}
+      <label class="lbl">Heure</label><input class="in" type="time" name="altTime" value="${e.alt?.time || ''}">
+      <label class="lbl">Qui dépose les enfants ?</label>${chips('altBy', [{ v: 'A', l: esc(parents().A.name) }, { v: 'B', l: esc(parents().B.name) }], [e.alt?.by || e.from || 'A'])}
+      <label class="lbl">Lieu</label>${placeSel('altAt', e.alt?.at || '', e.alt?.txt || '')}
+    </div>
     <label class="lbl">Notes</label><textarea class="in" name="notes" rows="3">${esc(e.notes || '')}</textarea>
     <div class="sh-actions">${ro ? '<button class="btn primary f1" data-act="close-sheet">Fermer</button>' : `${ev ? `<button class="btn danger" data-act="ev-del" data-id="${ev.id}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="ev-save" data-id="${ev?.id || ''}">Enregistrer</button>`}</div>`);
+  const upd = () => {
+    const f = readForm(sh), k = f.kind || 'date', rec = k !== 'date';
+    sh.querySelector('[data-part="dow"]').classList.toggle('hide', !k.startsWith('dow'));
+    sh.querySelector('[data-part="par"]').classList.toggle('hide', k !== 'dowP' && k !== 'dowI');
+    sh.querySelector('[data-part="end"]').classList.toggle('hide', rec);
+    sh.querySelector('[data-part="year"]').classList.toggle('hide', !rec);
+    sh.querySelector('[data-part="dl"]').textContent = rec ? 'À partir du' : 'Date';
+    sh.querySelector('[data-part="alt"]').classList.toggle('hide', !f.altOn);
+    placeToggle(sh);
+  };
+  sh.addEventListener('chipchange', upd); sh.addEventListener('change', upd); upd();
   return sh;
+}
+/** Contrôle et mise en forme des réglages de l'événement (mêmes contrôles que les horaires réguliers) */
+function evFromForm(f) {
+  const k = f.kind || 'date', t = x => String(x || '').trim(), rec = k !== 'date';
+  if (!f.title) return "Donnez un titre à l'événement.";
+  if (!f.date) return rec ? 'Choisissez la date de début.' : 'Choisissez une date.';
+  if (!rec && f.endDate && f.endDate < f.date) return 'La date de fin doit suivre la date de début.';
+  if (!f.time && f.timeEnd) return "Indiquez l'heure de début.";
+  if (f.time && f.timeEnd && f.timeEnd <= f.time) return "L'heure de fin doit suivre l'heure de début.";
+  if (f.dropAt === 'autre' && !t(f.dropAtTxt)) return 'Précisez le lieu de dépose.';
+  if (f.pickAt === 'autre' && !t(f.pickAtTxt)) return 'Précisez le lieu de récupération.';
+  if (f.altOn && !f.altTime) return "Indiquez l'heure de la solution de repli.";
+  if (f.altOn && !f.altAt) return 'Choisissez le lieu de la solution de repli.';
+  if (f.altOn && f.altAt === 'autre' && !t(f.altAtTxt)) return 'Précisez le lieu de la solution de repli.';
+  const kind = k.startsWith('dow') ? 'dow' : k, every = k === 'dowP' || k === 'dowI' ? 2 : 1, year = rec ? f.year || '' : '';
+  const dropPlace = placeLabel(f.dropAt, f.dropAtTxt), pickPlace = placeLabel(f.pickAt, f.pickAtTxt);
+  return {
+    title: f.title, cat: f.cat || 'autre', icon: catIcon(f.cat), childIds: f.childIds || [], kind, date: f.date, endDate: rec ? '' : f.endDate || '',
+    dow: kind === 'dow' ? +(f.dow ?? E.dow(f.date)) : E.dow(f.date), every, parity: k === 'dowI' ? 'impair' : 'pair', school: kind === 'dow' && !!f.school, year,
+    time: f.time || '', timeEnd: f.timeEnd || '', endTime: f.timeEnd || '',
+    from: f.from || '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace,
+    to: f.to || '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', pickPlace, place: pickPlace || dropPlace,
+    alt: f.altOn ? { on: true, when: f.altWhen || 'jour', time: f.altTime, by: f.altBy || '', at: f.altAt, txt: f.altAt === 'autre' ? t(f.altAtTxt) : '', place: placeLabel(f.altAt, f.altAtTxt) } : null,
+    notes: f.notes || '',
+    // anciennes versions de l'appli
+    repeat: kind === 'dow' ? (every === 2 ? 'biweekly' : 'weekly') : kind === 'monthly' || kind === 'yearly' ? kind : 'none', until: year ? `${+year + 1}-08-31` : '', who: f.from || 'custodian',
+  };
 }
 export const after = {
   agenda() { const d = S.ui.openDay; if (d) { S.ui.openDay = null; S.route = { view: 'agenda', params: { mode: 'mois', m: ym(d) } }; history.replaceState(null, '', `#/agenda?mode=mois&m=${ym(d)}`); setTimeout(() => openDay(d), 150); } },
@@ -269,15 +357,13 @@ export const actions = {
   'ev-new': el => eventSheet(null, el.dataset.d || E.todayISO()),
   'ev-open': el => { const ev = S.events.find(x => x.id === el.dataset.id); if (ev) eventSheet(ev); },
   'ev-save': async el => {
-    const sh = el.closest('.sheet'), f = readForm(sh);
-    if (!f.title) return toast('Donnez un titre à l\'événement.', 'warn');
-    if (!f.date) return toast('Choisissez une date.', 'warn');
-    const data = { title: f.title, cat: f.cat || 'autre', icon: catIcon(f.cat), childIds: f.childIds, date: f.date, endDate: f.endDate || '', time: f.time || '', endTime: f.endTime || '', repeat: f.repeat, until: f.until || '', who: f.who || 'custodian', place: f.place, notes: f.notes };
+    const sh = el.closest('.sheet'), f = readForm(sh), data = evFromForm(f);
+    if (typeof data === 'string') return toast(data, 'warn');
     el.disabled = true;
     const id = el.dataset.id;
     const ok = await guard(async () => {
-      if (id) { await updItem('events', id, data); await log('agenda', `Événement modifié : ${f.title}`, { body: E.fmtDate(f.date, 'wdm') }); }
-      else { await addItem('events', data); await log('agenda', `Nouvel événement : ${f.title}`, { body: `${E.fmtDate(f.date, 'wdm')}${f.time ? ' à ' + E.fmtTime(f.time) : ''}` }); }
+      if (id) { await updItem('events', id, data); await log('agenda', `Événement modifié : ${f.title}`, { body: evText(data) }); }
+      else { await addItem('events', data); await log('agenda', `Nouvel événement : ${f.title}`, { body: evText(data) }); }
       return true;
     }, 'Événement enregistré');
     if (ok) closeSheet(); else el.disabled = false;

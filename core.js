@@ -1,13 +1,13 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.14';
-import { toast, esc } from './ui.js?v=6.14';
+import * as E from './engine.js?v=6.15';
+import { toast, esc } from './ui.js?v=6.15';
 
-export const VERSION = '6.14';
+export const VERSION = '6.15';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Version minimale de l'appli Android des widgets (numéro de compilation) : au-dessous, le widget propose la mise à jour */
-export const WIDGETS_APK = 12;
+export const WIDGETS_APK = 13;
 /** Adresse courte à partager (n'affiche ni GitHub ni le pseudo) */
 export const SHARE_URL = 'https://tinyurl.com/sj-family';
 /** Historique : les entrées antérieures à cette date restent dans l'ancien journal commun */
@@ -109,7 +109,7 @@ export function hasOtherParent() { return !!otherParentUid(); }
 export function memberName(u) {
   if (!u) return '—'; if (u === uid()) return 'Moi';
   const p = parents(); if (p.A.uid === u) return p.A.name; if (p.B.uid === u) return p.B.name;
-  const m = S.members.find(x => x.uid === u); return m ? (m.prenom || m.name || 'Proche') : 'Proche';
+  const m = S.members.find(x => x.uid === u); return m ? (m.prenom || m.name || 'Proche') : (S.family?.dir?.[u] || 'Proche');
 }
 /** Tous les membres connus du cercle (parents + proches) */
 export function allMemberUids() {
@@ -285,7 +285,8 @@ export const needApproval = () => isParent() ? hasOtherParent() : true;
 export const sentAt = it => it?.sentAt || it?.createdAt || it?.at || 0;
 export const expiresAt = it => sentAt(it) + APPROVE_MS;
 export const grpOf = it => it?.grp || it?.id;
-export const isPending = it => !!it && it.pub === false && !it.refused;
+// les médias privés des parents (priv) ne passent pas par la validation
+export const isPending = it => !!it && it.pub === false && !it.refused && !it.priv;
 export const isExpired = it => isPending(it) && Date.now() >= expiresAt(it);
 export const canApprove = it => isParent() && isPending(it) && !isExpired(it) && it.createdBy !== uid();
 export const canResend = it => isExpired(it) && it.createdBy === uid();

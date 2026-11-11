@@ -272,6 +272,29 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   pour rester lisible. Tous les autres jours, la case est d'une seule couleur, sans ligne de démarcation. Point rouge pour
   les jours fériés, croissant vert émeraude pour l'Aïd. Widget iPhone : même coupure et même croissant.
 
+## 10 decies. Nouveautés 6.15
+
+> ⚠️ **Règles Firestore modifiées** : recollez `REGLES-FIRESTORE.txt` dans Firebase › Firestore › Règles › Publier.
+
+- **Événements = mêmes conditions qu'un relais** : quand (une date ou une période, chaque semaine, semaines paires ou
+  impaires, veille ou fin des vacances, chaque mois, chaque année), jour, « seulement en période scolaire », année
+  scolaire, heure de début et de fin, qui dépose et où, qui récupère et où (domicile, école ou lieu précisé), solution de
+  repli. Aucun champ en double : le lieu de l'événement est celui de dépose ou de récupération, comme pour un relais.
+  Les anciens événements s'ouvrent dans le nouveau formulaire sans rien perdre.
+- **Agenda** : chaque case montre l'icône et l'heure des événements du jour (« ⚽ 14h », deux au plus puis « +1 ») ; les
+  fiches du jour, les vacances et l'accueil décrivent l'événement comme un relais.
+- **Widgets (APK version 13)** : l'icône de l'événement dans la case du mois, l'heure de début à fin et le lieu
+  (« dépose → récupération ») dans la liste. Widget iPhone : pareil.
+- **Liaison** : un proche peut écrire à un autre proche ; les deux parents voient toujours toutes les notes (pastille
+  « 👀 entre proches, visible par les parents »).
+- **Souvenirs en dossiers** : 🖼️ Photos et 🎬 Vidéos pour tous, 🔒 Photos privées et 🔒 Vidéos privées pour les
+  parents. Chaque dossier montre une mosaïque des 4 dernières miniatures, le nombre et la date du dernier ajout ; dedans,
+  classement du plus récent au plus ancien, par mois.
+- **Photos et vidéos privées** : « Visibles par : 🔒 Les parents seulement » à l'ajout. Seuls les deux parents les voient
+  (les proches ne les reçoivent jamais, même en lecture directe), sans validation ; l'autre parent est simplement prévenu.
+- **Tout est daté et horodaté** : chaque photo ou vidéo garde la date et l'heure de prise de vue (sur la miniature, dans
+  la visionneuse, avec l'heure d'ajout si elle diffère) ; chaque document affiche sa date et son heure d'ajout.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.14';
-import { createBackend } from './backend.js?v=6.14';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.14';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.14';
-import * as Home from './views-home.js?v=6.14';
-import * as Agenda from './views-agenda.js?v=6.14';
-import * as Plan from './views-planning.js?v=6.14';
-import * as Exch from './views-exchange.js?v=6.14';
-import * as Fam from './views-family.js?v=6.14';
-import * as Bud from './views-budget.js?v=6.14';
-import * as More from './views-more.js?v=6.14';
-import * as Admin from './views-admin.js?v=6.14';
-import * as Install from './install.js?v=6.14';
-import * as Sac from './views-sac.js?v=6.14';
-import * as Print from './print.js?v=6.14';
+import * as E from './engine.js?v=6.15';
+import { createBackend } from './backend.js?v=6.15';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.15';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.15';
+import * as Home from './views-home.js?v=6.15';
+import * as Agenda from './views-agenda.js?v=6.15';
+import * as Plan from './views-planning.js?v=6.15';
+import * as Exch from './views-exchange.js?v=6.15';
+import * as Fam from './views-family.js?v=6.15';
+import * as Bud from './views-budget.js?v=6.15';
+import * as More from './views-more.js?v=6.15';
+import * as Admin from './views-admin.js?v=6.15';
+import * as Install from './install.js?v=6.15';
+import * as Sac from './views-sac.js?v=6.15';
+import * as Print from './print.js?v=6.15';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -395,6 +395,10 @@ async function migrate() {
     if (S.loaded.members && S.members.length) {
       const ids = [...new Set(S.members.map(m => m.uid))].sort();
       if (JSON.stringify(ids) !== JSON.stringify([...(f.memberUids || [])].sort())) await db.update(`families/${fid}`, { memberUids: ids });
+      // annuaire des proches (prénoms seulement) : permet aux proches de s'écrire entre eux
+      const dir = {}; for (const m of [...S.members].sort((a, b) => (a.uid > b.uid ? 1 : -1))) if (m.uid && !m.parentCode && m.role !== 'parent') dir[m.uid] = String(m.prenom || m.name || 'Proche').trim();
+      const old = Object.fromEntries(Object.entries(f.dir || {}).sort(([a], [b]) => (a > b ? 1 : -1)));
+      if (JSON.stringify(dir) !== JSON.stringify(old)) await db.update(`families/${fid}`, { dir });
     }
     // 4) invitations : marquées « rejointes » quand la personne est dans le cercle
     if (S.loaded.invites && S.loaded.members) for (const i of S.invites.filter(x => x.state === 'pending')) {

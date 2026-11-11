@@ -399,6 +399,24 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 
 /* Fête de l'Aïd : croissant vert émeraude */
 .cday .eid{position:absolute;top:2px;left:3px;line-height:0}
+/* 6.15 : événements dans les cases (icône + heure) */
+.cday .dots{flex-direction:column;align-items:stretch;gap:1px;width:100%;padding-bottom:4px}
+.cday .evl{display:block;font-size:9.5px;line-height:1.15;font-weight:800;color:#0B3D6E;background:rgba(255,255,255,.7);border-radius:5px;padding:0 2px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cday .evl.more{background:transparent;color:#41536B}
 .moon{display:inline-block;vertical-align:-2px;flex:none}
 .legend .moon{margin-right:5px}
 .ym .c.ei{box-shadow:inset 0 0 0 1.5px #009473}
+/* 6.15 · Souvenirs : dossiers (mosaïque 2×2) et horodatage */
+.folds{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:4px 0 14px}
+.fold{position:relative;display:block;width:100%;text-align:left;background:#fff;border:2px solid #CFE0F5;border-radius:22px;padding:10px 10px 12px;box-shadow:0 4px 14px rgba(11,61,110,.07)}
+.fold:active{transform:scale(.98)}
+.fold .mos{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;aspect-ratio:1;border-radius:14px;overflow:hidden}
+.fold .mos.one{display:block}
+.fold .mos img{width:100%;height:100%;object-fit:cover;display:block;border-radius:8px}
+.fold .mos.one img{border-radius:14px}
+.fold .mos .emp{background:#EEF3FA;border-radius:8px;display:grid;place-items:center;font-size:34px}
+.fold .fb{position:absolute;right:-6px;top:-8px;z-index:2;width:38px;height:38px;border-radius:50%;background:#fff;border:2px solid #CFE0F5;display:grid;place-items:center;font-size:18px;box-shadow:0 3px 8px rgba(11,61,110,.12)}
+.fold .ft{font-weight:800;font-size:16px;color:var(--navy);margin:9px 2px 1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold .fs{font-size:12.5px;color:var(--muted);margin:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid3 .ph span.ts{left:0;right:0;bottom:0;padding:12px 5px 4px;font-size:10.5px;font-weight:800;background:linear-gradient(transparent,rgba(10,20,35,.62));text-shadow:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grid3 .ph .du{position:absolute;right:5px;bottom:20px;font-style:normal;font-size:10.5px;font-weight:800;color:#fff;background:rgba(15,27,45,.6);border-radius:6px;padding:1px 5px}

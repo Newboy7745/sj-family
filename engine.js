@@ -403,30 +403,60 @@ export function patternShare(str, countedOnly = false) {
 }
 
 // ───────────── Événements récurrents ─────────────
-export function expandEvents(events, from, to) {
+/** Type de répétition d'un événement (anciens événements : champ « repeat ») */
+export function evKind(e) {
+  if (e.kind) return e.kind;
+  const r = e.repeat || 'none';
+  return r === 'none' ? 'date' : r;
+}
+/**
+ * Occurrences des événements entre from et to.
+ * Conditions des relais habituels : chaque semaine / semaines paires ou impaires (jour, période scolaire seulement),
+ * veille des vacances, fin des vacances, une date ; plus celles des événements : plusieurs jours, chaque mois, chaque année.
+ * L'année scolaire (sept. → août) limite les répétitions. settings : zone et vacances personnalisées.
+ */
+export function expandEvents(events, from, to, settings = null) {
   const out = [];
+  let hol = null; const H = () => hol || (hol = schoolHolidays(settings?.zone || 'B', settings?.customHolidays || []));
   for (const e of events) {
     if (!e.date) continue;
-    const until = e.until && e.until < to ? e.until : to;
+    let until = e.until && e.until < to ? e.until : to;
+    let lo = from;
+    if (e.year) { const ys = `${e.year}-09-01`, ye = `${+e.year + 1}-08-31`; if (ye < until) until = ye; if (ys > lo) lo = ys; }
     const ex = new Set(e.exceptions || []);
-    const add = iso => { if (iso >= from && iso <= until && !ex.has(iso)) out.push({ ...e, occ: iso }); };
-    const r = e.repeat || 'none';
-    if (r === 'none') { add(e.date); if (e.endDate && e.endDate > e.date) for (const iso of eachDay(addDays(e.date, 1), e.endDate)) add(iso); continue; }
+    const add = iso => { if (iso >= lo && iso <= until && !ex.has(iso)) out.push({ ...e, occ: iso }); };
+    const k = evKind(e);
+    if (k === 'date') { add(e.date); if (e.endDate && e.endDate > e.date) for (const iso of eachDay(addDays(e.date, 1), e.endDate)) add(iso); continue; }
     if (e.date > until) continue;
-    if (r === 'weekly' || r === 'biweekly') {
-      const step = r === 'weekly' ? 7 : 14;
-      let k = Math.max(0, Math.ceil(diffDays(e.date, from) / step));
-      for (let iso = addDays(e.date, k * step); iso <= until; iso = addDays(iso, step)) add(iso);
-    } else if (r === 'monthly') {
+    if (k === 'dow') {
+      // à partir de la date de début, le jour choisi, une semaine sur deux (paire / impaire) si demandé, hors vacances si demandé
+      const d0 = e.date > lo ? e.date : lo, wd = +(e.dow ?? dow(e.date));
+      let iso = addDays(d0, (wd - dow(d0) + 7) % 7);
+      for (; iso <= until; iso = addDays(iso, 7)) {
+        if (+e.every === 2 && ((isoWeek(iso).week % 2 === 0) !== (e.parity !== 'impair'))) continue;
+        if (e.school && H().some(h => h.s <= iso && iso <= h.e)) continue;
+        add(iso);
+      }
+    } else if (k === 'vacStart' || k === 'vacEnd') {
+      for (const h of H()) {
+        if (h.kind === 'pont') continue;
+        const iso = k === 'vacStart' ? addDays(h.s, -1) : h.e;
+        if (iso >= e.date) add(iso);
+      }
+    } else if (k === 'weekly' || k === 'biweekly') {
+      const step = k === 'weekly' ? 7 : 14;
+      let n = Math.max(0, Math.ceil(diffDays(e.date, lo) / step));
+      for (let iso = addDays(e.date, n * step); iso <= until; iso = addDays(iso, step)) add(iso);
+    } else if (k === 'monthly') {
       const [y0, m0, d0] = e.date.split('-').map(Number);
       for (let i = 0; i < 400; i++) {
         const m = (m0 - 1 + i) % 12 + 1, y = y0 + Math.floor((m0 - 1 + i) / 12);
         if (d0 > monthDays(y, m)) continue;
         const iso = `${y}-${pad(m)}-${pad(d0)}`; if (iso > until) break; add(iso);
       }
-    } else if (r === 'yearly') {
+    } else if (k === 'yearly') {
       const [y0, m0, d0] = e.date.split('-').map(Number);
-      for (let y = Math.max(y0, +from.slice(0, 4)); y <= +until.slice(0, 4); y++) add(`${y}-${pad(m0)}-${pad(d0)}`);
+      for (let y = Math.max(y0, +lo.slice(0, 4)); y <= +until.slice(0, 4); y++) add(`${y}-${pad(m0)}-${pad(d0)}`);
     }
   }
   return out.sort((a, b) => (a.occ + (a.time || '')).localeCompare(b.occ + (b.time || '')));
@@ -495,7 +525,7 @@ export function buildFeed({ engine, family, children, parents, events = [], task
       return { id: c.id, name: c.prenom, emoji: c.emoji || '🧒', color: c.color || '', days, info };
     }),
     handovers: engine.handovers(ids, from, to).map(h => ({ d: h.date, t: h.time, f: h.from, to: h.to, k: h.childIds, p: h.place || '', m: h.kind === 'midi' ? 1 : 0, ...(h.kind === 'matin' ? { mo: 1 } : {}), ...(h.timeEnd ? { t2: h.timeEnd } : {}), ...(h.dropPlace ? { dp: h.dropPlace } : {}) })),
-    events: expandEvents(events, today, addDays(today, 45)).slice(0, 40).map(e => ({ d: e.occ, t: e.time || '', t2: e.endTime || '', n: e.title, i: e.icon || '📌', k: e.childIds || [], w: e.place || '' })),
+    events: expandEvents(events, today, addDays(today, 45), family?.settings).slice(0, 60).map(e => ({ d: e.occ, t: e.time || '', t2: e.timeEnd || e.endTime || '', n: e.title, i: e.icon || '📌', k: e.childIds || [], w: e.place || '', dp: e.dropPlace || '', pp: e.kind ? e.pickPlace || '' : e.place || '', by: e.from || '', tk: e.to || '' })),
     tasks: tasks.filter(t => !t.done).slice(0, 10).map(t => ({ n: t.title, d: t.due || '', k: t.childIds || [] })),
     notes: notes.slice(0, 3).map(n => ({ x: String(n.text || '').slice(0, 140), at: n.at, by: n.byName || '', k: n.childIds || [] })),
     off: {},

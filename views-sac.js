@@ -1,9 +1,9 @@
 // ═══════════════ Sac : affaires de chaque relais, listes des vacances (demande / envoi, aller / retour) et listes type ═══════════════
-import * as E from './engine.js?v=6.14';
-import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.14';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.14';
-import { kidChips } from './views-home.js?v=6.14';
-import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.14';
+import * as E from './engine.js?v=6.15';
+import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.15';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.15';
+import { kidChips } from './views-home.js?v=6.15';
+import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.15';
 
 const runKey = h => `${h.date}_${h.time.replace(':', '')}_${h.to}`;
 const relaisItems = () => S.sac.filter(i => !i.kind);

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — utilitaires d'interface
 // ═══════════════════════════════════════════════════════════════
-import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.14';
+import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.15';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];

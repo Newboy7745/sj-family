@@ -111,17 +111,23 @@ service cloud.firestore {
         allow update, delete: if isParent(fid) || (isMember(fid) && mine());
       }
       // Souvenirs : les proches ne voient que ceux validés par un parent (pub) et les leurs
+      // Souvenirs : « priv » = photos et vidéos privées des parents, jamais publiées ni visibles par les proches
       match /memories/{id} {
+        // un média privé n'est jamais pub == true et n'est créé que par un parent : un proche ne peut donc pas le lire
         allow read: if isParent(fid) || (isMember(fid) && (resource.data.pub == true || resource.data.createdBy == request.auth.uid));
-        allow create: if isMember(fid) && byMe() && (isParent(fid) || request.resource.data.pub == false);
-        allow update: if (isParent(fid) && approveOk(fid)) || (isMember(fid) && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false));
+        allow create: if isMember(fid) && byMe() && (isParent(fid) || request.resource.data.pub == false)
+          && (request.resource.data.get('priv', false) != true || (isParent(fid) && request.resource.data.pub == false));
+        allow update: if request.resource.data.get('priv', false) == resource.data.get('priv', false)
+          && (resource.data.get('priv', false) != true || request.resource.data.pub == false)
+          && ((isParent(fid) && approveOk(fid)) || (isMember(fid) && mine() && request.resource.data.get('pub', false) == resource.data.get('pub', false)));
         allow delete: if isParent(fid) || (isMember(fid) && mine());
       }
       // Notes de liaison : les parents voient tout ; un proche voit celles qui lui sont adressées et les siennes
       match /notes/{id} {
         allow read: if isParent(fid) || (isMember(fid) && (request.auth.uid in resource.data.to || resource.data.createdBy == request.auth.uid));
+        // un proche écrit aux parents et / ou à d'autres proches (les parents lisent toutes les notes)
         allow create: if isMember(fid) && byMe()
-          && (isParent(fid) || (request.resource.data.to.size() > 0 && request.resource.data.to.hasOnly([pUid(fid, 'A'), pUid(fid, 'B')])));
+          && (isParent(fid) || request.resource.data.to.size() > 0);
         allow update: if isParent(fid) || (isMember(fid) && mine())
           || (isMember(fid) && request.auth.uid in resource.data.to && changed().hasOnly(['ackBy', 'updatedAt', 'updatedBy']));
         allow delete: if isMember(fid) && mine();
@@ -132,7 +138,9 @@ service cloud.firestore {
           || resource.data.get('by', '') == request.auth.uid
           || request.auth.uid in resource.data.get('to', [])
           || (resource.data.get('kind', '') == 'doc' && perm(fid, 'docs'))));
-        allow create: if isMember(fid) && request.resource.data.by == request.auth.uid;
+        // « pmem » (média privé des parents) : seuls les parents en créent et en lisent
+        allow create: if isMember(fid) && request.resource.data.by == request.auth.uid
+          && (request.resource.data.get('kind', '') != 'pmem' || isParent(fid));
         allow update: if isParent(fid);
         allow delete: if isParent(fid) || (isMember(fid) && resource.data.get('by', '') == request.auth.uid);
       }
