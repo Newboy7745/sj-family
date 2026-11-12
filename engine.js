@@ -428,7 +428,8 @@ export function expandEvents(events, from, to, settings = null) {
     let lo = from;
     if (e.year) { const ys = `${e.year}-09-01`, ye = `${+e.year + 1}-08-31`; if (ye < until) until = ye; if (ys > lo) lo = ys; }
     const ex = new Set(e.exceptions || []);
-    const add = iso => { if (iso >= lo && iso <= until && !ex.has(iso)) out.push({ ...e, occ: iso }); };
+    // ovr : changements pour certains jours seulement (heures, qui dépose / récupère, lieux, notes)
+    const add = iso => { if (iso >= lo && iso <= until && !ex.has(iso)) out.push(e.ovr?.[iso] ? { ...e, ...e.ovr[iso], occ: iso, edited: true } : { ...e, occ: iso }); };
     const k = evKind(e);
     if (k === 'date') { add(e.date); if (e.endDate && e.endDate > e.date) for (const iso of eachDay(addDays(e.date, 1), e.endDate)) add(iso); continue; }
     if (e.date > until) continue;

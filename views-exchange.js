@@ -1,8 +1,8 @@
 // ═══════════════ Échanges de garde & horaires de relais (avec validation de l'autre parent) ═══════════════
-import * as E from './engine.js?v=6.16';
-import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.16';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.16';
-import { placeSel, placeToggle, placeLabel, myAlertsSheet } from './views-more.js?v=6.16';
+import * as E from './engine.js?v=6.17';
+import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.17';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.17';
+import { placeSel, placeToggle, placeLabel, myAlertsSheet } from './views-more.js?v=6.17';
 
 const ST = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'], cancelled: ['', 'Annulée'] };
 // Réponse (ou annulation) faite par l'autre parent : visible dans son onglet jusqu'à ce qu'on l'ait vue puis quitté l'écran

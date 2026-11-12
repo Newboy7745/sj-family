@@ -1,9 +1,9 @@
 // ═══════════════ Sac : affaires de chaque relais, listes des vacances (demande / envoi, aller / retour) et listes type ═══════════════
-import * as E from './engine.js?v=6.16';
-import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.16';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.16';
-import { kidChips } from './views-home.js?v=6.16';
-import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.16';
+import * as E from './engine.js?v=6.17';
+import { S, engine, parents, hoTime, hoPlace, uid, myName, myCode, isParent, childNames, selIds, fpath, log, guard, can, kidAvatar, countdown, settings, go, LS, ntfyPublish, ntfyCancel, APP_URL } from './core.js?v=6.17';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, compressImage, fmtAgo, closeSheetsThen } from './ui.js?v=6.17';
+import { kidChips } from './views-home.js?v=6.17';
+import { buildFile, shareFile, saveFile } from './sac-export.js?v=6.17';
 
 const runKey = h => `${h.date}_${h.time.replace(':', '')}_${h.to}`;
 const relaisItems = () => S.sac.filter(i => !i.kind);
@@ -611,7 +611,8 @@ const toWho = () => nm(other(myCode() || 'A'));
 /** L'autre parent est dans le cercle (il reçoit donc les notifications) */
 const otherIn = () => !!parents()[other(myCode() || 'A')]?.uid;
 /** Validation avant une action qui prévient l'autre parent (rien à valider s'il n'est pas encore dans le cercle) */
-const askNotify = (...a) => (otherIn() ? confirmInfo(...a) : Promise.resolve(true));
+// toujours une validation ; elle dit en plus ce que l'autre parent recevra s'il est dans le cercle
+const askNotify = (...a) => (otherIn() ? confirmInfo(...a) : confirmBox(a[0], a[1] || '', 'Valider'));
 async function delEls(l, ids) {
   const db = S.be.db, data = {};
   for (const i of ids) { data[`items.${i}`] = db.deleteField(); data[`st.aller.${i}`] = db.deleteField(); data[`st.retour.${i}`] = db.deleteField(); }

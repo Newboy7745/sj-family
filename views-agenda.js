@@ -1,11 +1,11 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.16';
-import { occs, allEvents, findEvent, canEditEv, evxMap, me, queueReminders, S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.16';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.16';
-import { vacRecap } from './views-sac.js?v=6.16';
-import { kidChips, cellBg } from './views-home.js?v=6.16';
-import { altText, whoChips, placeSel, placeToggle, placeLabel, dpText, alertsBlock, alertsBlockBind, saveItemAlerts, myAlertsSheet } from './views-more.js?v=6.16';
-import { openPrint } from './print.js?v=6.16';
+import * as E from './engine.js?v=6.17';
+import { occs, allEvents, findEvent, canEditEv, evxMap, me, queueReminders, S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.17';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.17';
+import { vacRecap } from './views-sac.js?v=6.17';
+import { kidChips, cellBg } from './views-home.js?v=6.17';
+import { altText, whoChips, placeSel, placeToggle, placeLabel, dpText, alertsBlock, alertsBlockBind, saveItemAlerts, myAlertsSheet } from './views-more.js?v=6.17';
+import { openPrint } from './print.js?v=6.17';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Sport / activité' }, { v: 'cours', i: '📖', l: 'Cours' },
@@ -114,7 +114,7 @@ export const views = {
       <div class="seg mt"><button class="${mode === 'mois' ? 'on' : ''}" data-act="ag-mode" data-m="mois">Mois</button><button class="${mode === 'annee' ? 'on' : ''}" data-act="ag-mode" data-m="annee">Année</button><button class="${mode === 'liste' ? 'on' : ''}" data-act="ag-mode" data-m="liste">Relais à venir</button></div>
       ${head}
       ${mode === 'mois' ? `<div class="card tight">${monthGrid(m)}${legend()}</div>
-        <div class="row gap6 mb">${isParent() ? `<button class="btn primary f1 sm" data-act="ev-new">${IC.plus} Événement</button><button class="btn soft sm" data-go="activites" title="Bilan des activités">📊</button>` : ''}<button class="btn soft sm ${isParent() ? '' : 'f1'}" data-act="ag-today">Aujourd'hui</button><button class="btn soft sm" data-act="print-year" title="Imprimer le calendrier annuel">${IC.print}</button><button class="btn soft sm" data-act="ics-sheet" title="Exporter">${IC.download}</button></div>
+        <div class="row gap6 mb ag-acts">${isParent() ? `<button class="btn primary f1 sm" data-act="ev-new">${IC.plus} Événement</button><button class="btn soft sm" data-go="activites" title="Bilan des activités">📊</button>` : ''}<button class="btn soft sm ${isParent() ? '' : 'f1'}" data-act="ag-today">Aujourd'hui</button><button class="btn soft sm" data-act="print-year" title="Imprimer le calendrier annuel">${IC.print}</button><button class="btn soft sm" data-act="ics-sheet" title="Exporter">${IC.download}</button></div>
         ${monthLists(m)}` : ''}
       ${mode === 'annee' ? `<button class="btn soft block mb" data-act="print-year" data-y="${y}">${IC.print} Imprimer le calendrier ${y}</button>${yearView(y)}` : ''}
       ${mode === 'liste' ? listView() : ''}`,
@@ -242,28 +242,32 @@ views.activites = p => {
 };
 
 // ───── Lien de création des activités de l'année (foot et PDC de Selman et Jandal) : sans doublon
+// by / tk : qui dépose / qui récupère (A = Khalid, B = Jounayda ou Maman TEST, '' = le parent qui a la garde)
 const ACT_PRESET = [
-  { t: 'Entraînement de foot', k: 'Selman', cat: 'activite', dows: [1, 3], time: '18:00', timeEnd: '19:30', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no' },
-  { t: 'Entraînement de foot', k: 'Jandal', cat: 'activite', dows: [2], time: '13:30', timeEnd: '15:00', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no' },
-  { t: 'Entraînement de foot', k: 'Jandal', cat: 'activite', dows: [4], time: '18:30', timeEnd: '19:30', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no' },
-  { t: 'PDC', k: 'Selman', cat: 'cours', dows: [2], time: '10:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1' },
-  { t: 'PDC', k: 'Jandal', cat: 'cours', dows: [2], time: '09:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1' },
-  { t: 'PDC', k: 'Jandal', cat: 'cours', dows: [5], time: '09:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1', match: true },
+  { t: 'Entraînement de foot', k: 'Selman', cat: 'activite', dows: [1, 3], time: '18:00', timeEnd: '19:30', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no', by: 'B', tk: 'A' },
+  { t: 'Entraînement de foot', k: 'Jandal', cat: 'activite', dows: [2], time: '13:30', timeEnd: '15:00', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no', by: 'A', tk: 'B' },
+  { t: 'Entraînement de foot', k: 'Jandal', cat: 'activite', dows: [4], time: '18:30', timeEnd: '19:30', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no', by: 'A', tk: 'B' },
+  { t: 'PDC', k: 'Selman', cat: 'cours', dows: [2], time: '10:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1', by: 'B', tk: 'A' },
+  { t: 'PDC', k: 'Jandal', cat: 'cours', dows: [2], time: '09:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1', by: 'B', tk: 'A' },
+  { t: 'PDC', k: 'Jandal', cat: 'cours', dows: [5], time: '09:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1', match: true, by: '', tk: '' },
 ];
+/** Organisation (qui dépose, qui récupère, où) d'une activité */
+const orgaOf = a => ({ from: a.by, dropAt: 'lieu:' + a.place, dropTxt: '', dropPlace: a.place, to: a.tk, pickAt: 'lieu:' + a.place, pickTxt: '', pickPlace: a.place, place: a.place });
+const ORGA_KEYS = ['from', 'dropAt', 'dropPlace', 'to', 'pickAt', 'pickPlace'];
 const norm = x => String(x || '').trim().toLowerCase();
 function presetData(a, kid) {
   return { title: a.t, cat: a.cat, icon: catIcon(a.cat), childIds: [kid.id], kind: 'dow', date: a.from, endDate: '', dow: a.dows[0], dows: a.dows, every: 1, parity: 'pair',
     school: a.hol !== 'yes', holW1: a.hol === 'w1', year: String(schoolY(a.from)), vis: 'all', matchSwap: !!a.match, time: a.time, timeEnd: a.timeEnd, endTime: a.timeEnd,
-    from: '', dropAt: 'autre', dropTxt: a.place, dropPlace: a.place, to: '', pickAt: 'autre', pickTxt: a.place, pickPlace: a.place, place: a.place, alt: null, notes: '',
+    ...orgaOf(a), alt: null, notes: '',
     repeat: 'weekly', until: `${schoolY(a.from) + 1}-08-31`, who: 'custodian' };
 }
 /** Cercles où créer les activités : celui-ci, et (depuis votre vrai compte) l'autre entre vrai cercle et cercle de test */
 async function presetTargets() {
-  const out = [{ fid: S.fid, name: S.family?.name || '', kids: S.children, evs: allEvents(), cur: true }], t = LS.get('testAcc', null), db = S.be.db;
+  const pp = parents(), out = [{ fid: S.fid, name: S.family?.name || '', kids: S.children, evs: allEvents(), cur: true, par: { A: pp.A.name, B: pp.B.name } }], t = LS.get('testAcc', null), db = S.be.db;
   if (t?.fid && t.realFid && S.acc !== 'test' && isParent()) {
     const fid = S.fid === t.fid ? t.realFid : S.fid === t.realFid ? t.fid : null;
     if (fid) {
-      try { const [kids, evs, fam] = await Promise.all([db.list(`families/${fid}/children`), db.list(`families/${fid}/events`), db.get(`families/${fid}`)]); out.push({ fid, name: fam?.name || '', kids, evs, cur: false }); }
+      try { const [kids, evs, fam] = await Promise.all([db.list(`families/${fid}/children`), db.list(`families/${fid}/events`), db.get(`families/${fid}`)]); out.push({ fid, name: fam?.name || '', kids, evs, cur: false, par: { A: fam?.parents?.A?.name || 'A', B: fam?.parents?.B?.name || 'B' } }); }
       catch (e) { console.warn('autre cercle', e); }
     }
   }
@@ -272,17 +276,20 @@ async function presetTargets() {
 function presetRows(tg) {
   return ACT_PRESET.map(a => {
     const kid = tg.kids.find(c => norm(c.prenom) === norm(a.k)), data = kid ? presetData(a, kid) : null;
-    const dup = !!data && tg.evs.some(e => norm(e.title) === norm(a.t) && (e.childIds || []).join() === kid.id && E.evKind(e) === 'dow' && E.evDays(e).join() === a.dows.join() && e.time === a.time);
-    return { a, kid, data, dup };
+    const ex = data ? tg.evs.find(e => norm(e.title) === norm(a.t) && (e.childIds || []).join() === kid.id && E.evKind(e) === 'dow' && E.evDays(e).join() === a.dows.join() && e.time === a.time) : null;
+    // déjà là : organisation à mettre à jour si elle diffère (qui dépose, qui récupère, lieux)
+    const org = orgaOf(a), upd = ex && ORGA_KEYS.some(k => (ex[k] || '') !== (org[k] || '')) ? { id: ex.id, patch: org, mine: ex.createdBy === uid() } : null;
+    return { a, kid, data, dup: !!ex, upd };
   });
 }
 async function presetSheet() {
   const tgs = await presetTargets();
-  const sec = (tg, k) => { const rows = presetRows(tg), todo = rows.filter(r => r.data && !r.dup).length;
-    return `<label class="row gap mt"><input type="checkbox" name="pt" value="${k}" ${todo ? 'checked' : 'disabled'} style="width:20px;height:20px"><b class="f1">${esc(tg.name)}${tg.cur ? ' <span class="muted small">(ce cercle)</span>' : ''}</b><span class="small muted">${todo ? `${plural(todo, 'à créer')}` : 'déjà fait'}</span></label>
-    ${rows.map(r => `<div class="li"><div class="le">${catIcon(r.a.cat)}</div><div class="f1"><div class="lt">${esc(r.a.t)} · ${esc(r.a.k)}${r.dup ? ' <span class="pill ok">déjà dans l\'agenda</span>' : !r.kid ? ' <span class="pill err">enfant introuvable</span>' : ''}</div>
-      <div class="ls">${r.data ? esc(ucf(evText(r.data))) : ''} · depuis le ${E.fmtDate(r.a.from, 'dm')}${r.a.match ? ' · peut être remplacé par un match de foot' : ''}</div></div></div>`).join('')}`; };
-  const any = tgs.some(tg => presetRows(tg).some(r => r.data && !r.dup));
+  const who = (tg, c) => (c ? tg.par?.[c] || c : 'le parent qui a la garde');
+  const sec = (tg, k) => { const rows = presetRows(tg), todo = rows.filter(r => (r.data && !r.dup) || r.upd).length;
+    return `<label class="row gap mt"><input type="checkbox" name="pt" value="${k}" ${todo ? 'checked' : 'disabled'} style="width:20px;height:20px"><b class="f1">${esc(tg.name)}${tg.cur ? ' <span class="muted small">(ce cercle)</span>' : ''}</b><span class="small muted">${todo ? `${plural(todo, 'changement')}` : 'à jour'}</span></label>
+    ${rows.map(r => `<div class="li"><div class="le">${catIcon(r.a.cat)}</div><div class="f1"><div class="lt">${esc(r.a.t)} · ${esc(r.a.k)}${r.upd ? ' <span class="pill warn">organisation à mettre à jour</span>' : r.dup ? ' <span class="pill ok">à jour</span>' : !r.kid ? ' <span class="pill err">enfant introuvable</span>' : ' <span class="pill">à créer</span>'}</div>
+      <div class="ls">${r.data ? esc(ucf(evText(r.data).split(' · ').slice(0, 2).join(' · '))) : ''} · 📍 ${esc(r.a.place)}<br>Dépose : <b>${esc(who(tg, r.a.by))}</b> · récupération : <b>${esc(who(tg, r.a.tk))}</b>${r.a.match ? '<br>Peut être remplacé par un match de foot' : ''}</div></div></div>`).join('')}`; };
+  const any = tgs.some(tg => presetRows(tg).some(r => (r.data && !r.dup) || r.upd));
   const sh = openSheet(`<h3 class="sh-title">⚽📖 Activités de l'année</h3>${tgs.map(sec).join('')}
     <div class="hint">Vous en serez le créateur : vous seul pourrez les modifier ou les supprimer. Absences et matchs : les deux parents.</div>
     <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">${any ? 'Annuler' : 'Fermer'}</button>${any ? `<button class="btn primary f1" data-act="preset-act-go">Créer</button>` : ''}</div>`);
@@ -441,14 +448,14 @@ function evFromForm(f) {
 /** Fiche d'une séance (un jour donné) : état, absence, match, mes rappels ; modifier / supprimer pour le parent créateur */
 function occSheet(ev, d) {
   const x = ev.pe ? null : evxMap()[E.evxKey(ev.id, d)] || null, par = isParent(), mine = canEditEv(ev);
-  const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date), o = { ...ev, occ: d };
+  const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date), o = ev.ovr?.[d] ? { ...ev, ...ev.ovr[d], occ: d, edited: true } : { ...ev, occ: d };
   const tm = (a, b) => (a ? E.fmtTime(a) + (b ? '–' + E.fmtTime(b) : '') : '');
   const status = !x ? '' : x.type === 'absent'
     ? `<div class="alert mt"><div class="ai">❌</div><div class="f1"><div class="at">Absent${x.cause ? ' : ' + esc(x.cause) : ''}</div><div class="small">Noté par ${esc(x.byName || '')} · ${fmtStamp(x.at)}</div></div></div>`
     : `<div class="alert info mt"><div class="ai">⚽</div><div class="f1"><div class="at">Remplacé par un match de foot${x.child ? ' de ' + esc(childName(x.child)) : ''}</div><div class="small">${tm(x.time, x.timeEnd) || 'Horaire non précisé'}${x.place ? ' · 📍 ' + esc(x.place) : ''} · noté par ${esc(x.byName || '')}</div></div></div>`;
   openSheet(`<h3 class="sh-title">${ev.icon || catIcon(ev.cat)} ${esc(ev.title)}</h3>
     <div class="muted small">${E.fmtDate(d, 'wdmy')}${ev.childIds?.length ? ' · ' + esc(childNames(ev.childIds)) : ''}${ev.pe ? ' · <span class="pill">🔒 Parents seulement</span>' : ''}</div>
-    <div class="card tight mt"><div class="small ${x ? 'occ-x' : ''}">${esc(ucf(evText(o, false)))}</div>${rec ? `<div class="tiny muted mtx">🔁 ${esc(ucf(evText(ev).split(' · ')[0]))}</div>` : ''}${ev.notes ? `<div class="small mt">📝 ${esc(ev.notes)}</div>` : ''}</div>
+    <div class="card tight mt"><div class="small ${x ? 'occ-x' : ''}">${esc(ucf(evText(o, false)))}</div>${o.edited ? '<div class="tiny mtx"><span class="pill warn">✏️ modifié pour ce jour</span></div>' : ''}${rec ? `<div class="tiny muted mtx">🔁 ${esc(ucf(evText(ev).split(' · ')[0]))}</div>` : ''}${o.notes ? `<div class="small mt">📝 ${esc(o.notes)}</div>` : ''}</div>
     ${status}
     ${par && !ev.pe ? (x ? `<button class="btn soft block mt" data-act="occ-restore" data-id="${ev.id}" data-d="${d}">↩️ Rétablir la séance</button>`
       : `<div class="row gap mt"><button class="btn soft f1" data-act="occ-absent" data-id="${ev.id}" data-d="${d}">🙋 Absent</button>${ev.matchSwap ? `<button class="btn soft f1" data-act="occ-match" data-id="${ev.id}" data-d="${d}">⚽ Match de foot</button>` : ''}</div>`) : ''}
@@ -458,6 +465,29 @@ function occSheet(ev, d) {
     <div class="sh-actions"><button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
 }
 const evColl = ev => (ev.pe ? 'pevents' : 'events');
+/** Modifier une ou plusieurs séances seulement : heures, qui dépose / récupère et où, note (le reste de la série ne change pas) */
+function occEditForm(ev, days) {
+  const o = { ...ev, ...(ev.ovr?.[days[0]] || {}) }, many = days.length > 1;
+  const sh = openSheet(`<h3 class="sh-title">✏️ ${many ? `Modifier ${days.length} séances` : 'Modifier le ' + E.fmtDate(days[0], 'wdm')}</h3>
+    <div class="muted small">${esc(ev.title)}${ev.childIds?.length ? ' · ' + esc(childNames(ev.childIds)) : ''} : ${many ? 'ces jours-là' : 'ce jour-là'} seulement, le reste de la série ne change pas.</div>
+    ${many ? `<div class="tiny muted mtx">${days.map(d => E.fmtDate(d, 'short')).join(' · ')}</div>` : ''}
+    <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="${o.time || ''}"></div><div><label class="lbl">Jusqu'à (option)</label><input class="in" type="time" name="timeEnd" value="${o.timeEnd || o.endTime || ''}"></div></div>
+    <label class="lbl">Qui dépose les enfants ?</label>${whoChips('from', o.from)}
+    <label class="lbl">Lieu de dépose</label>${placeSel('dropAt', o.dropAt || '', o.dropTxt || '', 'Non précisé')}
+    <label class="lbl">Qui récupère les enfants ?</label>${whoChips('to', o.to)}
+    <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', o.pickAt || '', o.pickTxt || '', 'Non précisé')}
+    <label class="lbl">Note pour ${many ? 'ces séances' : 'cette séance'} (option)</label><input class="in" name="notes" maxlength="200" value="${esc(ev.ovr?.[days[0]]?.notes || '')}">
+    ${days.some(d => ev.ovr?.[d]) ? `<button class="btn soft block mt" data-act="occ-ovr-reset" data-id="${ev.id}" data-days="${days.join(',')}">↩️ Revenir aux réglages de la série</button>` : ''}
+    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="occ-ovr-save" data-id="${ev.id}" data-days="${days.join(',')}">Enregistrer</button></div>`);
+  sh.addEventListener('chipchange', () => placeToggle(sh)); placeToggle(sh);
+}
+/** Choix des séances (cases à cocher) pour supprimer ou modifier */
+function pickDaysSheet(ev, d, act, label, cls) {
+  const list = nextOccs(ev, d);
+  openSheet(`<h3 class="sh-title">☑️ Séances à ${label}</h3><div class="muted small">${esc(ev.title)} · cochez les jours</div>
+    <div class="ckl">${list.map(o => `<label><input type="checkbox" name="days" value="${o}" ${o === d ? 'checked' : ''}><span class="f1">${E.fmtDate(o, 'wdmy')}${ev.ovr?.[o] ? ' ✏️' : ''}</span></label>`).join('') || '<div class="muted small">Aucune séance à venir.</div>'}</div>
+    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn ${cls} f1" data-act="${act}" data-m="multi" data-id="${ev.id}">${ucf(label)}</button></div>`);
+}
 /** Prochaines séances d'un événement (pour en supprimer plusieurs) */
 function nextOccs(ev, d) { const from = d < E.todayISO() ? d : E.todayISO(); return E.expandEvents([ev], from, E.addDays(from, 190), settings()).map(o => o.occ).slice(0, 80); }
 async function delOccs(ev, days) {
@@ -514,19 +544,66 @@ export const actions = {
     let n = 0;
     const ok = await guard(async () => {
       for (const tg of pick) {
-        const todo = presetRows(tg).filter(r => r.data && !r.dup);
+        const rows = presetRows(tg), todo = rows.filter(r => r.data && !r.dup);
         for (const r of todo) {
           if (tg.cur) await addItem('events', r.data);
           else await S.be.db.set(`families/${tg.fid}/events/${S.be.db.newId()}`, { ...r.data, createdAt: Date.now(), createdBy: uid(), createdByName: myName() });
           n++;
         }
+        // organisation (qui dépose, qui récupère, où) des activités déjà créées
+        for (const r of rows.filter(r => r.upd)) {
+          if (tg.cur) await updItem('events', r.upd.id, r.upd.patch);
+          else await S.be.db.update(`families/${tg.fid}/events/${r.upd.id}`, { ...r.upd.patch, updatedAt: Date.now(), updatedBy: uid() });
+          n++;
+        }
+        if (tg.cur && rows.some(r => r.upd)) await log('agenda', 'Organisation des activités mise à jour', { body: rows.filter(r => r.upd).map(r => `${r.a.t} (${r.a.k})`).join(', ') });
         if (tg.cur && todo.length) await log('agenda', `${plural(todo.length, 'activité')} ajoutée${todo.length > 1 ? 's' : ''} à l'agenda`, { body: todo.map(r => `${r.a.t} (${r.a.k})`).join(', ') });
       }
       queueReminders(); return true;
     });
-    if (ok) { closeSheet(); toast(`${plural(n, 'activité')} créée${n > 1 ? 's' : ''}${pick.length > 1 ? ' dans les deux cercles' : ''}`, 'ok', 3500); } else el.disabled = false;
+    if (ok) { closeSheet(); toast(`${plural(n, 'changement')} enregistré${n > 1 ? 's' : ''}${pick.length > 1 ? ' dans les deux cercles' : ''}`, 'ok', 3500); } else el.disabled = false;
   },
-  'occ-edit': el => { const ev = findEvent(el.dataset.id); if (canEditEv(ev)) closeSheetsThen(() => eventSheet(ev, el.dataset.d)); },
+  'occ-edit': el => {
+    const ev = findEvent(el.dataset.id), d = el.dataset.d || ev?.date; if (!canEditEv(ev)) return toast("Seul le parent qui a créé l'événement peut le modifier.", 'warn');
+    const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date);
+    if (!rec) return closeSheetsThen(() => eventSheet(ev, d));
+    openSheet(`<h3 class="sh-title">✏️ Modifier</h3><div class="muted small mb">${esc(ev.title)}</div>
+      <button class="btn soft block" data-act="occ-edit-go" data-m="day" data-id="${ev.id}" data-d="${d}">🗓️ Ce jour seulement · ${E.fmtDate(d, 'wdm')}</button>
+      <button class="btn soft block mt" data-act="occ-edit-pick" data-id="${ev.id}" data-d="${d}">☑️ Plusieurs jours…</button>
+      <button class="btn primary block mt" data-act="occ-edit-go" data-m="all" data-id="${ev.id}" data-d="${d}">🔁 Toute la série</button>
+      <div class="hint">Un jour ou plusieurs : heures, qui dépose ou récupère et où. Toute la série : tous les réglages.</div>
+      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button></div>`);
+  },
+  'occ-edit-pick': el => { const ev = findEvent(el.dataset.id); if (canEditEv(ev)) pickDaysSheet(ev, el.dataset.d, 'occ-edit-go', 'modifier', 'primary'); },
+  'occ-edit-go': el => {
+    const ev = findEvent(el.dataset.id), m = el.dataset.m; if (!canEditEv(ev)) return;
+    if (m === 'all') return closeSheetsThen(() => eventSheet(ev, el.dataset.d));
+    const days = m === 'day' ? [el.dataset.d] : [...el.closest('.sheet').querySelectorAll('input[name=days]:checked')].map(i => i.value);
+    if (!days.length) return toast('Cochez au moins un jour.', 'warn');
+    closeSheetsThen(() => occEditForm(ev, days));
+  },
+  'occ-ovr-save': async el => {
+    const ev = findEvent(el.dataset.id), days = el.dataset.days.split(','), f = readForm(el.closest('.sheet')); if (!canEditEv(ev)) return;
+    const t = x => String(x || '').trim();
+    if (f.timeEnd && f.time && f.timeEnd <= f.time) return toast("L'heure de fin doit suivre l'heure de début.", 'warn');
+    if ((f.dropAt === 'autre' && !t(f.dropAtTxt)) || (f.pickAt === 'autre' && !t(f.pickAtTxt))) return toast('Précisez le lieu.', 'warn');
+    const dropPlace = placeLabel(f.dropAt, f.dropAtTxt), pickPlace = placeLabel(f.pickAt, f.pickAtTxt);
+    const o = { time: f.time || '', timeEnd: f.timeEnd || '', endTime: f.timeEnd || '', from: f.from || '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace,
+      to: f.to || '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', pickPlace, place: pickPlace || dropPlace, ...(t(f.notes) ? { notes: t(f.notes) } : {}) };
+    const ovr = { ...(ev.ovr || {}) }; for (const d of days) ovr[d] = o;
+    const ok = await guard(async () => {
+      await updItem(evColl(ev), ev.id, { ovr });
+      await log('agenda', `${days.length > 1 ? days.length + ' séances modifiées' : 'Séance modifiée'} : ${ev.title}`, { body: `${days.map(d => E.fmtDate(d, 'wdm')).join(', ')} · ${evText({ ...ev, ...o }, false)}`, link: `agenda?d=${days[0]}` });
+      queueReminders(); return true;
+    }, days.length > 1 ? `${days.length} séances modifiées` : 'Séance modifiée');
+    if (ok) closeSheetsThen(() => occSheet(findEvent(ev.id) || ev, days[0]));
+  },
+  'occ-ovr-reset': async el => {
+    const ev = findEvent(el.dataset.id), days = el.dataset.days.split(','); if (!canEditEv(ev)) return;
+    const ovr = { ...(ev.ovr || {}) }; for (const d of days) delete ovr[d];
+    const ok = await guard(async () => { await updItem(evColl(ev), ev.id, { ovr }); queueReminders(); return true; }, 'Réglages de la série rétablis');
+    if (ok) closeSheetsThen(() => occSheet(findEvent(ev.id) || ev, days[0]));
+  },
   'occ-alerts': el => { const ev = findEvent(el.dataset.id); if (ev) myAlertsSheet('ev', ev.id, ev.title); },
   'occ-absent': el => {
     const ev = findEvent(el.dataset.id), d = el.dataset.d; if (!ev) return;
@@ -576,13 +653,7 @@ export const actions = {
       <div class="hint">Une séance supprimée disparaît de l'agenda et du bilan. Pour une absence, utilisez plutôt « 🙋 Absent ».</div>
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button></div>`);
   },
-  'occ-del-pick': el => {
-    const ev = findEvent(el.dataset.id), d = el.dataset.d; if (!canEditEv(ev)) return;
-    const list = nextOccs(ev, d);
-    openSheet(`<h3 class="sh-title">☑️ Séances à supprimer</h3><div class="muted small">${esc(ev.title)} · cochez les jours</div>
-      <div class="ckl">${list.map(o => `<label><input type="checkbox" name="days" value="${o}" ${o === d ? 'checked' : ''}><span class="f1">${E.fmtDate(o, 'wdmy')}</span></label>`).join('') || '<div class="muted small">Aucune séance à venir.</div>'}</div>
-      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn danger f1" data-act="occ-del-go" data-m="multi" data-id="${ev.id}">Supprimer</button></div>`);
-  },
+  'occ-del-pick': el => { const ev = findEvent(el.dataset.id); if (canEditEv(ev)) pickDaysSheet(ev, el.dataset.d, 'occ-del-go', 'supprimer', 'danger'); },
   'occ-del-go': async el => {
     const ev = findEvent(el.dataset.id), m = el.dataset.m; if (!canEditEv(ev)) return;
     if (m === 'all') {

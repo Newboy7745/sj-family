@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.16';
-import { randomId } from './backend.js?v=6.16';
-import { ALERT_LABELS, alertDefaults, alertText, itemAlerts, queueReminders, isPending, S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.16';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.16';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.16';
-import { createFamily, procheText } from './views-family.js?v=6.16';
-import { openPrint } from './print.js?v=6.16';
+import * as E from './engine.js?v=6.17';
+import { randomId } from './backend.js?v=6.17';
+import { favPlaces, ALERT_LABELS, alertDefaults, alertText, itemAlerts, queueReminders, isPending, S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.17';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.17';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.17';
+import { createFamily, procheText } from './views-family.js?v=6.17';
+import { openPrint } from './print.js?v=6.17';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -389,6 +389,8 @@ export const views = {
       <div class="card"><h3>📱 Widgets</h3><p class="small muted" style="margin-top:0">Garde du jour, semaine, mois, pleine page et programme sur l'écran d'accueil.</p><button class="btn ghost block" data-go="widgets">Configurer les widgets</button></div>
       <div class="card"><h3>📤 Exporter</h3><button class="btn soft block" data-act="print-year">🖨️ Imprimer le calendrier annuel</button><button class="btn soft block mt" data-act="ics-sheet">📅 Vers Google Agenda / Samsung / iPhone (.ics)</button>${can('expenses') ? '<button class="btn soft block mt" data-act="exp-csv">💰 Dépenses (tableur .csv)</button>' : ''}</div>
       ${par ? `<div class="card"><h3>🎒 Sac</h3><p class="small muted" style="margin-top:0">Repartir de zéro : efface les affaires, listes des vacances et relais du sac (ce cercle et le cercle de test), avec leurs notifications. Vos listes type sont gardées.</p><button class="btn soft block" style="color:var(--err)" data-act="sac-reset">🧹 Tout effacer et recommencer</button></div>` : ''}
+      ${par ? `<div class="card"><h3>📍 Lieux favoris <a class="act" data-act="set-places">Modifier</a></h3><p class="small muted" style="margin-top:0">Boutons proposés après « École » pour les relais, les échanges et les événements.</p>
+        <div class="chips">${favPlaces().map(x => `<span class="chip">${placeIcon(x)} ${esc(x)}</span>`).join('') || '<span class="small muted">Aucun</span>'}</div></div>` : ''}
       ${par ? `<div class="card"><h3>🛡️ Règles Firestore</h3><p class="small muted" style="margin-top:0">Après une mise à jour qui le demande : copiez les règles ici, puis dans Firebase › Firestore › Règles, remplacez tout le texte et touchez « Publier ».</p>
         <button class="btn soft block" data-act="rules-copy">📋 Copier les règles (version ${VERSION})</button></div>` : ''}
       <div class="card"><h3>ℹ️ Application</h3>
@@ -729,6 +731,16 @@ export const actions = {
     await guard(async () => { await setFamily({ settings: { ...st, zone: f.zone || st.zone, customHolidays: ch } }); await log('garde', `Vacances : zone ${f.zone || st.zone}`); }, 'Enregistré');
     closeSheet();
   },
+  'set-places': () => {
+    openSheet(`<h3 class="sh-title">📍 Lieux favoris</h3><label class="lbl">Un lieu par ligne, dans l'ordre des boutons</label><textarea class="in" name="places" rows="6">${esc(favPlaces().join('\n'))}</textarea>
+      <div class="hint">Ex. El Fayhae, Stade de Concyr, Stade des Montées. Ils apparaissent après « 🏫 École ».</div>
+      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="set-places-save">Enregistrer</button></div>`);
+  },
+  'set-places-save': async el => {
+    const f = readForm(el.closest('.sheet')), list = [...new Set(String(f.places || '').split('\n').map(x => x.trim().replace(/^lieu:/, '')).filter(Boolean))].slice(0, 12);
+    const ok = await guard(async () => { await setFamily({ settings: { ...settings(), places: list } }); await log('garde', 'Lieux favoris mis à jour', { body: list.join(', ') }); return true; }, 'Lieux enregistrés');
+    if (ok) closeSheet();
+  },
   'set-hol-del': async el => { const st = settings(); await guard(() => setFamily({ settings: { ...st, customHolidays: (st.customHolidays || []).filter(h => h.id !== el.dataset.id) } }), 'Période supprimée'); el.closest('.per')?.remove(); },
   'push-setup': () => {
     const m = me(), topic = m.ntfyTopic || ('sjf-' + randomId(14).toLowerCase());
@@ -824,10 +836,14 @@ function ctSheet(c = null) {
 // ───────────── Horaires de relais : horaire par défaut + horaires réguliers (jour, semaine paire/impaire, vacances, date)
 const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
 // ───── Lieux : chez chaque parent (prénom), école, autre (à préciser obligatoirement)
-export function placeLabel(code, txt = '') { const p = parents(); return code === 'A' || code === 'B' ? `Chez ${p[code].name}` : code === 'ecole' ? 'École' : code === 'autre' ? String(txt || '').trim() : ''; }
+export function placeLabel(code, txt = '') { const p = parents(); return code === 'A' || code === 'B' ? `Chez ${p[code].name}` : code === 'ecole' ? 'École' : String(code || '').startsWith('lieu:') ? code.slice(5) : code === 'autre' ? String(txt || '').trim() : ''; }
+const placeIcon = n => (/stade|gymnase|piscine|terrain/i.test(n) ? '🏟️' : '📍');
 export function placeSel(name, code = '', txt = '', none = '') {
-  const p = parents();
-  return `${chips(name, [...(none ? [{ v: '', l: none }] : []), { v: 'A', l: `🏠 Chez ${esc(p.A.name)}` }, { v: 'B', l: `🏠 Chez ${esc(p.B.name)}` }, { v: 'ecole', l: '🏫 École' }, { v: 'autre', l: '✏️ Autre' }], [code])}
+  const p = parents(), favs = favPlaces();
+  // un lieu favori écrit à la main (« Autre ») s'affiche sur son bouton
+  if (code === 'autre' && favs.some(x => x.toLowerCase() === String(txt || '').trim().toLowerCase())) { code = 'lieu:' + favs.find(x => x.toLowerCase() === String(txt).trim().toLowerCase()); txt = ''; }
+  return `${chips(name, [...(none ? [{ v: '', l: none }] : []), { v: 'A', l: `🏠 Chez ${esc(p.A.name)}` }, { v: 'B', l: `🏠 Chez ${esc(p.B.name)}` }, { v: 'ecole', l: '🏫 École' },
+    ...favs.map(x => ({ v: 'lieu:' + x, l: `${placeIcon(x)} ${esc(x)}` })), { v: 'autre', l: '✏️ Autre' }], [code])}
     <div data-pl="${name}" class="${code === 'autre' ? '' : 'hide'}"><input class="in mtx" name="${name}Txt" value="${esc(txt)}" placeholder="Précisez le lieu (obligatoire)"></div>`;
 }
 /** Affiche la case « Autre » quand ce lieu est choisi */

@@ -1,9 +1,9 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.16';
-import { occs, S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.16';
+import * as E from './engine.js?v=6.17';
+import { occs, S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.17';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.16';
-import { evText } from './views-agenda.js?v=6.16';
+import { esc, fmtAgo } from './ui.js?v=6.17';
+import { evText } from './views-agenda.js?v=6.17';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -53,7 +53,7 @@ function gardeCard(kids) {
   return `<div class="garde"><div class="gt"><span class="gk">${kids.map(k => kidAvatar(k, 26)).join('')}</span>Garde du jour · ${esc(label)}</div>
     <div class="gw">${avatar(P.name, who === 'A' ? 'var(--pa-d)' : 'var(--pb-d)', 50)}<div class="f1"><div class="gn">Chez ${esc(P.name)}${P.short && P.short !== P.name ? ` <span class="muted" style="font-weight:700">(${esc(P.short)})</span>` : ''}</div>
     <div class="gs">${esc(sub.join(' · '))}</div></div></div>
-    ${next ? `<div class="next"><span style="font-size:24px">🔁</span><div class="f1"><div class="nt">Relais ${esc(E.relDay(next.date, today))} à ${hoTime(next)}${next.custom ? ' <span class="pill warn">horaire convenu</span>' : ''}</div>
+    ${next ? `<div class="next tap" data-act="open-day" data-d="${next.date}" style="cursor:pointer"><span style="font-size:24px">🔁</span><div class="f1"><div class="nt">Relais ${esc(E.relDay(next.date, today))} à ${hoTime(next)}${next.custom ? ' <span class="pill warn">horaire convenu</span>' : ''}</div>
       <div class="small muted">${esc(pName(next.from))} → ${esc(pName(next.to))}${next.kind === 'midi' ? ' · mi-journée' : ''}${esc(hoPlace(next))}</div>
       <div class="count mt6">⏱ ${countdown(next.date, next.time)}</div></div></div>` : ''}
     <div class="week">${week}</div></div>`;
@@ -107,16 +107,18 @@ function todayAgenda() {
   const tasks = can('tasks') ? S.tasks.filter(t => !t.done && t.due && t.due <= tom && (!t.childIds?.length || t.childIds.some(i => ids.has(i)))) : [];
   if (!evs.length && !tasks.length && !bdays.length) return '';
   const eng = engine();
-  const row = (d, html) => `<div class="li"><div class="le">${html.i}</div><div class="f1"><div class="lt">${esc(html.t)}</div><div class="ls">${esc(html.s)}</div></div></div>`;
+  // chaque ligne mène à ce qu'elle concerne (séance, tâche, fiche)
+  const row = (at, html) => `<button class="li tap" style="width:100%;text-align:left" ${at}><div class="le">${html.i}</div><div class="f1"><div class="lt">${esc(html.t)}</div><div class="ls">${esc(html.s)}</div></div><span class="lnk">›</span></button>`;
+  const evAt = e => `data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"`;
   return `<div class="card"><h3>🗓️ Aujourd'hui & demain <a class="act" data-go="agenda">Agenda ›</a></h3>
-    ${bdays.map(c => row(0, { i: '🎂', t: `Anniversaire de ${c.prenom} (${E.age(c.birth, c.birth.slice(5) === today.slice(5) ? today : tom)} ans)`, s: c.birth.slice(5) === today.slice(5) ? "Aujourd'hui" : 'Demain' })).join('')}
+    ${bdays.map(c => row(`data-go="family"`, { i: '🎂', t: `Anniversaire de ${c.prenom} (${E.age(c.birth, c.birth.slice(5) === today.slice(5) ? today : tom)} ans)`, s: c.birth.slice(5) === today.slice(5) ? "Aujourd'hui" : 'Demain' })).join('')}
     ${evs.map(e => {
-      if (e.x && !e.match) return row(0, { i: e.x.type === 'match' ? '🔁' : '❌', t: e.title, s: `${E.relDay(e.occ, today)} · ${e.x.type === 'match' ? 'remplacé par un match de foot' : 'absent' + (e.x.cause ? ' (' + e.x.cause + ')' : '')}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}` });
-      if (e.kind) return row(0, { i: e.icon || '📌', t: e.title + (e.pe ? ' 🔒' : ''), s: `${E.relDay(e.occ, today)} · ${evText(e, false)}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}` });
+      if (e.x && !e.match) return row(evAt(e), { i: e.x.type === 'match' ? '🔁' : '❌', t: e.title, s: `${E.relDay(e.occ, today)} · ${e.x.type === 'match' ? 'remplacé par un match de foot' : 'absent' + (e.x.cause ? ' (' + e.x.cause + ')' : '')}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}` });
+      if (e.kind) return row(evAt(e), { i: e.icon || '📌', t: e.title + (e.pe ? ' 🔒' : ''), s: `${E.relDay(e.occ, today)} · ${evText(e, false)}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}` });
       const resp = e.who && e.who !== 'custodian' ? (e.who === 'both' ? 'Les deux parents' : pName(e.who)) : (() => { const k = e.childIds?.[0] || selIds()[0]; const p = k ? eng.presence(k, e.occ, E.t2m(e.time) ?? 600) : null; return p ? `${pShort(p)} (parent de garde)` : ''; })();
-      return row(0, { i: e.icon || '📌', t: e.title, s: `${E.relDay(e.occ, today)}${e.time ? ' · ' + E.fmtTime(e.time) : ''}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}${resp ? ' · ' + resp : ''}` });
+      return row(evAt(e), { i: e.icon || '📌', t: e.title, s: `${E.relDay(e.occ, today)}${e.time ? ' · ' + E.fmtTime(e.time) : ''}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}${resp ? ' · ' + resp : ''}` });
     }).join('')}
-    ${tasks.map(t => row(0, { i: '✅', t: t.title, s: `Échéance ${E.relDay(t.due, today)}` })).join('')}</div>`;
+    ${tasks.map(t => row(`data-act="task-open" data-id="${t.id}"`, { i: '✅', t: t.title, s: `Échéance ${E.relDay(t.due, today)}` })).join('')}</div>`;
 }
 function lastNotes() {
   const me = uid();

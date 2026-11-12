@@ -322,6 +322,23 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   TEST) ; « 📥 Copier depuis mon vrai cercle… » (Réglages › Mode test) : événements, plannings, échanges, tâches,
   contacts, dépenses, sac, documents, souvenirs, réglages, au choix, sans doublon.
 
+## 10 duodecies. Nouveautés 6.17
+
+> Règles Firestore inchangées depuis la 6.16 (rien à recoller).
+
+- **Modifier une séance, plusieurs ou toute la série** (fiche de la séance › ✏️ Modifier, parent créateur) : un jour ou des
+  jours cochés (heures, qui dépose / récupère et où, note) sans toucher au reste ; « Revenir aux réglages de la série ».
+- **Organisation des activités** (lien `…/#/agenda?preset=activites`) : foot de Selman déposé par Jounayda (Maman TEST dans le
+  cercle de test), récupéré par Khalid ; foot de Jandal déposé par Khalid, récupéré par Jounayda ; PDC du mercredi déposé par
+  Jounayda, récupéré par Khalid ; PDC du samedi : le parent qui a la garde. Les activités déjà créées sont mises à jour.
+- **Lieux favoris** (Réglages › 📍) : El Fayhae, Stade de Concyr, Stade des Montées juste après « École » (relais, échanges,
+  événements), modifiables.
+- **Validation avant chaque action** qui enregistre, supprime ou change quelque chose (sauf le choix des personnages du mode test).
+- **Accueil** : chaque ligne d'« Aujourd'hui & demain » et le prochain relais ouvrent ce qu'ils concernent.
+- **Mode test** : bandeau jaune plus grand ; changer de personnage ramène à l'accueil ; en rouvrant l'appli (ou après plus de
+  3 minutes ailleurs), retour à l'accueil de votre vrai compte, dans votre vrai cercle.
+- **Textes** : les boutons et les puces gardent leur texte à l'intérieur, même avec une grande taille de police.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

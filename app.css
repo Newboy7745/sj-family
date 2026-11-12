@@ -354,7 +354,9 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .vi>.in.sm{margin:2px 0 4px}
 #tbar{position:sticky;top:var(--hdr-h,68px);z-index:29;max-width:760px;margin:0 auto}
 #tbar:empty{display:none}
-.testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#FFF2D6;border-bottom:1.5px solid #F5D58A;padding:7px 16px;font-size:14px;box-shadow:0 4px 10px -8px rgba(15,27,45,.3)}
+.testbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:repeating-linear-gradient(-45deg,#FFD54A 0 14px,#FFC928 14px 28px);border-bottom:3px solid #E0A800;padding:12px 14px;font-size:17px;font-weight:700;color:#3B2A00;box-shadow:0 6px 14px -6px rgba(15,27,45,.45)}
+.testbar b{font-weight:900;font-size:18px}
+.testbar .btn.sm{background:#fff;color:#3B2A00;border:2px solid #3B2A00;font-weight:900;padding:9px 12px}
 
 /* ───── v6.6 : vidéos et validation des souvenirs */
 .grid3 .ph .play{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:rgba(15,27,45,.6);color:#fff;font-style:normal;display:grid;place-items:center;font-size:14px}
@@ -446,3 +448,15 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .li.refused{position:relative;outline:2px solid #E0393E;outline-offset:2px;border-radius:12px}
 .li.refused .lt{text-decoration:line-through}
 .testbar>span{flex:1}
+
+/* 6.17 · les textes restent dans leur fond ou leur contour (boutons, puces, lignes) même avec une grande police */
+.btn{min-width:0;max-width:100%;white-space:normal;text-align:center;line-height:1.2}
+.btn.sm{line-height:1.15}
+.chip{max-width:100%;white-space:normal;text-align:center;line-height:1.2}
+.chips.scroll .chip{white-space:nowrap}
+.li .f1,.prow,.prow b,.prow span,.card,.alert .f1,.sh-title,h2,h3{overflow-wrap:anywhere;min-width:0}
+.ag-acts{flex-wrap:wrap}
+.ag-acts .btn.primary{flex:1 1 140px}
+.pill{white-space:normal;overflow-wrap:anywhere}
+.li.tap .lnk,.next.tap::after{color:var(--muted);font-weight:800;margin-left:6px}
+@media (max-width:340px){.btn{padding-left:10px;padding-right:10px;gap:5px}.btn.sm{padding-left:9px;padding-right:9px}}

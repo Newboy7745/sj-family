@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.16';
-import { toast, esc } from './ui.js?v=6.16';
+import * as E from './engine.js?v=6.17';
+import { toast, esc } from './ui.js?v=6.17';
 
-export const VERSION = '6.16';
+export const VERSION = '6.17';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Version minimale de l'appli Android des widgets (numéro de compilation) : au-dessous, le widget propose la mise à jour */
 export const WIDGETS_APK = 13;
@@ -148,6 +148,9 @@ export const childName = id => S.children.find(c => c.id === id)?.prenom || '?';
 export const childNames = ids => (ids || []).map(childName).join(' & ');
 export function setSel(ids) { S.sel = new Set(ids); LS.set('sel', [...S.sel]); }
 export const settings = () => ({ handoverTime: '18:30', middayTime: '14:00', zone: 'B', customHolidays: [], relayRules: [], ...(S.family?.settings || {}) });
+/** Lieux favoris (boutons après « École » pour les relais et les événements) — modifiables dans Réglages */
+export const DEFAULT_PLACES = ['El Fayhae', 'Stade de Concyr', 'Stade des Montées'];
+export const favPlaces = () => (Array.isArray(S.family?.settings?.places) ? S.family.settings.places : DEFAULT_PLACES).filter(Boolean);
 
 let _eng = null, _engKey = '';
 export function engine() {
