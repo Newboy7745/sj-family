@@ -1,9 +1,9 @@
 // ═══════════════ Cercle familial : création, adhésion, statut, enfants, membres, invitations ═══════════════
-import * as E from './engine.js?v=6.17';
-import { randomId } from './backend.js?v=6.17';
-import { stat } from './core.js?v=6.17';
-import { S, engine, parents, pName, hoTime, hoPlace, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, SHARE_URL, PARENT_COLORS, CHILD_EMOJIS, avatar, kidAvatar, groupAvatar, kidFull, CHILD_DETAIL_KEYS, PERM_KEYS, memberName, hasOtherParent, countdown } from './core.js?v=6.17';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, copyText, closeSheetsThen, compressImage, squarePhoto } from './ui.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { randomId } from './backend.js?v=6.18';
+import { stat } from './core.js?v=6.18';
+import { S, engine, parents, pName, hoTime, hoPlace, uid, me, myName, myFullName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, LS, APP_URL, SHARE_URL, PARENT_COLORS, CHILD_EMOJIS, avatar, kidAvatar, groupAvatar, kidFull, CHILD_DETAIL_KEYS, PERM_KEYS, memberName, parentLabel, hasOtherParent, countdown } from './core.js?v=6.18';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, copyText, closeSheetsThen, compressImage, squarePhoto } from './ui.js?v=6.18';
 
 const STATUS = { separes: '🔶 Séparés', divorces: '📋 Divorcés' };
 const code6 = () => { const a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; const b = new Uint8Array(6); crypto.getRandomValues(b); return [...b].map(x => a[x % a.length]).join(''); };
@@ -131,13 +131,23 @@ function invRow(i) {
   const lien = i.role === 'parent' ? 'Parent' : procheText({ relation: i.relation, side: i.side, uid: '_inv' });
   return `<div class="li"><div class="le">${ap ? '⏳' : '✉️'}</div><div class="f1"><div class="lt">${esc(i.prenom)} ${esc(i.nom || '')}</div><div class="ls">${esc(lien)}${i.phone || i.email ? ' · ' + esc(i.phone || i.email) : ''}</div>
     <div class="ls">${ap ? (mine ? `⏳ En attente de l'accord de ${esc(other)}` : `<b>Ajouté par ${esc(i.byName || '')} : votre accord est nécessaire</b>`) : `✅ Accord des deux parents${i.okByName ? ' (' + esc(i.okByName) + ')' : ''} · invitation à envoyer`}</div>
-    ${ap && !mine && isParent() ? `<div class="row gap6 mtx"><button class="btn ok sm" data-act="inv-ok" data-id="${i.id}">✓ Donner mon accord</button><button class="btn danger sm" data-act="inv-no" data-id="${i.id}">✗ Refuser</button></div>` : ''}</div>
-    ${ap ? '' : `<button class="ib" data-act="inv-send" data-id="${i.id}">${IC.share}</button>`}${mine || !ap ? `<button class="ib" data-act="inv-del" data-id="${i.id}">${IC.trash}</button>` : ''}</div>`;
+    ${ap && !mine && isParent() ? `<div class="row gap6 mtx"><button class="btn ok sm" data-act="inv-ok" data-id="${i.id}">✓ Donner mon accord</button><button class="btn danger sm" data-act="inv-no" data-id="${i.id}">✗ Refuser</button></div>` : ''}
+    ${i.delReq ? delReqHtml(i.delReq, 'inv', i.id) : ''}</div>
+    ${ap ? '' : `<button class="ib" data-act="inv-send" data-id="${i.id}">${IC.share}</button>`}${isParent() && (mine || !ap) && !i.delReq ? `<button class="ib" data-act="inv-del" data-id="${i.id}">${IC.trash}</button>` : ''}</div>`;
 }
+/** Demande de suppression d'un proche (ajouté par l'autre parent) : à valider par l'autre parent */
+function delReqHtml(r, k, id) {
+  const mine = r.by === uid(), who = parentLabel(r.by, r.byName);
+  return `<div class="alert pend mtx" style="margin-bottom:0"><div class="ai">🗑️</div><div class="f1"><div class="at">${mine ? 'Vous avez demandé la suppression' : `${esc(who)} demande la suppression`}</div>
+    ${mine ? `<div class="small">En attente de l'accord de l'autre parent</div><div class="row gap6 mtx"><button class="btn soft sm" data-act="${k}-del-cancel" data-id="${id}">Annuler ma demande</button></div>`
+      : `<div class="row gap6 mtx"><button class="btn ok sm" data-act="${k}-del-ok" data-id="${id}">✓ Valider</button><button class="btn danger sm" data-act="${k}-del-no" data-id="${id}">✗ Refuser</button></div>`}</div></div>`;
+}
+/** Parent qui a ajouté ce proche */
+export const procheBy = m => m.addedBy || S.invites.find(i => i.joinedUid === m.uid)?.by || '';
 function memberRow(m, p, u) {
   const proche = !m.parentCode;
   const pend = m.pendingPerms;
-  return `<div class="li" ${proche && isParent() ? `data-act="perm-open" data-id="${m.uid}" style="cursor:pointer"` : ''}>${avatar(m.name, m.parentCode ? p[m.parentCode].color : '#8E9BB0', 40)}<div class="f1"><div class="lt">${esc(m.prenom || m.name)} ${esc(m.nom || '')}${m.uid === u ? ' <span class="pill navy">vous</span>' : ''}${pend ? ' <span class="pill warn">⏳ accès à valider</span>' : ''}</div>
+  return `<div class="li ${m.delReq ? 'pend' : ''}" ${proche && isParent() ? `data-act="perm-open" data-id="${m.uid}" style="cursor:pointer"` : ''}>${avatar(m.name, m.parentCode ? p[m.parentCode].color : '#8E9BB0', 40)}<div class="f1"><div class="lt">${esc(m.prenom || m.name)} ${esc(m.nom || '')}${m.uid === u ? ' <span class="pill navy">vous</span>' : ''}${pend ? ' <span class="pill warn">⏳ accès à valider</span>' : ''}${m.delReq ? ' <span class="pill err">🗑️ suppression demandée</span>' : ''}</div>
     <div class="ls">${m.parentCode ? 'Parent' : esc(procheText(m))}${m.email ? ' · ' + esc(m.email) : ''}</div>${proche ? `<div class="ls">👁️ ${esc(permLabel(m))}</div>` : ''}</div>${proche && isParent() ? '<span class="lnk">›</span>' : '<span class="pill ok">✓</span>'}</div>`;
 }
 export const views = {
@@ -319,6 +329,9 @@ export const actions = {
       <label class="lbl">Rubriques en plus</label>
       ${PERM_KEYS.map(x => `<label class="row gap" style="padding:8px 0"><span class="sw"><input type="checkbox" name="p_${x.k}" ${cur[x.k] ? 'checked' : ''}><span></span></span><span class="f1">${x.l}</span></label>`).join('')}
       <div class="hint">${hasOtherParent() ? "L'autre parent devra valider ; " + esc(m.prenom || 'le proche') + " ne sera prévenu(e) qu'après validation." : 'Appliqué immédiatement.'}</div>
+      ${m.delReq ? delReqHtml(m.delReq, 'prc', m.uid) : procheBy(m) === uid() || !hasOtherParent()
+        ? `<button class="btn soft block mt" style="color:var(--err)" data-act="prc-del" data-id="${m.uid}">${IC.trash} Retirer du cercle</button>`
+        : `<button class="btn soft block mt" style="color:var(--err)" data-act="prc-del-ask" data-id="${m.uid}">${IC.trash} Demander à le retirer du cercle</button>`}
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="perm-save" data-id="${m.uid}">Enregistrer</button></div>`);
   },
   'perm-save': async el => {
@@ -462,7 +475,55 @@ export const actions = {
     await guard(async () => { await updItem('invites', i.id, { state: 'refused', okBy: uid(), okByName: myName(), okAt: Date.now() }); await log('cercle', `Proche refusé : ${i.prenom}`, { link: 'family', icon: '✗' }); }, 'Refusé');
   },
   'inv-send': el => { const i = S.invites.find(x => x.id === el.dataset.id); if (i) sendInviteSheet(i); },
-  'inv-del': async el => { const i = S.invites.find(x => x.id === el.dataset.id); if (!i) return; if (!(await confirmBox('Supprimer cette invitation ?', esc(i.prenom), 'Supprimer', true))) return; await guard(() => S.be.db.del(fpath('invites', i.id)), 'Invitation supprimée'); },
+  'inv-del': async el => {
+    const i = S.invites.find(x => x.id === el.dataset.id); if (!i || !isParent()) return;
+    // ajouté par l'autre parent : demande de suppression, à valider
+    if (i.by !== uid() && hasOtherParent()) {
+      if (!(await confirmInfo('Demander la suppression ?', `${esc(i.prenom)} ${esc(i.nom || '')} n'est retiré(e) qu'après l'accord de l'autre parent.`, 'La demande à valider ou refuser, et une notification.', parents()[E.other(myCode() || 'A')]?.name || "l'autre parent", 'Envoyer'))) return;
+      return guard(async () => { await updItem('invites', i.id, { delReq: { by: uid(), byName: myName(), at: Date.now() } }); await log('cercle', `Suppression demandée : ${i.prenom} ${i.nom || ''}`.trim(), { body: 'Votre accord est nécessaire', icon: '🗑️', link: 'family' }); }, 'Demande envoyée');
+    }
+    if (!(await confirmBox('Supprimer cette invitation ?', esc(i.prenom), 'Supprimer', true))) return;
+    await guard(() => S.be.db.del(fpath('invites', i.id)), 'Invitation supprimée');
+  },
+  'inv-del-ok': async el => {
+    const i = S.invites.find(x => x.id === el.dataset.id); if (!i?.delReq || i.delReq.by === uid()) return;
+    await guard(async () => { await S.be.db.del(fpath('invites', i.id)); await log('cercle', `Suppression acceptée : ${i.prenom} ${i.nom || ''}`.trim(), { icon: '🗑️' }); }, 'Invitation supprimée');
+  },
+  'inv-del-no': async el => {
+    const i = S.invites.find(x => x.id === el.dataset.id); if (!i?.delReq) return;
+    await guard(async () => { await updItem('invites', i.id, { delReq: null }); await log('cercle', `Suppression refusée : ${i.prenom} ${i.nom || ''}`.trim(), { icon: '🗑️' }); }, 'Suppression refusée');
+  },
+  'inv-del-cancel': async el => {
+    const i = S.invites.find(x => x.id === el.dataset.id); if (!i?.delReq || i.delReq.by !== uid()) return;
+    await guard(() => updItem('invites', i.id, { delReq: null }), 'Demande annulée');
+  },
+  // proche ajouté par moi : retiré directement ; ajouté par l'autre parent : demande, validée (ou non) par lui
+  'prc-del': async el => {
+    const m = S.members.find(x => x.uid === el.dataset.id); if (!m || m.parentCode || !isParent()) return;
+    if (procheBy(m) !== uid() && hasOtherParent()) return toast("Ce proche a été ajouté par l'autre parent : demandez-lui de valider.", 'warn');
+    const ok = await guard(async () => { await S.be.db.del(fpath('members', m.uid)); await log('cercle', `${m.prenom || m.name} a été retiré(e) du cercle`, { icon: '🗑️' }); return true; }, 'Proche retiré du cercle');
+    if (ok) closeSheetsThen(null);
+  },
+  'prc-del-ask': async el => {
+    const m = S.members.find(x => x.uid === el.dataset.id); if (!m || m.parentCode || !isParent()) return;
+    const ok = await guard(async () => { await S.be.db.update(fpath('members', m.uid), { delReq: { by: uid(), byName: myName(), at: Date.now() } }); await log('cercle', `Suppression demandée : ${m.prenom || m.name}`, { body: 'Votre accord est nécessaire', icon: '🗑️', link: 'family' }); return true; }, 'Demande envoyée');
+    if (ok) closeSheetsThen(null);
+  },
+  'prc-del-ok': async el => {
+    const m = S.members.find(x => x.uid === el.dataset.id); if (!m?.delReq || m.delReq.by === uid()) return;
+    const ok = await guard(async () => { await S.be.db.del(fpath('members', m.uid)); await log('cercle', `Suppression acceptée : ${m.prenom || m.name} a été retiré(e) du cercle`, { icon: '🗑️' }); return true; }, 'Proche retiré du cercle');
+    if (ok) closeSheetsThen(null);
+  },
+  'prc-del-no': async el => {
+    const m = S.members.find(x => x.uid === el.dataset.id); if (!m?.delReq) return;
+    const ok = await guard(async () => { await S.be.db.update(fpath('members', m.uid), { delReq: null }); await log('cercle', `Suppression refusée : ${m.prenom || m.name} reste dans le cercle`, { icon: '🗑️' }); return true; }, 'Suppression refusée');
+    if (ok) closeSheetsThen(null);
+  },
+  'prc-del-cancel': async el => {
+    const m = S.members.find(x => x.uid === el.dataset.id); if (!m?.delReq || m.delReq.by !== uid()) return;
+    const ok = await guard(() => S.be.db.update(fpath('members', m.uid), { delReq: null }).then(() => true), 'Demande annulée');
+    if (ok) closeSheetsThen(null);
+  },
   'inv-copy': async el => { (await copyText(el.dataset.msg)) ? toast('Message copié') : toast('Copie impossible', 'err'); },
   'code-copy': async () => { (await copyText(S.family.joinCode)) ? toast('Code copié') : toast('Copie impossible', 'err'); },
   'code-share': async () => {

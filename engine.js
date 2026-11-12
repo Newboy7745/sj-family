@@ -406,8 +406,8 @@ export function patternShare(str, countedOnly = false) {
 /** Type de répétition d'un événement (anciens événements : champ « repeat ») */
 /** Jours de la semaine d'un événement hebdomadaire (0 = lundi) : plusieurs jours possibles */
 export function evDays(e) { return [...new Set((Array.isArray(e.dows) && e.dows.length ? e.dows : [e.dow ?? dow(e.date)]).map(Number))].sort((a, b) => a - b); }
-/** Vacances : 'yes' (séances maintenues), 'no' (période scolaire seulement), 'w1' (1re semaine des vacances seulement) */
-export function evHol(e) { return !e.school ? 'yes' : e.holW1 ? 'w1' : 'no'; }
+/** Vacances : 'yes' (séances maintenues), 'no' (période scolaire seulement), 'w1' / 'w2' (1ère / 2ème semaine des vacances seulement) */
+export function evHol(e) { return !e.school ? 'yes' : e.holW1 ? 'w1' : e.holW2 ? 'w2' : 'no'; }
 export function evKind(e) {
   if (e.kind) return e.kind;
   const r = e.repeat || 'none';
@@ -435,13 +435,13 @@ export function expandEvents(events, from, to, settings = null) {
     if (e.date > until) continue;
     if (k === 'dow') {
       // à partir de la date de début, le(s) jour(s) choisi(s), une semaine sur deux (paire / impaire) si demandé ;
-      // vacances scolaires : séances maintenues, supprimées (school) ou seulement la 1re semaine (school + holW1)
+      // vacances scolaires : séances maintenues, supprimées (school), ou seulement la 1ère / 2ème semaine (school + holW1 / holW2)
       const d0 = e.date > lo ? e.date : lo;
       for (const wd of evDays(e)) {
         let iso = addDays(d0, (wd - dow(d0) + 7) % 7);
         for (; iso <= until; iso = addDays(iso, 7)) {
           if (+e.every === 2 && ((isoWeek(iso).week % 2 === 0) !== (e.parity !== 'impair'))) continue;
-          if (e.school) { const h = H().find(h => h.s <= iso && iso <= h.e); if (h && !(e.holW1 && iso <= addDays(h.s, 6))) continue; }
+          if (e.school) { const h = H().find(h => h.s <= iso && iso <= h.e); if (h && !(e.holW1 && iso <= addDays(h.s, 6)) && !(e.holW2 && iso > addDays(h.s, 6) && iso <= addDays(h.s, 13))) continue; }
           add(iso);
         }
       }

@@ -339,6 +339,26 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
   3 minutes ailleurs), retour à l'accueil de votre vrai compte, dans votre vrai cercle.
 - **Textes** : les boutons et les puces gardent leur texte à l'intérieur, même avec une grande taille de police.
 
+## 10 terdecies. Nouveautés 6.18
+
+> **Nouvelles règles Firestore à recoller** (Réglages › 🛡️ Règles Firestore › Copier, puis Firebase › Firestore › Règles › Publier) :
+> suppression des proches (directe ou sur demande validée) et modifications d'événements proposées à l'autre parent (`evprop`).
+
+- **Sélectionneurs** (événements, relais, échanges) : quand, année scolaire, jours, vacances (rien, 1ère semaine seulement,
+  2ème semaine seulement, maintenu), qui dépose / récupère (les deux parents, « Les deux », « À définir » avec le nom à écrire),
+  lieux (… favoris, « À définir » avec le lieu à écrire). Un nom ou un lieu écrit est retenu et proposé ensuite dans la case à
+  remplir (pas dans la liste) ; un lieu écrit peut devenir favori (Réglages › 📍). Pictogrammes tous différents (même dessin :
+  autre couleur). Lieu du match aussi.
+- **Cases** blanches ; contour doré quand ce qui est écrit change dans la fenêtre. Rien de changé au final : « Aucune modification
+  n'a été demandée : rien n'a donc été enregistré. » (échanges, événements, séances, relais, fiches…).
+- **Événements** : l'autre parent peut tout modifier ou supprimer, mais le parent qui a créé l'événement valide (ou refuse)
+  avant que ce soit pris en compte (accueil › « Modification proposée »).
+- **Proches** : le parent qui a ajouté un proche peut le retirer seul ; sinon, demande de suppression validée par l'autre parent.
+- **Réglages** : la carte des règles Firestore n'apparaît que pour le compte de Khalid (comparaison d'une empreinte de l'adresse,
+  l'adresse n'est pas écrite dans le code), dans son vrai cercle ; plus de remise à zéro du sac.
+- **Mode test** : retour à l'accueil du vrai compte seulement quand l'appli a été fermée ; personnages : Khalid TEST (parent A),
+  Maman TEST, puis les proches dans l'ordre d'ajout ; « Mon compte » du bandeau : fenêtre en haut, déplaçable, Annuler / Valider.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

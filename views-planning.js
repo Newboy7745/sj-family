@@ -1,9 +1,9 @@
 // ═══════════════ Plannings : liste, import 2026-2027, assistant 4 étapes, validation ═══════════════
-import * as E from './engine.js?v=6.17';
-import { SJ_PLANNINGS } from './sj-data.js?v=6.17';
-import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily } from './core.js?v=6.17';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox } from './ui.js?v=6.17';
-import { cellBg } from './views-home.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { SJ_PLANNINGS } from './sj-data.js?v=6.18';
+import { S, engine, parents, pName, pShort, uid, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily } from './core.js?v=6.18';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, IC, promptBox } from './ui.js?v=6.18';
+import { cellBg } from './views-home.js?v=6.18';
 
 const ICONS = ['📅', '🗓️', '🏠', '🔁', '🏖️', '⭐', '🎒', '❤️', '🌙', '☀️'];
 const STATE = { active: ['ok', 'Actif'], pending: ['warn', 'En attente de validation'], 'pending-archive': ['warn', 'Archivage demandé'], refused: ['err', 'Refusé'], archived: ['', 'Archivé'], cancelled: ['', 'Annulé'] };
@@ -92,7 +92,7 @@ function step1(w) {
         <div class="hint">L'autre parent a les week-ends prévus par le rythme.</div>` :
         `<label class="lbl" style="margin-top:0">Le cycle commence chez</label>${chips('firstParent', [{ v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [w.firstParent])}`}
       ${r?.dayPick ? `<label class="lbl">Jour du relais (${E.fmtTime(settings().handoverTime)})</label><select class="in" name="relaisDow" data-change="wiz-field">${E.JOURS.map((j, i) => `<option value="${i}" ${+w.relaisDow === i ? 'selected' : ''}>${j}</option>`).join('')}</select>` : ''}
-      ${(r?.pattern || '').length >= 14 || r?.custom ? `<label class="lbl">1re semaine du cycle</label>${chips('parity', [{ v: 'pair', l: 'Semaines paires' }, { v: 'impair', l: 'Semaines impaires' }], [w.parity])}
+      ${(r?.pattern || '').length >= 14 || r?.custom ? `<label class="lbl">1ère semaine du cycle</label>${chips('parity', [{ v: 'pair', l: 'Semaines paires' }, { v: 'impair', l: 'Semaines impaires' }], [w.parity])}
         <div class="hint">Cette semaine est la n° ${wk} (${wk % 2 ? 'impaire' : 'paire'}). Ensuite l'alternance est continue, même lors des années à 53 semaines.</div>` : ''}
     </div>`;
 }
@@ -117,7 +117,7 @@ function step2(w) {
       <label class="lbl">Partage des vacances</label>
       <select class="in" name="vacMode" data-change="wiz-field">${[['halves', 'Moitié / moitié'], ['weeks', 'Une semaine sur deux'], ['alternate', 'Périodes entières en alternance'], ['none', 'Pas de règle (le rythme continue)']].map(([v, l]) => `<option value="${v}" ${w.vacMode === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
       ${w.vacMode !== 'none' ? `<label class="lbl">Vacances d'été</label>${chips('summer', [{ v: 'months', l: 'Juillet / août' }, { v: 'halves', l: 'Par moitié' }], [w.summer])}
-      <label class="lbl">Les années paires, la 1re partie revient à</label>${chips('firstEven', [{ v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [w.firstEven])}
+      <label class="lbl">Les années paires, la 1ère partie revient à</label>${chips('firstEven', [{ v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [w.firstEven])}
       <div class="hint">Les années impaires, c'est l'inverse. Les ponts (Ascension…) suivent le parent du week-end.</div>` : ''}
       <label class="row gap mt"><span class="sw"><input type="checkbox" name="feries" ${w.feries === 'pont' ? 'checked' : ''} data-change="wiz-field"><span></span></span><span class="f1 small">Jours fériés du lundi/vendredi rattachés au week-end voisin</span></label>
     </div>
@@ -164,7 +164,7 @@ function step4(w) {
   return `<div class="card"><p class="small" style="margin-top:0">Personnalisez votre planning avec un titre et une icône.</p>
     <div class="row gap"><span class="ib" style="font-size:26px;width:54px;height:54px">${w.icon}</span><input class="in f1" name="title" value="${esc(w.title || `${r?.n || 'Planning'} · ${childNames(w.childIds)}`)}" data-change="wiz-field"></div>
     <div class="chips mt">${ICONS.map(i => `<button class="chip sm ${i === w.icon ? 'on' : ''}" data-act="wiz-seticon" data-i="${i}">${i}</button>`).join('')}</div></div>
-    <div class="card"><h3>👁️ Prévisualisation</h3><div class="small muted">${esc(childNames(w.childIds))} · du ${E.fmtDate(w.start, 'num')} au ${E.fmtDate(cfg.end, 'num')} · ${esc(p.A.name)} ${sh.A}% / ${esc(p.B.name)} ${sh.B}% (1re année)</div>
+    <div class="card"><h3>👁️ Prévisualisation</h3><div class="small muted">${esc(childNames(w.childIds))} · du ${E.fmtDate(w.start, 'num')} au ${E.fmtDate(cfg.end, 'num')} · ${esc(p.A.name)} ${sh.A}% / ${esc(p.B.name)} ${sh.B}% (1ère année)</div>
       <div class="ycal mt">${months.map(mm => miniMonth(days, w.start, mm)).join('')}</div>
       <div class="legend"><span><i style="background:var(--pa)"></i>${esc(p.A.name)}</span><span><i style="background:var(--pb)"></i>${esc(p.B.name)}</span><span><i style="background:var(--pb-l)"></i>École</span></div></div>
     ${overl.length ? `<div class="alert"><div class="ai">⚠️</div><div class="small"><b>Avertissement planning récurrent :</b> en enregistrant, ce nouveau planning remplacera le précédent (${esc(overl.map(x => x.title).join(', '))}) à compter du ${E.fmtDate(w.start, 'num')}.</div></div>` : ''}

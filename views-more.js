@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.17';
-import { randomId } from './backend.js?v=6.17';
-import { favPlaces, ALERT_LABELS, alertDefaults, alertText, itemAlerts, queueReminders, isPending, S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.17';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.17';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.17';
-import { createFamily, procheText } from './views-family.js?v=6.17';
-import { openPrint } from './print.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { randomId } from './backend.js?v=6.18';
+import { isOwnerHere, favPlaces, ALERT_LABELS, alertDefaults, alertText, itemAlerts, queueReminders, isPending, S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.18';
+import { NO_CHANGE, pick, pic, uniquePics, topConfirm, markChanged, esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.18';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.18';
+import { createFamily, procheText } from './views-family.js?v=6.18';
+import { openPrint } from './print.js?v=6.18';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -388,10 +388,9 @@ export const views = {
         <div class="hint">Gratuit, sans compte, sur iPhone et Samsung, via l'application « ntfy ». Vous n'êtes jamais notifié de vos propres actions.</div></div>
       <div class="card"><h3>📱 Widgets</h3><p class="small muted" style="margin-top:0">Garde du jour, semaine, mois, pleine page et programme sur l'écran d'accueil.</p><button class="btn ghost block" data-go="widgets">Configurer les widgets</button></div>
       <div class="card"><h3>📤 Exporter</h3><button class="btn soft block" data-act="print-year">🖨️ Imprimer le calendrier annuel</button><button class="btn soft block mt" data-act="ics-sheet">📅 Vers Google Agenda / Samsung / iPhone (.ics)</button>${can('expenses') ? '<button class="btn soft block mt" data-act="exp-csv">💰 Dépenses (tableur .csv)</button>' : ''}</div>
-      ${par ? `<div class="card"><h3>🎒 Sac</h3><p class="small muted" style="margin-top:0">Repartir de zéro : efface les affaires, listes des vacances et relais du sac (ce cercle et le cercle de test), avec leurs notifications. Vos listes type sont gardées.</p><button class="btn soft block" style="color:var(--err)" data-act="sac-reset">🧹 Tout effacer et recommencer</button></div>` : ''}
-      ${par ? `<div class="card"><h3>📍 Lieux favoris <a class="act" data-act="set-places">Modifier</a></h3><p class="small muted" style="margin-top:0">Boutons proposés après « École » pour les relais, les échanges et les événements.</p>
-        <div class="chips">${favPlaces().map(x => `<span class="chip">${placeIcon(x)} ${esc(x)}</span>`).join('') || '<span class="small muted">Aucun</span>'}</div></div>` : ''}
-      ${par ? `<div class="card"><h3>🛡️ Règles Firestore</h3><p class="small muted" style="margin-top:0">Après une mise à jour qui le demande : copiez les règles ici, puis dans Firebase › Firestore › Règles, remplacez tout le texte et touchez « Publier ».</p>
+      ${par ? `<div class="card"><h3>📍 Lieux favoris <a class="act" data-act="set-places">Modifier</a></h3>
+        <div class="chips">${placeItems().filter(x => x.v.startsWith('lieu:')).map(x => `<span class="chip">${pic(x.i, x.c)} ${x.l}</span>`).join('') || '<span class="small muted">Aucun</span>'}</div></div>` : ''}
+      ${isOwnerHere() ? `<div class="card"><h3>🛡️ Règles Firestore</h3><p class="small muted" style="margin-top:0">Après une mise à jour qui le demande : copiez les règles ici, puis dans Firebase › Firestore › Règles, remplacez tout le texte et touchez « Publier ».</p>
         <button class="btn soft block" data-act="rules-copy">📋 Copier les règles (version ${VERSION})</button></div>` : ''}
       <div class="card"><h3>ℹ️ Application</h3>
         <button class="btn soft block" data-act="app-refresh">${IC.refresh} Mettre à jour / vider le cache</button>
@@ -689,6 +688,7 @@ export const actions = {
     const i = el.dataset.i === '' ? null : +el.dataset.i, r = ruleFromForm(f, i != null ? ed.rules[i] : null);
     if (typeof r === 'string') return toast(r, 'warn');
     if (i != null) ed.rules[i] = r; else ed.rules.push(r);
+    rememberSugg(f, { people: ['altBy'], places: ['dropAt', 'pickAt', 'altAt'] });
     closeSheet(); setTimeout(renderRules, 50);
   },
   // relais du jour : solution de repli prévue par l'horaire régulier (demande d'échange d'horaire)
@@ -701,7 +701,7 @@ export const actions = {
     else tc = { d: h.date, time: a.time, place, midday: false };
     const p = parents(), o = p[E.other(myCode())]?.name || '', nv = needsValidation();
     const summary = `Relais ${E.fmtDate(nd, 'wdm')} à ${E.fmtTime(a.time)}${place ? ' (' + place + ')' : ''} au lieu du ${E.fmtDate(h.date, 'wdm')} à ${E.fmtTime(h.time)}${h.place ? ' (' + h.place + ')' : ''}`;
-    if (!(await confirmInfo('Solution de repli ?', `${esc(summary)}${a.by ? `, déposés par ${esc(p[a.by]?.name || '')}` : ''}.`, nv ? 'Une demande à accepter : le relais change dès son accord. Une notification la prévient.' : 'Le relais modifié, et une notification.', o, nv ? 'Envoyer la demande' : 'Appliquer'))) return;
+    if (!(await confirmInfo('Solution de repli ?', `${esc(summary)}${a.by ? `, déposés par ${esc(whoName(a.by, a.byTxt))}` : ''}.`, nv ? 'Une demande à accepter : le relais change dès son accord. Une notification la prévient.' : 'Le relais modifié, et une notification.', o, nv ? 'Envoyer la demande' : 'Appliquer'))) return;
     const data = { type: 'time', childIds: kids, changes, timeChange: tc, summary, reason: 'Solution de repli prévue', proposedBy: uid(), proposedByName: myName(), proposedAt: Date.now(), state: nv ? 'pending' : 'accepted' };
     if (!nv) Object.assign(data, { decidedBy: uid(), decidedByName: myName() + ' (auto)', decidedAt: Date.now() });
     const ok = await guard(async () => { await addItem('exchanges', data); await log('echange', nv ? `Demande d'échange : ${summary}` : `Échange appliqué : ${summary}`); return true; }, nv ? 'Demande envoyée' : 'Relais modifié');
@@ -732,9 +732,15 @@ export const actions = {
     closeSheet();
   },
   'set-places': () => {
+    const others = suggLists().places;
     openSheet(`<h3 class="sh-title">📍 Lieux favoris</h3><label class="lbl">Un lieu par ligne, dans l'ordre des boutons</label><textarea class="in" name="places" rows="6">${esc(favPlaces().join('\n'))}</textarea>
-      <div class="hint">Ex. El Fayhae, Stade de Concyr, Stade des Montées. Ils apparaissent après « 🏫 École ».</div>
+      ${others.length ? `<label class="lbl">Autres lieux déjà écrits</label><div class="chips">${others.map(x => `<button type="button" class="chip" data-act="fav-add" data-v="${esc(x)}">⭐ ${esc(x)}</button>`).join('')}</div>` : ''}
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="set-places-save">Enregistrer</button></div>`);
+  },
+  'fav-add': el => {
+    const ta = el.closest('.sheet').querySelector('[name=places]'), v = el.dataset.v;
+    if (!ta.value.split('\n').some(x => x.trim().toLowerCase() === v.toLowerCase())) { ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + v; markChanged(ta); }
+    el.remove();
   },
   'set-places-save': async el => {
     const f = readForm(el.closest('.sheet')), list = [...new Set(String(f.places || '').split('\n').map(x => x.trim().replace(/^lieu:/, '')).filter(Boolean))].slice(0, 12);
@@ -835,23 +841,66 @@ function ctSheet(c = null) {
 
 // ───────────── Horaires de relais : horaire par défaut + horaires réguliers (jour, semaine paire/impaire, vacances, date)
 const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
-// ───── Lieux : chez chaque parent (prénom), école, autre (à préciser obligatoirement)
+// ───── Lieux : chez chaque parent (prénom), école, lieux favoris, « À définir » (lieu écrit à la main)
 export function placeLabel(code, txt = '') { const p = parents(); return code === 'A' || code === 'B' ? `Chez ${p[code].name}` : code === 'ecole' ? 'École' : String(code || '').startsWith('lieu:') ? code.slice(5) : code === 'autre' ? String(txt || '').trim() : ''; }
-const placeIcon = n => (/stade|gymnase|piscine|terrain/i.test(n) ? '🏟️' : '📍');
-export function placeSel(name, code = '', txt = '', none = '') {
-  const p = parents(), favs = favPlaces();
-  // un lieu favori écrit à la main (« Autre ») s'affiche sur son bouton
-  if (code === 'autre' && favs.some(x => x.toLowerCase() === String(txt || '').trim().toLowerCase())) { code = 'lieu:' + favs.find(x => x.toLowerCase() === String(txt).trim().toLowerCase()); txt = ''; }
-  return `${chips(name, [...(none ? [{ v: '', l: none }] : []), { v: 'A', l: `🏠 Chez ${esc(p.A.name)}` }, { v: 'B', l: `🏠 Chez ${esc(p.B.name)}` }, { v: 'ecole', l: '🏫 École' },
-    ...favs.map(x => ({ v: 'lieu:' + x, l: `${placeIcon(x)} ${esc(x)}` })), { v: 'autre', l: '✏️ Autre' }], [code])}
-    <div data-pl="${name}" class="${code === 'autre' ? '' : 'hide'}"><input class="in mtx" name="${name}Txt" value="${esc(txt)}" placeholder="Précisez le lieu (obligatoire)"></div>`;
+export const placeIcon = n => (/stade|gymnase|piscine|terrain/i.test(n) ? '🏟️' : '📍');
+const parentPic = c => { const s = String(parents()[c]?.short || '').toLowerCase(); return s === 'maman' ? '👩' : s === 'papa' ? '👨' : '🧑'; };
+/** Boutons de lieux, pictogrammes tous différents (deux stades : deux couleurs) */
+export function placeItems() {
+  const p = parents();
+  return uniquePics([{ v: 'A', l: `Chez ${esc(p.A.name)}`, i: '🏠', c: p.A.color }, { v: 'B', l: `Chez ${esc(p.B.name)}`, i: '🏠', c: p.B.color }, { v: 'ecole', l: 'École', i: '🏫' },
+    ...favPlaces().map(x => ({ v: 'lieu:' + x, l: esc(x), i: placeIcon(x) })), { v: 'autre', l: 'À définir', i: '✏️' }]);
 }
-/** Affiche la case « Autre » quand ce lieu est choisi */
+export function placeSel(name, code = '', txt = '', ph = '') {
+  const favs = favPlaces();
+  // un lieu favori écrit à la main s'affiche sur son bouton
+  if (code === 'autre' && favs.some(x => x.toLowerCase() === String(txt || '').trim().toLowerCase())) { code = 'lieu:' + favs.find(x => x.toLowerCase() === String(txt).trim().toLowerCase()); txt = ''; }
+  return `${pick(name, placeItems(), [code], { ph: ph || 'Choisir un lieu…' })}
+    <div data-pl="${name}" class="${code === 'autre' ? '' : 'hide'}"><input class="in mtx" name="${name}Txt" value="${esc(txt)}" list="dl-places" placeholder="Lieu (obligatoire)"></div>`;
+}
+/** Affiche la case à remplir quand « À définir » est choisi (lieu ou personne) */
 export function placeToggle(sh) { const f = readForm(sh); sh.querySelectorAll('[data-pl]').forEach(b => b.classList.toggle('hide', f[b.dataset.pl] !== 'autre')); }
-export const whoChips = (name, val) => { const p = parents(); return chips(name, [{ v: '', l: `${esc(p.A.name)} ou ${esc(p.B.name)}` }, { v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [val || '']); };
+/** Qui dépose / qui récupère : les deux parents, « Les deux », « À définir » (nom écrit à la main) */
+export function whoPick(name, val = '', txt = '', { ext = true, ph = 'Choisir…' } = {}) {
+  const p = parents();
+  const items = [{ v: 'A', l: esc(p.A.name), i: parentPic('A'), c: p.A.color }, { v: 'B', l: esc(p.B.name), i: parentPic('B'), c: p.B.color },
+    ...(ext ? [{ v: 'AB', l: 'Les deux', i: '👥' }, { v: 'autre', l: 'À définir', i: '✏️' }] : [])];
+  return pick(name, items, [val || ''], { ph }) + (ext ? `<div data-pl="${name}" class="${val === 'autre' ? '' : 'hide'}"><input class="in mtx" name="${name}Txt" value="${esc(txt)}" list="dl-people" placeholder="Nom de la personne (obligatoire)"></div>` : '');
+}
+/** Horaires réguliers des relais : le sens du relais (un parent ou l'autre, ou les deux sens si rien n'est choisi) */
+export const whoChips = (name, val) => { const p = parents(); return whoPick(name, val, '', { ext: false, ph: `${p.A.name} ou ${p.B.name}` }); };
+/** Nom affiché : un parent, les deux, ou la personne écrite à la main */
+export function whoName(code, txt = '') { const p = parents(); return code === 'A' || code === 'B' ? p[code].name : code === 'AB' ? `${p.A.name} et ${p.B.name}` : code === 'autre' ? String(txt || '').trim() : ''; }
+/** Personnes et lieux écrits à la main : proposés ensuite dans la case à remplir (pas dans la liste) */
+export function suggLists() {
+  const sg = S.family?.sugg || {}, favs = favPlaces().map(x => x.toLowerCase());
+  const people = [...new Set([...(sg.people || []), ...Object.values(S.family?.dir || {})].filter(Boolean))];
+  const places = [...new Set((sg.places || []).filter(x => !favs.includes(String(x).toLowerCase())))];
+  return { people, places };
+}
+export function syncDatalists() {
+  const { people, places } = suggLists(), key = JSON.stringify([people, places]);
+  let box = document.getElementById('sjf-dl');
+  if (!box) { box = document.createElement('div'); box.id = 'sjf-dl'; box.hidden = true; document.body.appendChild(box); }
+  if (box.dataset.k === key) return; box.dataset.k = key;
+  box.innerHTML = `<datalist id="dl-people">${people.map(x => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-places">${places.map(x => `<option value="${esc(x)}">`).join('')}</datalist>`;
+}
+/** Retient les personnes et lieux écrits à la main (« À définir ») */
+export async function rememberSugg(f, keys) {
+  if (!isParent() || !S.family) return;
+  const t = x => String(x || '').trim(), sg = S.family.sugg || {}, favs = favPlaces().map(x => x.toLowerCase()), has = (a, x) => (a || []).some(y => String(y).toLowerCase() === x.toLowerCase());
+  const people = [], places = [];
+  for (const k of keys.people || []) if (f[k] === 'autre' && t(f[k + 'Txt']) && !has(sg.people, t(f[k + 'Txt']))) people.push(t(f[k + 'Txt']));
+  for (const k of keys.places || []) if (f[k] === 'autre' && t(f[k + 'Txt']) && !favs.includes(t(f[k + 'Txt']).toLowerCase()) && !has(sg.places, t(f[k + 'Txt']))) places.push(t(f[k + 'Txt']));
+  for (const x of keys.freePlaces || []) if (t(x) && !favs.includes(t(x).toLowerCase()) && !has(sg.places, t(x))) places.push(t(x));
+  const upd = {};
+  if (people.length) upd['sugg.people'] = S.be.db.arrayUnion(...new Set(people));
+  if (places.length) upd['sugg.places'] = S.be.db.arrayUnion(...new Set(places));
+  if (Object.keys(upd).length) await setFamily(upd).catch(e => console.warn('sugg', e));
+}
 const placeWord = l => (/^école$/i.test(l) ? "à l'école" : /^Chez /.test(l) ? 'c' + l.slice(1) : `(${l})`);
 /** Solution de repli : « la veille à 18h30, déposés par Khalid chez Jounayda » */
-export function altText(a) { const p = parents(); return `${a.when === 'veille' ? 'la veille' : 'le jour même'} à ${E.fmtTime(a.time)}${a.by ? ', déposés par ' + (p[a.by]?.name || '') : ''}${a.place ? ' ' + placeWord(a.place) : ''}`; }
+export function altText(a) { return `${a.when === 'veille' ? 'la veille' : 'le jour même'} à ${E.fmtTime(a.time)}${a.by ? ', déposés par ' + whoName(a.by, a.byTxt) : ''}${a.place ? ' ' + placeWord(a.place) : ''}`; }
 const schoolYear = iso => (+iso.slice(5, 7) >= 8 ? +iso.slice(0, 4) : +iso.slice(0, 4) - 1);
 export function ruleText(r) {
   const p = parents(), N = c => p[c]?.name || '';
@@ -865,12 +914,16 @@ export function ruleText(r) {
 }
 /** « · déposés par Khalid à l'école · récupérés par Jounayda chez Jounayda · si impossible : … » (relais et événements) */
 export function dpText(r, place = r.place) {
-  const p = parents(), N = c => p[c]?.name || '';
   if (!r.from && !r.to && place && (!r.dropPlace || r.dropPlace === place)) return ` · 📍 ${place}${r.alt?.on ? ' · si impossible : ' + altText(r.alt) : ''}`;
-  const drop = r.from || r.dropPlace ? ` · déposés${r.from ? ' par ' + N(r.from) : ''}${r.dropPlace ? ' ' + placeWord(r.dropPlace) : ''}` : '';
-  const pick = r.to || place ? ` · récupérés${r.to ? ' par ' + N(r.to) : ''}${place ? ' ' + placeWord(place) : ''}` : '';
-  return `${drop}${pick}${r.alt?.on ? ' · si impossible : ' + altText(r.alt) : ''}`;
+  const drop = r.from || r.dropPlace ? ` · déposés${r.from ? ' par ' + whoName(r.from, r.fromTxt) : ''}${r.dropPlace ? ' ' + placeWord(r.dropPlace) : ''}` : '';
+  const pk = r.to || place ? ` · récupérés${r.to ? ' par ' + whoName(r.to, r.toTxt) : ''}${place ? ' ' + placeWord(place) : ''}` : '';
+  return `${drop}${pk}${r.alt?.on ? ' · si impossible : ' + altText(r.alt) : ''}`;
 }
+// ───── Listes des sélectionneurs (quand, année scolaire, jours, vacances, repli)
+export const yearItems = sy => [{ v: '', l: 'Toutes les années', i: '🔁' }, { v: String(sy), l: `${sy}-${sy + 1}`, i: '📘' }, { v: String(sy + 1), l: `${sy + 1}-${sy + 2}`, i: '📗' }];
+export const dayItems = () => E.JOURS.map((j, i) => ({ v: String(i), l: cap(j), s: cap(j).slice(0, 3) + '.' }));
+export const HOL_ITEMS = [{ v: 'no', l: 'Rien (période scolaire seulement)', i: '🚫' }, { v: 'w1', l: '1ère semaine seulement', i: '1️⃣' }, { v: 'w2', l: '2ème semaine seulement', i: '2️⃣' }, { v: 'yes', l: 'Maintenu', i: '✅' }];
+export const ALT_WHEN = [{ v: 'veille', l: 'La veille', i: '🌙' }, { v: 'jour', l: 'Le jour même', i: '☀️' }];
 function relaisEditor(init = null) {
   if (!isParent()) return;
   const st = init || settings();
@@ -895,10 +948,10 @@ function ruleSheet(r = null, idx = null) {
   const today = E.todayISO(), sy = schoolYear(today), wk = E.isoWeek(today).week;
   const legacy = !x.pickAt && x.place ? (/^école$/i.test(x.place) ? ['ecole', ''] : /^chez /i.test(x.place) ? [x.place.slice(5) === p.A.name ? 'A' : x.place.slice(5) === p.B.name ? 'B' : 'autre', x.place] : ['autre', x.place]) : [x.pickAt || '', x.pickTxt || ''];
   const sh = openSheet(`<h3 class="sh-title">🕓 Horaire régulier</h3>
-    <label class="lbl">Quand ?</label>${chips('kind', [{ v: 'dow', l: '📅 Chaque semaine' }, { v: 'dowP', l: '2️⃣ Semaines paires' }, { v: 'dowI', l: '1️⃣ Semaines impaires' }, { v: 'vacStart', l: '🎒 Veille des vacances' }, { v: 'vacEnd', l: '🏁 Fin des vacances' }, { v: 'date', l: '📌 Une date' }], [k0])}
+    <label class="lbl">Quand ?</label>${pick('kind', [{ v: 'dow', l: 'Chaque semaine', i: '📅' }, { v: 'dowP', l: 'Semaines paires', i: '2️⃣' }, { v: 'dowI', l: 'Semaines impaires', i: '1️⃣' }, { v: 'vacStart', l: 'Veille des vacances', i: '🎒' }, { v: 'vacEnd', l: 'Fin des vacances', i: '🏁' }, { v: 'date', l: 'Une date', i: '📌' }], [k0], { none: false })}
     <div data-part="par" class="hint hide">Cette semaine : n° ${wk} (semaine ${wk % 2 ? 'impaire' : 'paire'}).</div>
-    <label class="lbl">Année scolaire</label>${chips('year', [{ v: '', l: 'Toutes les années' }, ...[sy, sy + 1].map(y => ({ v: String(y), l: `${y}-${y + 1}` }))], [x.year || ''])}
-    <div data-part="dow"><label class="lbl">Jour du relais</label>${chips('dow', E.JOURS.map((j, i) => ({ v: String(i), l: cap(j) })), [String(x.dow ?? 4)])}
+    <label class="lbl">Année scolaire</label>${pick('year', yearItems(sy), [x.year || ''], { none: false })}
+    <div data-part="dow"><label class="lbl">Jour du relais</label>${pick('dow', dayItems(), [String(x.dow ?? 4)], { none: false })}
       <label class="row gap mt"><span class="sw"><input type="checkbox" name="school" ${x.school !== false ? 'checked' : ''}><span></span></span><span class="f1">Seulement en période scolaire (pas pendant les vacances)</span></label></div>
     <div data-part="date" class="hide"><label class="lbl">Date</label><input class="in" type="date" name="date" value="${x.date || today}"></div>
     <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="${x.time || '16:30'}"></div><div><label class="lbl">Jusqu'à (option)</label><input class="in" type="time" name="timeEnd" value="${x.timeEnd || ''}"></div></div>
@@ -909,9 +962,9 @@ function ruleSheet(r = null, idx = null) {
     <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', legacy[0], legacy[1])}
     <label class="row gap mt"><span class="sw"><input type="checkbox" name="altOn" ${x.alt?.on ? 'checked' : ''}><span></span></span><span class="f1">Si impossible : solution de repli</span></label>
     <div data-part="alt" class="hide">
-      <label class="lbl">Quand ?</label>${chips('altWhen', [{ v: 'veille', l: 'La veille' }, { v: 'jour', l: 'Le jour même' }], [x.alt?.when || 'veille'])}
+      <label class="lbl">Quand ?</label>${pick('altWhen', ALT_WHEN, [x.alt?.when || 'veille'], { none: false })}
       <label class="lbl">Heure</label><input class="in" type="time" name="altTime" value="${x.alt?.time || settings().handoverTime || '18:30'}">
-      <label class="lbl">Qui dépose les enfants ?</label>${chips('altBy', [{ v: 'A', l: esc(p.A.name) }, { v: 'B', l: esc(p.B.name) }], [x.alt?.by || x.from || myCode() || 'A'])}
+      <label class="lbl">Qui dépose les enfants ?</label>${whoPick('altBy', x.alt?.by || x.from || myCode() || 'A', x.alt?.byTxt || '')}
       <label class="lbl">Lieu</label>${placeSel('altAt', x.alt?.at || '', x.alt?.txt || '')}
     </div>
     <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="rl-save" data-i="${idx ?? ''}">${r ? 'Enregistrer' : 'Ajouter'}</button></div>`);
@@ -935,12 +988,13 @@ function ruleFromForm(f, old = null) {
   if (f.altOn && !f.altTime) return "Indiquez l'heure de la solution de repli.";
   if (f.altOn && !f.altAt) return 'Choisissez le lieu de la solution de repli.';
   if (f.altOn && f.altAt === 'autre' && !t(f.altAtTxt)) return 'Précisez le lieu de la solution de repli.';
+  if (f.altOn && f.altBy === 'autre' && !t(f.altByTxt)) return 'Indiquez qui dépose les enfants (solution de repli).';
   return {
     id: old?.id || 'r' + Date.now().toString(36), kind: k.startsWith('dow') ? 'dow' : k, dow: +(f.dow ?? 4), every: k === 'dowP' || k === 'dowI' ? 2 : 1, parity: k === 'dowI' ? 'impair' : 'pair',
     school: !!f.school, date: f.date || '', year: f.year || '', time: f.time, timeEnd: f.timeEnd || '',
     from: f.from || '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace: placeLabel(f.dropAt, f.dropAtTxt),
     to: f.to || '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', place: placeLabel(f.pickAt, f.pickAtTxt),
-    alt: f.altOn ? { on: true, when: f.altWhen || 'veille', time: f.altTime, by: f.altBy || '', at: f.altAt, txt: f.altAt === 'autre' ? t(f.altAtTxt) : '', place: placeLabel(f.altAt, f.altAtTxt) } : null,
+    alt: f.altOn ? { on: true, when: f.altWhen || 'veille', time: f.altTime, by: f.altBy || '', byTxt: f.altBy === 'autre' ? t(f.altByTxt) : '', at: f.altAt, txt: f.altAt === 'autre' ? t(f.altAtTxt) : '', place: placeLabel(f.altAt, f.altAtTxt) } : null,
   };
 }
 
@@ -971,15 +1025,30 @@ export async function seedTestProches() {
   } catch (e) { console.warn('proches de test', e); }
   finally { S.ui.seeding = false; }
 }
-/** Proches de test : état de l'accord des deux parents, et bascule dans leur identité une fois acceptés */
+/** Proches du cercle de test, dans l'ordre où ils ont été ajoutés (les quatre de départ, puis les suivants) */
+function testPeople(t) {
+  let list;
+  if (S.fid === t.fid && isParent() && S.loaded.invites) {
+    const ord = i => { const k = T_PROCHES.findIndex(y => y[0] === i.prenom && i.nom === 'TEST'); return k < 0 ? 99 : k; }, seen = new Set();
+    list = (S.invites || []).filter(i => i.role !== 'parent' && i.state !== 'refused')
+      .sort((a, b) => (a.createdAt || a.at || 0) - (b.createdAt || b.at || 0) || ord(a) - ord(b))
+      .filter(i => !seen.has(i.prenom) && seen.add(i.prenom))
+      .map(i => ({ n: i.prenom, rel: i.relation || '', side: i.side || '', ok: ['pending', 'joined'].includes(i.state), by: i.by }));
+    // gardé pour les sessions des proches (qui ne voient pas les invitations)
+    const pl = list.map(({ n, rel, side, ok }) => ({ n, rel, side, ok }));
+    if (JSON.stringify(pl) !== JSON.stringify(t.plist || [])) { t.plist = pl; LS.set('testAcc', t); }
+  } else list = (t.plist || T_PROCHES.map(x => ({ n: x[0], rel: x[1], side: x[2], ok: false }))).map(x => ({ ...x }));
+  for (const n of Object.keys(t.proches || {})) if (!list.some(x => x.n === n)) list.push({ n, rel: '', ok: true });
+  return list;
+}
+const relPic = r => (/grand-m|mamie|grand-mère/i.test(r) ? '👵' : /grand-p|papi|grand-père/i.test(r) ? '👴' : /tante|cousine|marraine|s(oe|œ)ur|nounou/i.test(r) ? '👩‍🦱' : /oncle|cousin|parrain|fr[eè]re/i.test(r) ? '👨‍🦱' : '🧑');
 function testProches(t) {
-  const rows = T_PROCHES.map(x => {
-    const i = (S.invites || []).find(v => v.prenom === x[0] && v.nom === 'TEST'), lien = procheText({ relation: x[1], side: x[2], uid: '_inv' }).replace(/ de .*/, '');
-    const st = !i ? '' : i.state === 'approval' ? `⏳ attend l'accord de ${esc(i.by === uid() ? (parents().B?.name || 'Maman TEST') : myName())}` : i.state === 'refused' ? '✗ refusé' : '';
-    const ok = i && (i.state === 'pending' || i.state === 'joined');
-    return `<div class="prow"><span>${esc(x[0])} <span class="small muted">${esc(lien)}</span></span>${ok ? `<button class="btn soft sm" data-act="test-as" data-id="${esc(x[0])}">👤 Devenir ${esc(x[0])}</button>` : `<span class="small muted">${st || '—'}</span>`}</div>`;
+  const rows = testPeople(t).map(x => {
+    const i = (S.invites || []).find(v => v.prenom === x.n && v.state !== 'refused'), lien = x.rel || 'Proche';
+    const st = !i ? '' : i.state === 'approval' ? `⏳ attend l'accord de ${esc(i.by === uid() ? (parents().B?.name || 'Maman TEST') : myName())}` : '';
+    return `<div class="prow"><span>${esc(x.n)} <span class="small muted">${esc(lien)}</span></span>${x.ok ? `<button class="btn soft sm" data-act="test-as" data-id="${esc(x.n)}">👤 Devenir ${esc(x.n)}</button>` : `<span class="small muted">${st || '—'}</span>`}</div>`;
   }).join('');
-  return `<div class="lbl mt">Proches TEST</div>${rows}<p class="small muted" style="margin:6px 0 0">Un proche n'est utilisable qu'après l'accord des deux parents (Cercle › Proches et invitations).</p>`;
+  return `<div class="lbl mt">Proches TEST</div>${rows}`;
 }
 function testCard() {
   const t = testAcc(), inTest = t && S.fid === t.fid;
@@ -993,25 +1062,29 @@ function testCard() {
       <button class="btn soft block mt" data-act="fam-switch" data-id="${inTest ? (t.realFid || '') : t.fid}">${inTest ? '🏠 Revenir à mon vrai cercle' : '🧪 Ouvrir le cercle de test'}</button>`
     : `<button class="btn primary block" data-act="test-create">🧪 Créer le cercle de test avec une Maman TEST</button>`}</div>`;
 }
-/** Personnages du mode test : vous, Maman TEST, les proches TEST (déjà ouverts, ou acceptés par les deux parents) */
+/** Personnages du mode test : parent A et Maman TEST du cercle de test, puis les proches dans l'ordre où ils ont été ajoutés */
 function whoSheet() {
   const t = testAcc(); if (!t) return;
-  const me = S.user?.email || '', cur = S.acc !== 'test' ? 'moi' : /^maman\.test\./.test(me) ? 'maman' : (Object.entries(t.proches || {}).find(([, c]) => c.email === me) || [])[0];
+  const me = S.user?.email || '', cur = S.acc !== 'test' ? (S.fid === t.fid ? 'moi' : '') : /^maman\.test\./.test(me) ? 'maman' : (Object.entries(t.proches || {}).find(([, c]) => c.email === me) || [])[0];
   const canCreate = S.fid === t.fid && isParent() && (testOwner() || S.acc === 'test');
-  const row = (k, ic, n, sub, act) => `<div class="li"><div class="le">${ic}</div><div class="f1"><div class="lt">${esc(n)}</div><div class="ls">${sub}</div></div>${cur === k ? '<span class="pill ok">vous êtes ici</span>' : act || ''}</div>`;
+  const people = testPeople(t);
+  const inT = S.fid === t.fid, pics = uniquePics([{ k: 'moi', i: '👨', c: inT ? parents().A.color : PA_C }, { k: 'maman', i: '👩', c: inT ? parents().B.color : PB_C }, ...people.map(x => ({ k: x.n, i: relPic(x.rel) }))]);
+  const pc = k => { const x = pics.find(y => y.k === k); return x ? pic(x.i, x.c || '#C9D3E0') : ''; };
+  const row = (k, n, sub, act) => `<div class="li"><div class="le">${pc(k)}</div><div class="f1"><div class="lt">${esc(n)}</div><div class="ls">${sub}</div></div>${cur === k ? '<span class="pill ok">vous êtes ici</span>' : act || ''}</div>`;
   const rows = [
-    row('moi', '👨', `${t.mainName || (S.acc !== 'test' ? myName() : 'Mon compte')} (vous)`, 'Votre vrai compte, parent A', `<button class="btn soft sm" data-act="test-back">Devenir</button>`),
-    row('maman', '👩', 'Maman TEST', 'Parent B du cercle de test', `<button class="btn soft sm" data-act="test-go" data-id="maman">Devenir</button>`),
-    ...T_PROCHES.map(x => {
-      const has = !!t.proches?.[x[0]]?.uid, inv = (S.invites || []).find(v => v.prenom === x[0] && v.nom === 'TEST'), okInv = inv && ['pending', 'joined'].includes(inv.state);
-      const act = has ? `<button class="btn soft sm" data-act="test-go" data-id="${esc(x[0])}">Devenir</button>` : canCreate && okInv ? `<button class="btn soft sm" data-act="test-as" data-id="${esc(x[0])}">Devenir</button>` : '';
-      const why = has || okInv ? '' : S.acc === 'test' && !isParent() ? ' · <span class="muted">à ouvrir une 1re fois depuis un parent</span>' : ' · <span class="muted">attend l\'accord des deux parents</span>';
-      return row(x[0], '👵', `${x[0]} TEST`, `Proche · ${esc(x[1])}${why}`, act || '<span class="small muted">—</span>');
+    row('moi', `${t.mainName || (S.acc !== 'test' ? myName() : 'Papa')} TEST`, 'Parent A du cercle de test', `<button class="btn soft sm" data-act="test-a">Devenir</button>`),
+    row('maman', 'Maman TEST', 'Parent B du cercle de test', `<button class="btn soft sm" data-act="test-go" data-id="maman">Devenir</button>`),
+    ...people.map(x => {
+      const has = !!t.proches?.[x.n]?.uid;
+      const act = has ? `<button class="btn soft sm" data-act="test-go" data-id="${esc(x.n)}">Devenir</button>` : canCreate && x.ok ? `<button class="btn soft sm" data-act="test-as" data-id="${esc(x.n)}">Devenir</button>` : '';
+      const why = has ? '' : !x.ok ? ' · <span class="muted">attend l\'accord des deux parents</span>' : canCreate ? '' : ' · <span class="muted">à ouvrir une 1ère fois depuis un parent</span>';
+      return row(x.n, `${x.n} TEST`, `Proche${x.rel ? ' · ' + esc(x.rel) : ''}${why}`, act || '<span class="small muted">—</span>');
     }),
   ].join('');
-  openSheet(`<h3 class="sh-title">🔄 Changer de personnage</h3><p class="small muted" style="margin-top:0">Passez directement d'un personnage à l'autre. Votre vrai compte reste connecté.</p>${rows}
+  openSheet(`<h3 class="sh-title">🔄 Changer de personnage</h3>${rows}
     <div class="sh-actions"><button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
 }
+const PA_C = '#9DC3E6', PB_C = '#F8CBAD';
 // ───── Copier des éléments du vrai cercle dans le cercle de test (au choix, sans doublon)
 const COPY_CATS = [
   { k: 'events', l: '🗓️ Événements et activités', colls: ['events', 'pevents'], n: d => `${d.icon || '📌'} ${d.title || 'Événement'}${d.time ? ' · ' + d.time : ''}` },
@@ -1143,10 +1216,11 @@ Object.assign(actions, {
   'test-switch': () => { if (!testAcc() || (!testOwner() && S.acc !== 'test')) return; LS.set('testAs', 'maman'); LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
   // Devenir un proche de test (accepté par les deux parents) : compte créé et ajouté au cercle de test la première fois
   'test-as': async el => {
-    const t = testAcc(), who = el.dataset.id, x = T_PROCHES.find(y => y[0] === who);
-    if (!t || !x || S.fid !== t.fid || !isParent() || (!testOwner() && S.acc !== 'test')) return;
-    const inv = (S.invites || []).find(v => v.prenom === who && v.nom === 'TEST');
+    const t = testAcc(), who = el.dataset.id;
+    if (!t || S.fid !== t.fid || !isParent() || (!testOwner() && S.acc !== 'test')) return;
+    const inv = (S.invites || []).find(v => v.prenom === who && ['pending', 'joined'].includes(v.state)) || (S.invites || []).find(v => v.prenom === who);
     if (!inv || !['pending', 'joined'].includes(inv.state)) return toast(`${who} attend encore l'accord des deux parents.`, 'warn');
+    const x = [who, inv.relation || '', inv.side || ''];
     t.proches = t.proches || {};
     if (!t.proches[who]?.uid) {
       el.disabled = true; toast(`Création du compte de ${who}…`, 'ok', 2500);
@@ -1156,7 +1230,7 @@ Object.assign(actions, {
       const ok = await guard(() => S.be.auth.side(c.email, c.pw, async ({ uid: pu, db: d2 }) => {
         c.uid = pu;
         await d2.set(`users/${pu}`, { prenom: who, nom: 'TEST', email: c.email, phone: '', familyIds: [fid], currentFamily: fid, [`lastSeen.${fid}`]: Date.now() + 5000, createdAt: Date.now() }, true);
-        await d2.set(`families/${fid}/members/${pu}`, { uid: pu, prenom: who, nom: 'TEST', name: who, email: c.email, phone: '', role: 'proche', relation: x[1], side: x[2], parentCode: null, joinCode: fam.joinCode, joinedAt: Date.now() });
+        await d2.set(`families/${fid}/members/${pu}`, { uid: pu, prenom: who, nom: inv.nom || 'TEST', name: who, email: c.email, phone: '', role: 'proche', relation: x[1], side: x[2], parentCode: null, joinCode: fam.joinCode, joinedAt: Date.now() });
         await d2.update(`families/${fid}`, { memberUids: d2.arrayUnion(pu) });
         const aid = d2.newId();
         for (const r of [...new Set([pu, owner, fam.parents?.B?.uid].filter(Boolean))]) await d2.set(`families/${fid}/inbox/${r}/items/${aid}`, { cat: 'cercle', title: `${who} TEST a rejoint le cercle de test`, body: x[1], icon: '🤝', by: pu, byName: who, at: Date.now() }).catch(() => { });
@@ -1168,6 +1242,21 @@ Object.assign(actions, {
       await updItem('invites', inv.id, { state: 'joined', joinedUid: c.uid, joinedAt: Date.now() }).catch(() => { });
     }
     LS.set('testAs', who); LS.set('acc', 'test'); location.hash = '#/home'; location.reload();
+  },
+  // personnage « parent A » : votre compte, dans le cercle de test
+  'test-a': async () => {
+    const t = testAcc(); if (!t) return;
+    if (S.acc === 'test') { LS.set('acc', 'main'); LS.set('goCircle', 'test'); location.hash = '#/home'; location.reload(); return; }
+    if (S.fid !== t.fid) await guard(() => S.be.db.update(`users/${uid()}`, { currentFamily: t.fid }));
+    closeSheetsThen(() => go('home'));
+  },
+  // bandeau « Mon compte » : retour au vrai cercle, après confirmation (fenêtre en haut, déplaçable)
+  'test-home': async () => {
+    const t = testAcc();
+    if (!(await topConfirm('Revenir dans votre vrai cercle ?', 'Vous quittez le mode test et retrouvez l\'accueil de votre vrai compte, dans votre vrai cercle.', 'Valider'))) return;
+    if (S.acc === 'test') { LS.set('acc', 'main'); LS.set('goCircle', 'real'); location.hash = '#/home'; location.reload(); return; }
+    if (t?.realFid && S.fid !== t.realFid) await guard(() => S.be.db.update(`users/${uid()}`, { currentFamily: t.realFid }));
+    closeSheetsThen(() => go('home'));
   },
   'test-back': async () => {
     if (S.acc === 'test') { LS.set('acc', 'main'); location.hash = '#/home'; location.reload(); return; }
@@ -1186,4 +1275,9 @@ actions['notif-open'] = el => {
 actions['notif-all'] = async () => {
   if (!(await confirmBox('Tout marquer comme lu ?', 'Les notifications ne seront plus entourées en rouge et le compteur revient à zéro.', 'Tout marquer comme lu'))) return;
   await guard(() => S.be.db.update(`users/${uid()}`, { [`lastSeen.${S.fid}`]: Date.now(), [`nread.${S.fid}`]: {} }), 'Tout est lu ✓');
+};
+// horaires des relais : rien de changé → rien n'est enregistré
+actions['set-relais-save'].pre = el => {
+  const f = readForm(el.closest('.sheet')), st = settings();
+  return f.ht === (st.handoverTime || '18:30') && f.mt === (st.middayTime || '14:00') && JSON.stringify(S.ui.relEdit?.rules || []) === JSON.stringify(st.relayRules || []) ? NO_CHANGE : null;
 };

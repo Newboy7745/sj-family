@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.17';
-import { toast, esc } from './ui.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { toast, esc } from './ui.js?v=6.18';
 
-export const VERSION = '6.17';
+export const VERSION = '6.18';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Version minimale de l'appli Android des widgets (numéro de compilation) : au-dessous, le widget propose la mise à jour */
 export const WIDGETS_APK = 13;
@@ -21,6 +21,13 @@ export const FEED_URL = t => `https://firestore.googleapis.com/v1/projects/sj-fa
 export const ADMIN_EMAIL = 'khalid.ajdid@gmail.com';
 export const ADMIN_ALIASES = ['admin@admin.com', 'admin@admin@com', 'admin@admin.fr'];
 export const isAdminUser = () => (S.user?.email || '').toLowerCase() === ADMIN_EMAIL;
+// Règles Firestore : uniquement pour le compte de Khalid (empreinte SHA-256 de son adresse ; l'adresse n'est pas écrite dans le code), dans son vrai cercle
+export const OWNER_H = ['1d79cc4e93bccfa4cfd5f1416defe3fa983650038d5141f094007b9d6de4c8df'];
+export async function emailHash(e) {
+  try { const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(e || '').trim().toLowerCase())); return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+  catch (x) { return ''; }
+}
+export const isOwnerHere = () => !!S.emailH && OWNER_H.includes(S.emailH) && S.acc !== 'test' && !S.family?.testCircle && S.fid !== LS.get('testAcc', null)?.fid;
 export function platform() {
   const ua = navigator.userAgent || '';
   if (/iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) return 'ios';
@@ -54,7 +61,7 @@ export { LS };
 
 export const S = {
   be: null, user: null, profile: null, fid: null, family: null, families: {}, meMember: null, priv: null,
-  members: [], invites: [], children: [], childInfo: [], plannings: [], exchanges: [], events: [], pevents: [], evx: [], tasks: [], notes: [],
+  members: [], invites: [], children: [], childInfo: [], plannings: [], exchanges: [], events: [], pevents: [], evx: [], evprop: [], tasks: [], notes: [],
   expenses: [], docs: [], contacts: [], memories: [], sac: [], sacRuns: [], activity: [], legacy: [], loaded: {},
   sel: new Set(LS.get('sel', [])), route: { view: 'home', params: {} }, ui: {},
 };
@@ -99,6 +106,10 @@ export const findEvent = id => allEvents().find(e => e.id === id) || null;
 /** Absences et matchs des séances : { 'idEvénement_date': état } */
 export function evxMap() { const m = {}; for (const x of S.evx) if (x.evId && x.date) m[E.evxKey(x.evId, x.date)] = x; return m; }
 /** Seul le parent qui a créé l'événement le modifie ou le supprime (un événement créé par un proche reste gérable par les parents) */
+/** Modifications proposées par l'autre parent, en attente de validation du parent qui a créé l'événement */
+/** Nom d'un parent tel qu'affiché dans ce cercle (ex. « Maman TEST » dans le cercle de test) */
+export const parentLabel = (u, fb = '') => { const p = parents(), c = ['A', 'B'].find(k => p[k]?.uid && p[k].uid === u); return c ? p[c].name : fb || memberName(u); };
+export const evProps = id => (S.evprop || []).filter(p => !id || p.evId === id);
 export function canEditEv(ev) { const p = parents(); return !!ev && isParent() && (ev.createdBy === uid() || ![p.A.uid, p.B.uid].includes(ev.createdBy)); }
 /** Occurrences avec leur état (absence, match) entre deux dates, pour les enfants choisis */
 export function occs(from, to, ids = null) {
@@ -277,7 +288,7 @@ export function wantedAlerts(now = Date.now(), horizonH = 70) {
       const def = alertDefaults(m);
       for (const role of ['drop', 'pick']) {
         if (!T[role]) continue;
-        let cfg; if (ia.mode === 'custom') cfg = ia[role]; else { if (by[role] !== m.parentCode) continue; cfg = role === 'drop' ? def.evDrop : def.evPick; }
+        let cfg; if (ia.mode === 'custom') cfg = ia[role]; else { if (by[role] !== m.parentCode && by[role] !== 'AB') continue; cfg = role === 'drop' ? def.evDrop : def.evPick; }
         alertSteps(cfg, T[role]).forEach((at, k) => push(m, `e|${src.id}|${o.occ}|${o.match ? 'm' : ''}${role}|${m.uid}|${k}`, at,
           `${o.icon || '📌'} ${role === 'drop' ? 'Dépose' : 'Récupération'} ${E.relDay(o.occ)} à ${E.fmtTime(role === 'drop' ? o.time : o.timeEnd)}`,
           `${o.title}${o.childIds?.length ? ' · ' + childNames(o.childIds) : ''}${place ? ' — 📍 ' + place : ''}`, `agenda?d=${o.occ}`));

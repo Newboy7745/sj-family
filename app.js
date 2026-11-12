@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.17';
-import { createBackend } from './backend.js?v=6.17';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.17';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.17';
-import * as Home from './views-home.js?v=6.17';
-import * as Agenda from './views-agenda.js?v=6.17';
-import * as Plan from './views-planning.js?v=6.17';
-import * as Exch from './views-exchange.js?v=6.17';
-import * as Fam from './views-family.js?v=6.17';
-import * as Bud from './views-budget.js?v=6.17';
-import * as More from './views-more.js?v=6.17';
-import * as Admin from './views-admin.js?v=6.17';
-import * as Install from './install.js?v=6.17';
-import * as Sac from './views-sac.js?v=6.17';
-import * as Print from './print.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { createBackend } from './backend.js?v=6.18';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, emailHash, OWNER_H, stat, isParent, can, findEvent, canEditEv, memberName, parentLabel, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.18';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo, pkOpen, topConfirm, NO_CHANGE } from './ui.js?v=6.18';
+import * as Home from './views-home.js?v=6.18';
+import * as Agenda from './views-agenda.js?v=6.18';
+import * as Plan from './views-planning.js?v=6.18';
+import * as Exch from './views-exchange.js?v=6.18';
+import * as Fam from './views-family.js?v=6.18';
+import * as Bud from './views-budget.js?v=6.18';
+import * as More from './views-more.js?v=6.18';
+import * as Admin from './views-admin.js?v=6.18';
+import * as Install from './install.js?v=6.18';
+import * as Sac from './views-sac.js?v=6.18';
+import * as Print from './print.js?v=6.18';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -28,8 +28,16 @@ Object.assign(ACTIONS, {
   chip(el) {
     const g = el.closest('[data-group]');
     if (g && !g.dataset.multi) g.querySelectorAll('.chip').forEach(c => c !== el && c.classList.remove('on'));
-    el.classList.toggle('on', g && !g.dataset.multi ? true : !el.classList.contains('on'));
+    // sélectionneur : toucher le choix déjà fait le retire (rien de choisi)
+    el.classList.toggle('on', g && !g.dataset.multi ? !(g.dataset.none && el.classList.contains('on')) : !el.classList.contains('on'));
     g?.dispatchEvent(new CustomEvent('chipchange', { bubbles: true, detail: { val: el.dataset.val, on: el.classList.contains('on') } }));
+  },
+  'pk-open': el => pkOpen(el.closest('.pk')),
+  'pk-ok': el => pkOpen(el.closest('.pk'), false),
+  'pk-clear': el => {
+    const pk = el.closest('.pk'), g = pk.querySelector('[data-group]');
+    g.querySelectorAll('.chip.on').forEach(c => c.classList.remove('on')); pkOpen(pk, false);
+    g.dispatchEvent(new CustomEvent('chipchange', { bubbles: true, detail: { val: '', on: false } }));
   },
   'close-sheet': () => closeSheet(),
   back() { if (S.nav > 0) { S.nav--; history.back(); } else go(S.backTo || 'home'); },
@@ -42,7 +50,12 @@ Object.assign(ACTIONS, {
 
 // ───── Toute action qui prévient l'autre parent passe par une fenêtre de validation (ce que ça fait / ce qu'il ou elle verra)
 const NOTIF_CONFIRM = {
-  'ev-save': ["Enregistrer l'événement ?", "L'événement est enregistré dans l'agenda.", "L'événement dans l'agenda, et une notification."],
+  'ev-save': a => { const ev = a.dataset.id && findEvent(a.dataset.id); return ev && !canEditEv(ev) ? ['Envoyer la modification ?', `${esc(parentLabel(ev.createdBy, ev.createdByName || "L'autre parent"))} doit la valider pour qu'elle soit prise en compte.`, 'La modification à valider ou refuser, et une notification.'] : ["Enregistrer l'événement ?", "L'événement est enregistré dans l'agenda.", "L'événement dans l'agenda, et une notification."]; },
+  'prop-ok': ['Valider la modification ?', "La modification est appliquée dans l'agenda.", 'La validation, et une notification.'],
+  'prop-no': ['Refuser la modification ?', "L'événement reste tel qu'il est.", 'Le refus, et une notification.'],
+  'prc-del-ask': ['Demander la suppression ?', "Le proche n'est retiré qu'après l'accord de l'autre parent.", 'La demande à valider ou refuser, et une notification.'],
+  'prc-del-ok': ['Retirer ce proche ?', 'Le proche est retiré du cercle.', 'Le retrait, et une notification.'],
+  'prc-del-no': ['Refuser la suppression ?', 'Le proche reste dans le cercle.', 'Le refus, et une notification.'],
   'exp-save': ['Enregistrer la dépense ?', 'La dépense est enregistrée dans le budget.', 'La dépense dans le budget (à valider si besoin), et une notification.'],
   'exp-reopen': ['Rouvrir la dépense ?', 'La dépense revient dans le solde.', 'La dépense rouverte, et une notification.'],
   'inv-save': ['Enregistrer ce proche ?', "Le proche est ajouté ; l'invitation ne pourra être envoyée qu'après l'accord de l'autre parent.", 'Le proche à valider dans le Cercle, et une notification.'],
@@ -77,8 +90,14 @@ const NOTIF_CONFIRM = {
 const PLAIN_CONFIRM = {
   'occ-x-save': a => (a.dataset.t === 'absent' ? ["Noter l'absence ?", 'La séance reste dans l\'agenda, barrée, et compte comme une absence.'] : ['Noter le match ?', 'La séance est annulée et remplacée par le match de foot.']),
   'occ-restore': ['Rétablir la séance ?', "L'absence ou le match est retiré : la séance a lieu normalement."],
-  'occ-del-go': a => (a.dataset.m === 'all' ? null : ['Supprimer ?', a.dataset.m === 'day' ? "Cette séance disparaît de l'agenda et du bilan." : "Les séances cochées disparaissent de l'agenda et du bilan."]),
-  'occ-ovr-save': ['Enregistrer les changements ?', 'Seulement pour le ou les jours choisis : le reste de la série ne change pas.'],
+  'occ-del-go': a => { const ev = findEvent(a.dataset.id); return a.dataset.m === 'all' ? null : ev && !canEditEv(ev) ? ['Proposer la suppression ?', `${esc(parentLabel(ev.createdBy, ev.createdByName || "L'autre parent"))} doit la valider pour qu'elle soit prise en compte.`] : ['Supprimer ?', a.dataset.m === 'day' ? "Cette séance disparaît de l'agenda et du bilan." : "Les séances cochées disparaissent de l'agenda et du bilan."]; },
+  'occ-ovr-save': a => { const ev = findEvent(a.dataset.id); return ev && !canEditEv(ev) ? ['Envoyer la modification ?', `${esc(parentLabel(ev.createdBy, ev.createdByName || "L'autre parent"))} doit la valider pour qu'elle soit prise en compte.`] : ['Enregistrer les changements ?', 'Seulement pour le ou les jours choisis : le reste de la série ne change pas.']; },
+  'prop-cancel': ['Retirer votre proposition ?', "L'événement reste tel qu'il est."],
+  'inv-del-ok': ['Supprimer cette invitation ?', 'Le proche ne pourra plus rejoindre le cercle avec elle.'],
+  'inv-del-no': ['Refuser la suppression ?', "L'invitation est gardée."],
+  'inv-del-cancel': ['Annuler votre demande ?', "L'invitation est gardée."],
+  'prc-del': ['Retirer ce proche ?', 'Le proche est retiré du cercle.'],
+  'prc-del-cancel': ['Annuler votre demande ?', 'Le proche reste dans le cercle.'],
   'occ-ovr-reset': ['Revenir aux réglages de la série ?', 'Les changements faits pour ces jours sont retirés.'],
   'preset-act-go': ['Enregistrer les activités ?', 'Création et organisation (qui dépose, qui récupère, où) dans les cercles cochés.'],
   'al-save': ['Enregistrer vos rappels ?', 'Ce réglage ne concerne que vous.'],
@@ -94,6 +113,14 @@ const PLAIN_CONFIRM = {
   'w-enable': ['Activer les widgets ?', 'Un lien secret est créé pour vos widgets.'],
   'fam-create-go': ['Créer le cercle ?', 'Un nouveau cercle familial est créé.'],
 };
+// ───── Fenêtres de modification : si rien n'a changé depuis l'ouverture, rien n'est enregistré
+const NOCHG = { 'ev-save': a => !!a.dataset.id, 'occ-ovr-save': 1, 'rl-save': a => a.dataset.i !== '', 'par-save': 1, 'perm-save': 1, 'ct-save': a => !!a.dataset.id, 'task-save': a => !!a.dataset.id,
+  'exp-save': a => !!a.dataset.id, 'set-places-save': 1, 'set-zone-save': 1, 'al-save': 1, 'prof-save': 1 };
+function unchanged(a) {
+  const t = NOCHG[a.dataset.act]; if (!t || (typeof t === 'function' && !t(a))) return false;
+  const sh = a.closest('.sheet'); if (!sh?._f0 || sh._receipt || sh._file || sh._photo || sh._media?.length) return false;
+  return JSON.stringify(readForm(sh)) === JSON.stringify(sh._f0);
+}
 const notifiedName = () => { if (!isParent()) return 'les parents'; const p = parents(), c = p.A.uid === uid() ? 'B' : 'A'; return p[c].uid ? p[c].name : null; };
 // ───── Clics délégués
 document.addEventListener('click', e => {
@@ -107,8 +134,11 @@ document.addEventListener('click', e => {
   }
   const a = e.target.closest('[data-act]');
   if (a && !a.disabled) {
-    const fn = ACTIONS[a.dataset.act], cf = NOTIF_CONFIRM[a.dataset.act], who = cf && notifiedName();
+    const fn = ACTIONS[a.dataset.act], cf0 = NOTIF_CONFIRM[a.dataset.act], cf = typeof cf0 === 'function' ? cf0(a) : cf0, who = cf && notifiedName();
     const pc0 = PLAIN_CONFIRM[a.dataset.act], pc = typeof pc0 === 'function' ? pc0(a) : pc0;
+    // une modification qui ne change rien : message, rien n'est enregistré
+    const pre = fn && !a.dataset.ok ? (unchanged(a) ? NO_CHANGE : fn.pre?.(a)) : null;
+    if (pre) { e.preventDefault(); toast(pre, 'warn', 4500); return; }
     const run = () => { try { const r = fn(a, e); if (r && r.catch) r.catch(err => { console.error(err); toast(errMsg(err), 'err', 4500); }); } catch (err) { console.error(err); toast(errMsg(err), 'err', 4500); } };
     if (fn && !(cf && who) && (pc || cf) && !a.dataset.ok) {
       const req = cf && a.closest('.sheet')?.querySelector('input[name=title],input[name=name],input[name=prenom]');
@@ -203,6 +233,7 @@ function doRender() {
   if (!S.user) return renderAuth();
   if (isAdminUser()) return renderAdmin();
   if (!S.profile) return renderLoading();
+  if (S.family) More.syncDatalists();
   const ae = document.activeElement, view = $('#view');
   if (ae && view && view.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && S.lastView === S.route.view) { deferred = true; return; }
   const r = S.route;
@@ -245,10 +276,11 @@ function doRender() {
 function testBanner() {
   const t = LS.get('testAcc', null), me = S.user?.email || '';
   const sw = '<button class="btn soft sm" data-act="test-who" title="Changer de personnage">🔄</button>';
-  if (/^maman\.test\./.test(me)) return `<div class="testbar"><span>🧪 Vous êtes <b>Maman TEST</b></span>${sw}<button class="btn soft sm" data-act="test-back">Mon compte</button></div>`;
+  const home = '<button class="btn soft sm" data-act="test-home">Mon compte</button>';
+  if (/^maman\.test\./.test(me)) return `<div class="testbar"><span>🧪 Vous êtes <b>Maman TEST</b></span>${sw}${home}</div>`;
   const pr = Object.entries(t?.proches || {}).find(([, c]) => c.email === me);
-  if (pr) return `<div class="testbar"><span>🧪 Vous êtes <b>${esc(pr[0])} TEST</b> (proche)</span>${sw}<button class="btn soft sm" data-act="test-back">Mon compte</button></div>`;
-  if (t && S.fid === t.fid) return `<div class="testbar"><span>🧪 Cercle de test</span>${sw}<button class="btn soft sm" data-act="fam-switch" data-id="${t.realFid || ''}">Mon vrai cercle</button></div>`;
+  if (pr) return `<div class="testbar"><span>🧪 Vous êtes <b>${esc(pr[0])} TEST</b> (proche)</span>${sw}${home}</div>`;
+  if (t && S.fid === t.fid) return `<div class="testbar"><span>🧪 Vous êtes <b>${esc(myName())} TEST</b></span>${sw}${home}</div>`;
   return '';
 }
 function renderAdmin() {
@@ -336,7 +368,7 @@ Object.assign(ACTIONS, {
 });
 
 // ───── Abonnements Firestore (selon le rôle : parent = tout le cercle, proche = agenda, souvenirs, ses notes + rubriques autorisées)
-const SUBS = ['members', 'invites', 'children', 'childInfo', 'plannings', 'exchanges', 'events', 'pevents', 'evx', 'tasks', 'notes', 'expenses', 'docs', 'contacts', 'memories', 'sac', 'sacRuns'];
+const SUBS = ['members', 'invites', 'children', 'childInfo', 'plannings', 'exchanges', 'events', 'pevents', 'evx', 'evprop', 'tasks', 'notes', 'expenses', 'docs', 'contacts', 'memories', 'sac', 'sacRuns'];
 const AP_SUBS = new Set(['memories', 'docs', 'memoriesMine', 'docsMine', 'members']);
 const FEED_SUBS = new Set(['children', 'childInfo', 'plannings', 'exchanges', 'events', 'pevents', 'evx', 'tasks', 'notes']);
 // changements qui reprogramment les rappels personnalisés (relais, événements, échanges)
@@ -442,6 +474,14 @@ async function migrate() {
       const m = S.members.find(x => (i.email && (x.email || '').toLowerCase() === i.email) || (ph && (x.phone || '').replace(/\D/g, '').slice(-9) === ph));
       if (m) await db.update(`families/${fid}/invites/${i.id}`, { state: 'joined', joinedUid: m.uid, joinedAt: Date.now() });
     }
+    // 4 bis) proche : le parent qui l'a ajouté (lui seul peut le retirer sans l'accord de l'autre parent)
+    if (S.loaded.invites && S.loaded.members) {
+      const pu = [f.parents?.A?.uid, f.parents?.B?.uid].filter(Boolean);
+      for (const i of S.invites.filter(x => x.state === 'joined' && x.joinedUid && pu.includes(x.by))) {
+        const m = S.members.find(x => x.uid === i.joinedUid && !x.parentCode);
+        if (m && !m.addedBy) await db.update(`families/${fid}/members/${m.uid}`, { addedBy: i.by }).catch(e => console.warn('addedBy', e));
+      }
+    }
     // 5) photos des souvenirs : visibles des proches
     if (S.loaded.memories) for (const m of S.memories.filter(x => x.blobId && !x.bk)) {
       try { await db.update(`families/${fid}/blobs/${m.blobId}`, { kind: 'mem' }); } catch (e) { /* */ }
@@ -467,21 +507,9 @@ function testCreds() {
   const t = LS.get('testAcc', null), who = LS.get('testAs', 'maman');
   return (who !== 'maman' && t?.proches?.[who]?.email ? t.proches[who] : t) || null;
 }
-// Ouverture de l'appli (ou retour après une longue absence) : accueil de votre vrai compte, vrai cercle, mode test quitté
+// Ouverture de l'appli (après l'avoir fermée) : accueil de votre vrai compte, vrai cercle, mode test quitté.
+// Changer de page, d'application ou mettre en veille ne change rien.
 const FRESH = (() => { try { const f = !sessionStorage.getItem('sjf:alive'); sessionStorage.setItem('sjf:alive', '1'); return f; } catch (e) { return false; } })();
-function backHome() {
-  const t = LS.get('testAcc', null);
-  if (LS.get('acc', 'main') === 'test') { LS.set('acc', 'main'); location.hash = '#/home'; location.reload(); return true; }
-  if (t?.fid && S.fid === t.fid && t.realFid && (S.profile?.familyIds || []).includes(t.realFid)) { S.be.db.update(`users/${uid()}`, { currentFamily: t.realFid }).catch(() => { }); }
-  if (S.route.view !== 'home' || document.querySelector('.sheet')) { closeSheetsThen(null); location.hash = '#/home'; }
-  return false;
-}
-let hiddenAt = 0;
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { hiddenAt = Date.now(); return; }
-  if (hiddenAt && Date.now() - hiddenAt > 3 * 60 * 1000 && S.user && !S.setupRunning) backHome();
-  hiddenAt = 0;
-});
 async function start() {
   const demo = new URLSearchParams(location.search).has('demo') || LS.get('demo', false);
   if (demo) LS.set('demo', true);
@@ -491,6 +519,8 @@ async function start() {
     S.freshLaunch = true;
     if (!/^#\/?(home)?$/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search + '#/home');
   }
+  // bouton « Mon compte » du bandeau de test : retour au vrai cercle ; personnage « parent A » : cercle de test
+  const goTo = LS.get('goCircle', ''); if (goTo) { LS.set('goCircle', ''); S.goCircle = goTo; }
   // Compte actif : principal, ou Maman TEST dans une session séparée (revenir à son compte ne déconnecte pas)
   S.acc = LS.get('acc', 'main') === 'test' && LS.get('testAcc', null) ? 'test' : 'main';
   try { S.be = await createBackend(demo ? 'demo' : 'firebase', S.acc === 'test' ? 'sjtest' : null); }
@@ -504,7 +534,8 @@ async function start() {
   Install.checkStandalone();
   S.ready = true;
   S.be.auth.onChange(u => {
-    S.user = u;
+    S.user = u; S.emailH = '';
+    if (u?.email) emailHash(u.email).then(h => { if (S.user === u) { S.emailH = h; S.render(); } });
     if (unUser) { unUser(); unUser = null; }
     resetFamily(); S.fid = null; S.profile = null; S.families = {}; S.remindersDone = false;
     // session de test : Maman TEST ou un proche TEST (testAs)
@@ -529,6 +560,10 @@ async function start() {
       const tA = LS.get('testAcc', null);
       if (S.freshLaunch && S.acc === 'main' && tA?.fid && fid === tA.fid && (p.familyIds || []).includes(tA.realFid)) { fid = tA.realFid; S.be.db.update(`users/${u.uid}`, { currentFamily: fid }).catch(() => { }); }
       S.freshLaunch = false;
+      if (S.goCircle && S.acc === 'main' && tA?.fid) {
+        const want = S.goCircle === 'test' ? tA.fid : tA.realFid; S.goCircle = '';
+        if (want && fid !== want && (p.familyIds || []).includes(want)) { fid = want; S.be.db.update(`users/${u.uid}`, { currentFamily: fid }).catch(() => { }); }
+      }
       if (fid !== S.fid) attachFamily(fid);
       loadFamilyNames(p.familyIds || []);
       S.render();
@@ -553,4 +588,4 @@ document.addEventListener('touchend', e => {
   if (!ok || Math.abs(dx) < 70 || Math.abs(dy) > Math.abs(dx) * 0.6 || S.children.length < 2) return;
   Home.cycleKid(dx < 0 ? 1 : -1);
 }, { passive: true });
-window.SJF = { S, E, go, syncFeed, version: VERSION, APP_URL, sacSync: () => Sac.syncSacReminders() };
+window.SJF = { S, E, go, syncFeed, version: VERSION, APP_URL, ownerH: OWNER_H, sacSync: () => Sac.syncSacReminders() };

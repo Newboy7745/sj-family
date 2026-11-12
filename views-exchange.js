@@ -1,8 +1,8 @@
 // ═══════════════ Échanges de garde & horaires de relais (avec validation de l'autre parent) ═══════════════
-import * as E from './engine.js?v=6.17';
-import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.17';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.17';
-import { placeSel, placeToggle, placeLabel, myAlertsSheet } from './views-more.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.18';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp, NO_CHANGE } from './ui.js?v=6.18';
+import { placeSel, placeToggle, placeLabel, myAlertsSheet, rememberSugg } from './views-more.js?v=6.18';
 
 const ST = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'], cancelled: ['', 'Annulée'] };
 // Réponse (ou annulation) faite par l'autre parent : visible dans son onglet jusqu'à ce qu'on l'ait vue puis quitté l'écran
@@ -35,7 +35,7 @@ function relayEd(k, label, h, pl) {
   const usual = h.dropPlace || h.place || '';
   return `<label class="lbl">🔁 ${label} · ${esc(dW(h.date))} · ${esc(pName(h.from))} → ${esc(pName(h.to))}</label>
     <div class="two"><div><input class="in" type="time" name="${k}t" value="${h.time}"></div><div class="small muted" style="align-self:center">Prévu : ${hoTime(h)}${usual ? ' · 📍 ' + esc(usual) : ''}</div></div>
-    ${placeSel(k + 'pl', '', '')}`;
+    ${placeSel(k + 'pl', '', '', usual ? `Lieu prévu : ${usual}` : 'Lieu prévu')}`;
 }
 function planHtml(pl) {
   if (!pl) return '';
@@ -111,7 +111,7 @@ function sheetHtml(o) {
       <label class="lbl">Date du relais</label><input class="in" type="date" name="tdate" value="${d}">
       <div class="mt" data-part="hos">${hosHtml(hos, o.kind)}</div>
       <label class="lbl">Nouvel horaire</label><input class="in" type="time" name="time" value="${o.time || ''}">
-      <label class="lbl">Lieu</label>${placeSel('xpl', '', '')}
+      <label class="lbl">Lieu</label>${placeSel('xpl', '', '', 'Lieu prévu')}
     </div>
     <label class="lbl">Message / motif</label><textarea class="in" name="reason" rows="3" placeholder="Ex. Déplacement professionnel, mariage…"></textarea>
     ${needsValidation() ? `<div class="hint">${esc(pName(E.other(me)))} devra accepter la demande pour qu'elle s'applique.</div>` : `<div class="hint">L'autre parent n'a pas encore rejoint le cercle : l'échange s'appliquera directement.</div>`}
@@ -151,6 +151,22 @@ async function decide(x, state, note = '') {
   await updItem('exchanges', x.id, { state, decidedBy: uid(), decidedByName: myName(), decidedAt: Date.now(), decisionNote: note });
   await log('echange', `Échange ${state === 'accepted' ? 'accepté' : state === 'refused' ? 'refusé' : 'annulé'} : ${x.summary}`, { body: note, link: `exchanges?id=${x.id}` });
 }
+/** La demande ne change rien (mêmes jours chez le même parent, mêmes heures et lieux de relais) */
+function exchangeNoop(f) {
+  const eng = engine(), kids = f.kids || [];
+  if (!kids.length) return false;
+  const samePlace = (pc, txt, h) => !pc || placeLabel(pc, txt) === (h.dropPlace || h.place || '');
+  if (f.type === 'days') {
+    if (!f.from || !f.who || (f.to && f.to < f.from)) return false;
+    const same = previewDays(f).every(c => kids.every(k => { const cd = eng.code(k, c.d); return !E.isHalf(cd) && E.first(cd) === c.to; }));
+    if (!same) return false;
+    const pl = planOf(f);
+    return [['s', pl?.start], ['e', pl?.end]].every(([k, h]) => !h || ((f[k + 't'] || h.time) === h.time && samePlace(f[k + 'pl'], f[k + 'plTxt'], h)));
+  }
+  if (!f.tdate || !f.time) return false;
+  const h = eng.handovers(kids, f.tdate, f.tdate).find(x => x.kind === (f.kind || 'soir'));
+  return !!h && f.time === h.time && samePlace(f.xpl, f.xplTxt, h);
+}
 export const actions = {
   'x-alerts': el => { const x = S.exchanges.find(y => y.id === el.dataset.id); if (x) myAlertsSheet('x', x.id, x.summary || 'Échange'); },
   'x-new': el => openExchange({ d: el.dataset.d }),
@@ -187,7 +203,7 @@ export const actions = {
     Object.assign(data, { reason: f.reason, proposedBy: uid(), proposedByName: myName(), proposedAt: Date.now(), state: nv ? 'pending' : 'accepted' });
     if (!nv) Object.assign(data, { decidedBy: uid(), decidedByName: myName() + ' (auto)', decidedAt: Date.now() });
     el.disabled = true;
-    const ok = await guard(async () => { const id = await addItem('exchanges', data); await log('echange', nv ? `Demande d'échange : ${data.summary}` : `Échange appliqué : ${data.summary}`, { body: f.reason, link: id ? `exchanges?id=${id}` : null }); return true; }, nv ? 'Demande envoyée' : 'Échange appliqué');
+    const ok = await guard(async () => { const id = await addItem('exchanges', data); await rememberSugg(f, { places: ['spl', 'epl', 'xpl'] }); await log('echange', nv ? `Demande d'échange : ${data.summary}` : `Échange appliqué : ${data.summary}`, { body: f.reason, link: id ? `exchanges?id=${id}` : null }); return true; }, nv ? 'Demande envoyée' : 'Échange appliqué');
     if (ok) closeSheet(); else el.disabled = false;
   },
   'x-accept': async el => {
@@ -219,3 +235,4 @@ export const actions = {
     await guard(async () => { await addItem('exchanges', data); await log('echange', data.summary); }, nv ? 'Demande envoyée' : 'Planning rétabli');
   },
 };
+actions['x-save'].pre = el => (exchangeNoop(readForm(el.closest('.sheet'))) ? NO_CHANGE : null);

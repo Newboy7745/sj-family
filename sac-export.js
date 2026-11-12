@@ -1,5 +1,5 @@
 // ═══════════════ Export d'une liste des vacances en JPG ou PDF (circuit complet : demande, envoi, réception, retour) ═══════════════
-import { toast, download } from './ui.js?v=6.17';
+import { toast, download } from './ui.js?v=6.18';
 
 const PW = 1240, PH = 1754, M = 48, TW = PW - 2 * M;
 const COLW = [364, 156, 156, 156, 156, 156];

@@ -1,9 +1,9 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.17';
-import { occs, S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { occs, findEvent, canEditEv, parentLabel, S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.18';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.17';
-import { evText } from './views-agenda.js?v=6.17';
+import { esc, fmtAgo } from './ui.js?v=6.18';
+import { evText } from './views-agenda.js?v=6.18';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -82,11 +82,20 @@ export function pendingItems() {
   }
   for (const i of S.invites.filter(x => x.state === 'approval' && x.by !== me)) out.push({ i: '👥', t: `Proche à valider : ${i.prenom} ${i.nom || ''}`.trim(), s: `Ajouté par ${i.byName || "l'autre parent"}${i.relation ? ' · ' + i.relation : ''} · votre accord est nécessaire`, go: 'family' });
   for (const m of S.members.filter(x => x.pendingPerms && x.pendingPerms.by !== me)) out.push({ i: '🔐', t: `Accès de ${m.prenom || m.name} à valider`, s: `Proposé par ${m.pendingPerms.byName || memberName(m.pendingPerms.by)}`, go: 'family' });
+  // suppression d'un proche demandée par l'autre parent
+  for (const m of S.members.filter(x => x.delReq && x.delReq.by !== me)) out.push({ i: '🗑️', t: `Suppression de ${m.prenom || m.name} demandée`, s: `Par ${parentLabel(m.delReq.by, m.delReq.byName)} · votre accord est nécessaire`, go: 'family' });
+  for (const i of S.invites.filter(x => x.delReq && x.delReq.by !== me && x.state !== 'refused')) out.push({ i: '🗑️', t: `Suppression de ${i.prenom} ${i.nom || ''} demandée`.trim(), s: `Par ${parentLabel(i.delReq.by, i.delReq.byName)} · votre accord est nécessaire`, go: 'family' });
+  // modifications d'événements proposées par l'autre parent
+  for (const p of (S.evprop || []).filter(x => x.by !== me)) {
+    const ev = findEvent(p.evId); if (!ev || !canEditEv(ev)) continue;
+    out.push({ i: '✏️', t: `Modification proposée : ${p.title}`, s: `Par ${parentLabel(p.by, p.byName)} · ${p.summary}`, go: 'agenda', params: { prop: p.id } });
+  }
   return out;
 }
 /** Carte « à valider » (accueil, notifications) : le bouton Sourdine ne déclenche pas la navigation */
 export function pendHtml(x) {
-  return `<div class="alert"><div class="ai" data-go="${x.go}" style="cursor:pointer">${x.i}</div><div class="f1" data-go="${x.go}" style="cursor:pointer"><div class="at">${esc(x.t)}</div><div class="small">${esc(x.s)}</div></div>${x.mute ? `<button class="btn ghost sm" style="flex:none" data-act="appr-mute" data-c="${x.mute.c}" data-g="${esc(x.mute.g)}" title="Couper les rappels">🔕</button>` : ''}<span class="lnk" data-go="${x.go}" style="cursor:pointer">›</span></div>`;
+  const g = `data-go="${x.go}"${x.params ? ` data-params='${JSON.stringify(x.params).replace(/'/g, '&#39;')}'` : ''}`;
+  return `<div class="alert pend"><div class="ai" ${g} style="cursor:pointer">${x.i}</div><div class="f1" ${g} style="cursor:pointer"><div class="at">${esc(x.t)}</div><div class="small">${esc(x.s)}</div></div>${x.mute ? `<button class="btn ghost sm" style="flex:none" data-act="appr-mute" data-c="${x.mute.c}" data-g="${esc(x.mute.g)}" title="Couper les rappels">🔕</button>` : ''}<span class="lnk" ${g} style="cursor:pointer">›</span></div>`;
 }
 function setupSteps() {
   if (!isParent()) return '';

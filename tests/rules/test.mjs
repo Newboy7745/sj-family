@@ -162,6 +162,27 @@ await t('proche ne le lit pas', getDoc(doc(pr, `families/${F}/pevents/pe1`)), fa
 await t('proche ne liste pas les événements parents', getDocs(collection(pr, `families/${F}/pevents`)), false);
 await t('parent B ne le modifie pas', updateDoc(doc(pb, `families/${F}/pevents/pe1`), { title: 'x' }), false);
 await t('proche ne crée pas d\'événement parents', setDoc(doc(pr, `families/${F}/pevents/pe2`), { createdBy: 'pr', title: 'x' }), false);
+// Proches : retirés par le parent qui les a ajoutés ; sinon, demande validée par l'autre parent
+await env.withSecurityRulesDisabled(ctx => Promise.all([
+  setDoc(doc(ctx.firestore(), `families/${F}/members/pq`), { uid: 'pq', role: 'proche', parentCode: null }),
+  setDoc(doc(ctx.firestore(), `families/${F}/members/ps`), { uid: 'ps', role: 'proche', parentCode: null })]));
+await t('parent note qui a ajouté le proche', updateDoc(doc(pa, `families/${F}/members/pq`), { addedBy: 'pa' }));
+await t('« ajouté par » noté une seule fois', updateDoc(doc(pb, `families/${F}/members/pq`), { addedBy: 'pb' }), false);
+await t('parent B ne retire pas seul un proche ajouté par A', deleteDoc(doc(pb, `families/${F}/members/pq`)), false);
+await t('parent B demande la suppression', updateDoc(doc(pb, `families/${F}/members/pq`), { delReq: { by: 'pb', at: now } }));
+await t('parent B ne valide pas sa propre demande', deleteDoc(doc(pb, `families/${F}/members/pq`)), false);
+await t('demande au nom de l\'autre parent refusée', updateDoc(doc(pa, `families/${F}/members/ps`), { delReq: { by: 'pb' } }), false);
+await t('parent A valide : le proche est retiré', deleteDoc(doc(pa, `families/${F}/members/pq`)));
+await t('parent A note qu\'il a ajouté un proche', updateDoc(doc(pa, `families/${F}/members/ps`), { addedBy: 'pa' }));
+await t('parent A retire seul un proche qu\'il a ajouté', deleteDoc(doc(pa, `families/${F}/members/ps`)));
+await t('proche ne touche pas aux demandes de suppression', updateDoc(doc(pr, `families/${F}/members/pr`), { delReq: null }), false);
+// Modification d'un événement proposée par l'autre parent
+await t('parent B propose une modification', setDoc(doc(pb, `families/${F}/evprop/p1`), { createdBy: 'pb', evId: 'ev1', mode: 'all' }));
+await t('proposition au nom de l\'autre parent refusée', setDoc(doc(pb, `families/${F}/evprop/p2`), { createdBy: 'pa', evId: 'ev1' }), false);
+await t('proche ne voit pas les propositions', getDocs(collection(pr, `families/${F}/evprop`)), false);
+await t('parent A lit les propositions', getDocs(collection(pa, `families/${F}/evprop`)));
+await t('proposition non modifiable', updateDoc(doc(pb, `families/${F}/evprop/p1`), { mode: 'del-all' }), false);
+await t('parent A traite la proposition', deleteDoc(doc(pa, `families/${F}/evprop/p1`)));
 await t('parent programme un rappel de validation', setDoc(doc(pa, `families/${F}/reminders/ap_g4_1`), { kind: 'ap', grp: 'g4', sent: now, exp: now + H48, targets: { pb: 'sjf-x' } }));
 await t('parent liste les rappels de validation', getDocs(query(collection(pb, `families/${F}/reminders`), where('kind', '==', 'ap'))));
 await t('proche ne lit pas les rappels', getDocs(query(collection(pr, `families/${F}/reminders`), where('kind', '==', 'ap'))), false);

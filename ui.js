@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — utilitaires d'interface
 // ═══════════════════════════════════════════════════════════════
-import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.17';
+import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.18';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -24,6 +24,7 @@ export function initials(n) { return String(n || '?').trim().split(/\s+/).map(w 
 export function parseAmount(v) { const x = parseFloat(String(v).replace(/\s/g, '').replace(',', '.')); return isFinite(x) ? x : 0; }
 
 // ───── Toasts
+export const NO_CHANGE = "Aucune modification n'a été demandée : rien n'a donc été enregistré.";
 export function toast(msg, type = 'ok', ms = 2600) {
   let box = $('#toasts'); if (!box) { box = document.createElement('div'); box.id = 'toasts'; document.body.appendChild(box); }
   const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = msg; box.appendChild(t);
@@ -48,6 +49,8 @@ export function openSheet(html, { onMount, cls = '', onClose } = {}) {
   sh.querySelectorAll('input:not([autocomplete]),textarea:not([autocomplete])').forEach(i => i.setAttribute('autocomplete', 'off'));
   if (onMount) onMount(sh);
   const f = sh.querySelector('[autofocus]'); if (f && window.innerWidth > 700) f.focus();
+  // valeurs de départ de la fenêtre : une modification qui ne change rien n'est pas enregistrée
+  requestAnimationFrame(() => { if (!sh._f0) try { sh._f0 = readForm(sh); } catch (e) { /* */ } });
   return sh;
 }
 function removeTop() {
@@ -117,6 +120,80 @@ export function readForm(root) {
     o[g.dataset.group] = g.dataset.multi ? on : (on[0] ?? '');
   }
   return o;
+}
+// ───── Pictogrammes : jamais deux fois le même dans une liste (le même dessin prend une autre couleur)
+const PIC_COLORS = ['#E0393E', '#2F6FDE', '#1E9E5A', '#8E44AD', '#E67E22', '#16A3A3', '#D6338A', '#7A5C2E'];
+export const pic = (i, c) => (!i ? '' : c ? `<span class="pic" style="--pc:${c};--pcl:${c}38">${i}</span>` : `<span class="pic0">${i}</span>`);
+/** Donne une couleur différente aux pictogrammes identiques (ex. trois stades : rouge, bleu, vert) */
+export function uniquePics(items) {
+  const seen = {};
+  for (const it of items) if (it.i) { const k = it.i + '|' + (it.c || ''); (seen[k] ||= []).push(it); }
+  let n = 0;
+  for (const g of Object.values(seen)) if (g.length > 1) g.forEach(it => { it.c = PIC_COLORS[n++ % PIC_COLORS.length]; });
+  return items;
+}
+/**
+ * Sélectionneur : un bouton qui montre le choix (avec son pictogramme), la liste s'ouvre en dessous.
+ * Lu comme un groupe de puces (readForm) ; rien de choisi possible si none.
+ */
+export function pick(group, items, selected = [], { multi = false, ph = 'Choisir…', none = true } = {}) {
+  const sel = new Set((Array.isArray(selected) ? selected : [selected]).map(String));
+  const its = uniquePics(items.map(x => ({ ...x, v: String(x.v) })));
+  const on = its.filter(x => sel.has(x.v));
+  return `<div class="pk" data-pk="${esc(group)}" data-init="${esc(on.map(x => x.v).join('|'))}" data-ph="${esc(ph)}">
+    <div class="pkrow"><button type="button" class="pkb" data-act="pk-open">${pkLabel(on, ph, multi)}<span class="pkx">▾</span></button>${none ? `<button type="button" class="pkclr ${on.length ? '' : 'hide'}" data-act="pk-clear" aria-label="Effacer le choix">✕</button>` : ''}</div>
+    <div class="pkl hide"><div class="chips" data-group="${esc(group)}" ${multi ? 'data-multi="1"' : ''} ${none ? 'data-none="1"' : ''}>${its.map(x =>
+      `<button type="button" class="chip ${sel.has(x.v) ? 'on' : ''}" data-act="chip" data-val="${esc(x.v)}" data-pic="${esc(x.i || '')}" data-pc="${esc(x.c || '')}" data-l="${esc(x.s || x.l)}">${pic(x.i, x.c)}<span class="f1">${x.l}</span></button>`).join('')}</div>
+      ${multi ? '<button type="button" class="btn primary sm block mtx" data-act="pk-ok">OK</button>' : ''}</div></div>`;
+}
+function pkLabel(on, ph, multi) {
+  if (!on.length) return `<span class="pkv ph">${esc(ph)}</span>`;
+  if (multi && on.length > 1) return `<span class="pkv">${on.map(x => `${x.i ? pic(x.i, x.c) : ''}${x.s || x.l}`).join('<span class="pksep">·</span>')}</span>`;
+  return `<span class="pkv">${pic(on[0].i, on[0].c)}<span>${on[0].s || on[0].l}</span></span>`;
+}
+/** Met à jour le bouton du sélectionneur (choix affiché, contour doré s'il a changé) */
+export function pkSync(pk) {
+  const g = pk.querySelector('[data-group]'), on = [...g.querySelectorAll('.chip.on')].map(b => ({ v: b.dataset.val, i: b.dataset.pic, c: b.dataset.pc, l: b.dataset.l }));
+  const b = pk.querySelector('.pkb'); b.innerHTML = `${pkLabel(on, pk.dataset.ph, !!g.dataset.multi)}<span class="pkx">▾</span>`;
+  pk.querySelector('.pkclr')?.classList.toggle('hide', !on.length);
+  pk.classList.toggle('chg', on.map(x => x.v).join('|') !== pk.dataset.init);
+}
+export function pkOpen(pk, open = !pk.classList.contains('open')) {
+  if (open) document.querySelectorAll('.pk.open').forEach(o => o !== pk && pkOpen(o, false));
+  pk.classList.toggle('open', open); pk.querySelector('.pkl').classList.toggle('hide', !open);
+}
+document.addEventListener('chipchange', e => {
+  const pk = e.target.closest?.('.pk'); if (!pk) return;
+  pkSync(pk); if (!e.target.dataset.multi) pkOpen(pk, false);
+});
+// ───── Cases : blanches ; contour doré quand ce qui est écrit diffère de la valeur de départ de la fenêtre
+export function markChanged(el) {
+  if (!el?.classList?.contains('in') || el.type === 'file') return;
+  const d = el.tagName === 'SELECT' ? ([...el.options].find(o => o.defaultSelected) || el.options[0])?.value ?? '' : el.defaultValue;
+  el.classList.toggle('chg', String(el.value) !== String(d));
+}
+document.addEventListener('change', e => markChanged(e.target), true);
+document.addEventListener('focusout', e => markChanged(e.target), true);
+
+/** Fenêtre en haut de l'écran, déplaçable du doigt : Annuler / Valider */
+export function topConfirm(title, text = '', ok = 'Valider') {
+  return new Promise(res => {
+    const ov = document.createElement('div'); ov.className = 'tc-ov';
+    ov.innerHTML = `<div class="tc" role="dialog"><div class="tc-grab"></div><div class="tc-t">${esc(title)}</div>${text ? `<div class="tc-x">${text}</div>` : ''}
+      <div class="row gap mt"><button class="btn ghost f1" data-x="no">Annuler</button><button class="btn primary f1" data-x="yes">${esc(ok)}</button></div></div>`;
+    document.body.appendChild(ov); requestAnimationFrame(() => ov.classList.add('in'));
+    const w = ov.firstElementChild; let pos = { x: 0, y: 0 }, drag = null;
+    const end = v => { ov.classList.remove('in'); setTimeout(() => ov.remove(), 200); res(v); };
+    w.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; e.preventDefault(); drag = { x: e.clientX - pos.x, y: e.clientY - pos.y }; w.setPointerCapture?.(e.pointerId); });
+    w.addEventListener('pointermove', e => {
+      if (!drag) return; const r = w.getBoundingClientRect();
+      const nx = e.clientX - drag.x, ny = e.clientY - drag.y, top0 = r.top - pos.y, left0 = r.left - pos.x;
+      pos = { x: Math.max(-left0, Math.min(nx, innerWidth - r.width - left0)), y: Math.max(-top0, Math.min(ny, innerHeight - r.height - top0)) };
+      w.style.transform = `translate(${pos.x}px,${pos.y}px)`;
+    });
+    w.addEventListener('pointerup', () => { drag = null; }); w.addEventListener('pointercancel', () => { drag = null; });
+    w.addEventListener('click', e => { const b = e.target.closest('[data-x]'); if (b) end(b.dataset.x === 'yes'); });
+  });
 }
 export function chips(group, items, selected = [], { multi = false, cls = '' } = {}) {
   const sel = new Set(Array.isArray(selected) ? selected : [selected]);

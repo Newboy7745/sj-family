@@ -1,5 +1,5 @@
 rules_version = '2';
-// SJ Family 6.16 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// SJ Family 6.18 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
 // Parents : tout le cercle. Proches : agenda à jour, souvenirs, notes qui leur sont adressées, et les rubriques
 // ouvertes par les parents (validées par l'autre parent). Historique personnel pour chacun (inbox).
 service cloud.firestore {
@@ -74,16 +74,25 @@ service cloud.firestore {
           && (request.resource.data.get('parentCode', null) == null
             || (request.resource.data.parentCode == 'A' && famDoc(fid).ownerUid == request.auth.uid));
         allow update: if (signedIn() && request.auth.uid == mid
-            && !changed().hasAny(['perms', 'pendingPerms', 'joinCode'])
+            && !changed().hasAny(['perms', 'pendingPerms', 'joinCode', 'addedBy', 'delReq'])
             && (request.resource.data.get('parentCode', null) == resource.data.get('parentCode', null)
               || (request.resource.data.get('parentCode', null) != null && pUid(fid, request.resource.data.parentCode) == request.auth.uid)))
           || (isParent(fid) && request.auth.uid != mid
-            && changed().hasOnly(['perms', 'pendingPerms', 'updatedAt', 'updatedBy'])
+            && changed().hasOnly(['perms', 'pendingPerms', 'updatedAt', 'updatedBy', 'addedBy', 'delReq'])
             && (!changed().hasAny(['perms']) || !bothParents(fid)
               || (resource.data.get('pendingPerms', null) != null
                 && resource.data.pendingPerms.by != request.auth.uid
-                && request.resource.data.perms == resource.data.pendingPerms.perms)));
-        allow delete: if isParent(fid) && request.auth.uid != mid && resource.data.get('parentCode', null) == null;
+                && request.resource.data.perms == resource.data.pendingPerms.perms))
+            // parent qui a ajouté le proche : noté une seule fois
+            && (!changed().hasAny(['addedBy']) || (resource.data.get('addedBy', null) == null
+              && request.resource.data.addedBy in [pUid(fid, 'A'), pUid(fid, 'B')]))
+            // demande de suppression : faite en son nom, ou retirée
+            && (!changed().hasAny(['delReq']) || request.resource.data.delReq == null
+              || request.resource.data.delReq.by == request.auth.uid));
+        // un parent retire un proche qu'il a ajouté ; sinon, il faut la demande de l'autre parent
+        allow delete: if isParent(fid) && request.auth.uid != mid && resource.data.get('parentCode', null) == null
+          && (!bothParents(fid) || resource.data.get('addedBy', '') == request.auth.uid
+            || (resource.data.get('delReq', null) != null && resource.data.delReq.by != request.auth.uid));
       }
 
       // Historique personnel : chacun lit le sien ; tout membre peut y déposer une notification
@@ -117,6 +126,13 @@ service cloud.firestore {
         allow read: if isParent(fid);
         allow create: if isParent(fid) && byMe();
         allow update, delete: if isParent(fid) && mine();
+      }
+      // Modification d'un événement proposée par l'autre parent : appliquée (ou refusée) par le parent qui l'a créé
+      match /evprop/{id} {
+        allow read: if isParent(fid);
+        allow create: if isParent(fid) && byMe();
+        allow update: if false;
+        allow delete: if isParent(fid);
       }
       // État d'une séance (absent, remplacée par un match) : noté par l'un ou l'autre parent, visible par le cercle
       match /evx/{id} {
@@ -218,4 +234,4 @@ service cloud.firestore {
     }
   }
 }
-// FIN des règles SJ Family 6.16 — si cette ligne est la dernière collée, tout est bien copié
+// FIN des règles SJ Family 6.18 — si cette ligne est la dernière collée, tout est bien copié

@@ -1,17 +1,19 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.17';
-import { occs, allEvents, findEvent, canEditEv, evxMap, me, queueReminders, S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.17';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.17';
-import { vacRecap } from './views-sac.js?v=6.17';
-import { kidChips, cellBg } from './views-home.js?v=6.17';
-import { altText, whoChips, placeSel, placeToggle, placeLabel, dpText, alertsBlock, alertsBlockBind, saveItemAlerts, myAlertsSheet } from './views-more.js?v=6.17';
-import { openPrint } from './print.js?v=6.17';
+import * as E from './engine.js?v=6.18';
+import { occs, allEvents, findEvent, canEditEv, evProps, parentLabel, memberName, evxMap, me, queueReminders, S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.18';
+import { pick, esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.18';
+import { vacRecap } from './views-sac.js?v=6.18';
+import { kidChips, cellBg } from './views-home.js?v=6.18';
+import { altText, whoPick, whoName, placeSel, placeToggle, placeLabel, dpText, alertsBlock, alertsBlockBind, saveItemAlerts, myAlertsSheet, rememberSugg, yearItems, dayItems, HOL_ITEMS, ALT_WHEN } from './views-more.js?v=6.18';
+import { openPrint } from './print.js?v=6.18';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Sport / activité' }, { v: 'cours', i: '📖', l: 'Cours' },
   { v: 'accomp', i: '🚌', l: 'Sortie scolaire (accompagnement)' }, { v: 'anniv', i: '🎂', l: 'Anniversaire' }, { v: 'famille', i: '👨‍👩‍👧', l: 'Famille' }, { v: 'vacances', i: '🏖️', l: 'Sortie / vacances' }, { v: 'autre', i: '📌', l: 'Autre' },
 ];
 const catIcon = c => EV_CATS.find(x => x.v === c)?.i || '📌';
+const KIND_ITEMS = [{ v: 'date', l: 'Une date', i: '📌' }, { v: 'dow', l: 'Chaque semaine', i: '📅' }, { v: 'dowP', l: 'Semaines paires', i: '2️⃣' }, { v: 'dowI', l: 'Semaines impaires', i: '1️⃣' },
+  { v: 'vacStart', l: 'Veille des vacances', i: '🎒' }, { v: 'vacEnd', l: 'Fin des vacances', i: '🏁' }, { v: 'monthly', l: 'Chaque mois', i: '🗓️' }, { v: 'yearly', l: 'Chaque année', i: '🎂' }];
 const ym = iso => iso.slice(0, 7);
 function shiftMonth(m, k) { let [y, mo] = m.split('-').map(Number); mo += k; while (mo > 12) { mo -= 12; y++; } while (mo < 1) { mo += 12; y--; } return `${y}-${String(mo).padStart(2, '0')}`; }
 /** Croissant de l'Aïd (vert émeraude) */
@@ -351,7 +353,7 @@ export function evText(e, withWhen = true) {
   let when = '';
   if (withWhen) {
     if (k === 'date') when = E.fmtDate(e.date, 'wdm') + (e.endDate && e.endDate > e.date ? ' → ' + E.fmtDate(e.endDate, 'wdm') : '');
-    else if (k === 'dow') { const hol = E.evHol(e); when = `${+e.every === 2 ? 'le ' : 'chaque '}${joinFr(E.evDays(e).map(i => E.JOURS[i]))}${+e.every === 2 ? ` des semaines ${e.parity === 'impair' ? 'impaires' : 'paires'}` : ''}${hol === 'no' ? ' en période scolaire' : hol === 'w1' ? ' (vacances : 1re semaine seulement)' : ''}`; }
+    else if (k === 'dow') { const hol = E.evHol(e); when = `${+e.every === 2 ? 'le ' : 'chaque '}${joinFr(E.evDays(e).map(i => E.JOURS[i]))}${+e.every === 2 ? ` des semaines ${e.parity === 'impair' ? 'impaires' : 'paires'}` : ''}${hol === 'no' ? ' en période scolaire' : hol === 'w1' ? ' (vacances : 1ère semaine seulement)' : hol === 'w2' ? ' (vacances : 2ème semaine seulement)' : ''}`; }
     else if (k === 'vacStart') when = 'veille des vacances scolaires';
     else if (k === 'vacEnd') when = 'dernier jour des vacances scolaires';
     else if (k === 'monthly') when = `chaque mois le ${+e.date.slice(8)}`;
@@ -366,7 +368,7 @@ export function evText(e, withWhen = true) {
 }
 function eventSheet(ev = null, date = E.todayISO()) {
   const e = evForm(ev, date);
-  const ro = !!ev && !canEditEv(ev);
+  const ro = !!ev && !isParent();
   const k0 = e.kind === 'dow' && +e.every === 2 ? (e.parity === 'impair' ? 'dowI' : 'dowP') : e.kind;
   const today = E.todayISO(), sy = schoolY(today), wk = E.isoWeek(today).week;
   const sh = openSheet(`<h3 class="sh-title">${ev ? '✏️ Modifier' : '🗓️ Nouvel'} événement</h3>
@@ -375,24 +377,24 @@ function eventSheet(ev = null, date = E.todayISO()) {
     <label class="lbl">Enfants concernés</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), e.childIds || [], { multi: true })}
     <label class="lbl">Qui voit cet événement ?</label>${chips('vis', [{ v: 'all', l: '👨‍👩‍👧 Tout le cercle' }, { v: 'parents', l: '🔒 Les parents seulement' }], [e.vis || 'all'])}
     <div class="hint" data-part="vish">🔒 Ex. accompagnement d'une sortie scolaire : seul l'autre parent est informé, les proches ne le voient pas.</div>
-    <label class="lbl">Quand ?</label>${chips('kind', [{ v: 'date', l: '📌 Une date' }, { v: 'dow', l: '📅 Chaque semaine' }, { v: 'dowP', l: '2️⃣ Semaines paires' }, { v: 'dowI', l: '1️⃣ Semaines impaires' }, { v: 'vacStart', l: '🎒 Veille des vacances' }, { v: 'vacEnd', l: '🏁 Fin des vacances' }, { v: 'monthly', l: '🗓️ Chaque mois' }, { v: 'yearly', l: '🎂 Chaque année' }], [k0])}
+    <label class="lbl">Quand ?</label>${pick('kind', KIND_ITEMS, [k0], { none: false })}
     <div data-part="par" class="hint hide">Cette semaine : n° ${wk} (semaine ${wk % 2 ? 'impaire' : 'paire'}).</div>
     <div class="two"><div><label class="lbl" data-part="dl">Date</label><input class="in" type="date" name="date" value="${e.date}"></div><div data-part="end"><label class="lbl">Jusqu'au (option)</label><input class="in" type="date" name="endDate" value="${e.endDate || ''}"></div></div>
-    <div data-part="year"><label class="lbl">Année scolaire</label>${chips('year', [{ v: '', l: 'Toutes les années' }, ...[sy, sy + 1].map(y => ({ v: String(y), l: `${y}-${y + 1}` }))], [e.year || ''])}</div>
-    <div data-part="dow"><label class="lbl">Jours (un ou plusieurs)</label>${chips('dows', E.JOURS.map((j, i) => ({ v: String(i), l: ucf(j) })), e.dows.map(String), { multi: true })}
-      <label class="lbl">Pendant les vacances scolaires ?</label>${chips('hol', [{ v: 'no', l: '🚫 Rien (période scolaire seulement)' }, { v: 'w1', l: '1️⃣ 1re semaine seulement' }, { v: 'yes', l: '✅ Maintenu' }], [E.evHol(e)])}
+    <div data-part="year"><label class="lbl">Année scolaire</label>${pick('year', yearItems(sy), [e.year || ''], { none: false })}</div>
+    <div data-part="dow"><label class="lbl">Jours (un ou plusieurs)</label>${pick('dows', dayItems(), e.dows.map(String), { multi: true, ph: 'Choisir les jours…' })}
+      <label class="lbl">Pendant les vacances scolaires ?</label>${pick('hol', HOL_ITEMS, [E.evHol(e)], { none: false })}
       <div class="hint">Les jours fériés ne changent rien : supprimez la séance de ce jour-là si besoin.</div></div>
     <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="${e.time || ''}"></div><div><label class="lbl">Jusqu'à (option)</label><input class="in" type="time" name="timeEnd" value="${e.timeEnd || ''}"></div></div>
     <div class="hint">Laissez l'heure vide pour un événement sur la journée.</div>
-    <label class="lbl">Qui dépose les enfants ?</label>${whoChips('from', e.from)}
-    <label class="lbl">Lieu de dépose</label>${placeSel('dropAt', e.dropAt || '', e.dropTxt || '', 'Non précisé')}
-    <label class="lbl">Qui récupère les enfants ?</label>${whoChips('to', e.to)}
-    <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', e.pickAt || '', e.pickTxt || '', 'Non précisé')}
+    <label class="lbl">Qui dépose les enfants ?</label>${whoPick('from', e.from, e.fromTxt || '')}
+    <label class="lbl">Lieu de dépose</label>${placeSel('dropAt', e.dropAt || '', e.dropTxt || '')}
+    <label class="lbl">Qui récupère les enfants ?</label>${whoPick('to', e.to, e.toTxt || '')}
+    <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', e.pickAt || '', e.pickTxt || '')}
     <label class="row gap mt"><span class="sw"><input type="checkbox" name="altOn" ${e.alt?.on ? 'checked' : ''}><span></span></span><span class="f1">Si impossible : solution de repli</span></label>
     <div data-part="alt" class="hide">
-      <label class="lbl">Quand ?</label>${chips('altWhen', [{ v: 'veille', l: 'La veille' }, { v: 'jour', l: 'Le jour même' }], [e.alt?.when || 'jour'])}
+      <label class="lbl">Quand ?</label>${pick('altWhen', ALT_WHEN, [e.alt?.when || 'jour'], { none: false })}
       <label class="lbl">Heure</label><input class="in" type="time" name="altTime" value="${e.alt?.time || ''}">
-      <label class="lbl">Qui dépose les enfants ?</label>${chips('altBy', [{ v: 'A', l: esc(parents().A.name) }, { v: 'B', l: esc(parents().B.name) }], [e.alt?.by || e.from || 'A'])}
+      <label class="lbl">Qui dépose les enfants ?</label>${whoPick('altBy', e.alt?.by || e.from || 'A', e.alt?.byTxt || (e.alt ? '' : e.fromTxt || ''))}
       <label class="lbl">Lieu</label>${placeSel('altAt', e.alt?.at || '', e.alt?.txt || '')}
     </div>
     <label class="row gap mt"><span class="sw"><input type="checkbox" name="matchSwap" ${e.matchSwap ? 'checked' : ''}><span></span></span><span class="f1">Une séance peut être remplacée par un match de foot (horaires et lieu du match)</span></label>
@@ -424,9 +426,12 @@ function evFromForm(f) {
   if (!rec && f.endDate && f.endDate < f.date) return 'La date de fin doit suivre la date de début.';
   if (!f.time && f.timeEnd) return "Indiquez l'heure de début.";
   if (f.time && f.timeEnd && f.timeEnd <= f.time) return "L'heure de fin doit suivre l'heure de début.";
+  if (f.from === 'autre' && !t(f.fromTxt)) return 'Indiquez qui dépose les enfants.';
   if (f.dropAt === 'autre' && !t(f.dropAtTxt)) return 'Précisez le lieu de dépose.';
+  if (f.to === 'autre' && !t(f.toTxt)) return 'Indiquez qui récupère les enfants.';
   if (f.pickAt === 'autre' && !t(f.pickAtTxt)) return 'Précisez le lieu de récupération.';
   if (f.altOn && !f.altTime) return "Indiquez l'heure de la solution de repli.";
+  if (f.altOn && f.altBy === 'autre' && !t(f.altByTxt)) return 'Indiquez qui dépose les enfants (solution de repli).';
   if (f.altOn && !f.altAt) return 'Choisissez le lieu de la solution de repli.';
   if (f.altOn && f.altAt === 'autre' && !t(f.altAtTxt)) return 'Précisez le lieu de la solution de repli.';
   if (k.startsWith('dow') && !(f.dows || []).length) return 'Choisissez au moins un jour.';
@@ -435,19 +440,19 @@ function evFromForm(f) {
   return {
     title: f.title, cat: f.cat || 'autre', icon: catIcon(f.cat), childIds: f.childIds || [], kind, date: f.date, endDate: rec ? '' : f.endDate || '',
     dow: kind === 'dow' ? +(f.dows[0]) : E.dow(f.date), dows: kind === 'dow' ? f.dows.map(Number).sort((a, b) => a - b) : [], every, parity: k === 'dowI' ? 'impair' : 'pair',
-    school: kind === 'dow' && f.hol !== 'yes', holW1: kind === 'dow' && f.hol === 'w1', year, vis: f.vis === 'parents' ? 'parents' : 'all', matchSwap: !!f.matchSwap,
+    school: kind === 'dow' && f.hol !== 'yes', holW1: kind === 'dow' && f.hol === 'w1', holW2: kind === 'dow' && f.hol === 'w2', year, vis: f.vis === 'parents' ? 'parents' : 'all', matchSwap: !!f.matchSwap,
     time: f.time || '', timeEnd: f.timeEnd || '', endTime: f.timeEnd || '',
-    from: f.from || '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace,
-    to: f.to || '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', pickPlace, place: pickPlace || dropPlace,
-    alt: f.altOn ? { on: true, when: f.altWhen || 'jour', time: f.altTime, by: f.altBy || '', at: f.altAt, txt: f.altAt === 'autre' ? t(f.altAtTxt) : '', place: placeLabel(f.altAt, f.altAtTxt) } : null,
+    from: f.from || '', fromTxt: f.from === 'autre' ? t(f.fromTxt) : '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace,
+    to: f.to || '', toTxt: f.to === 'autre' ? t(f.toTxt) : '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', pickPlace, place: pickPlace || dropPlace,
+    alt: f.altOn ? { on: true, when: f.altWhen || 'jour', time: f.altTime, by: f.altBy || '', byTxt: f.altBy === 'autre' ? t(f.altByTxt) : '', at: f.altAt, txt: f.altAt === 'autre' ? t(f.altAtTxt) : '', place: placeLabel(f.altAt, f.altAtTxt) } : null,
     notes: f.notes || '',
     // anciennes versions de l'appli
-    repeat: kind === 'dow' ? (every === 2 ? 'biweekly' : 'weekly') : kind === 'monthly' || kind === 'yearly' ? kind : 'none', until: year ? `${+year + 1}-08-31` : '', who: f.from || 'custodian',
+    repeat: kind === 'dow' ? (every === 2 ? 'biweekly' : 'weekly') : kind === 'monthly' || kind === 'yearly' ? kind : 'none', until: year ? `${+year + 1}-08-31` : '', who: f.from === 'A' || f.from === 'B' ? f.from : f.from === 'AB' ? 'both' : 'custodian',
   };
 }
 /** Fiche d'une séance (un jour donné) : état, absence, match, mes rappels ; modifier / supprimer pour le parent créateur */
 function occSheet(ev, d) {
-  const x = ev.pe ? null : evxMap()[E.evxKey(ev.id, d)] || null, par = isParent(), mine = canEditEv(ev);
+  const x = ev.pe ? null : evxMap()[E.evxKey(ev.id, d)] || null, par = isParent(), mine = canEditEv(ev), props = par ? evProps(ev.id) : [];
   const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date), o = ev.ovr?.[d] ? { ...ev, ...ev.ovr[d], occ: d, edited: true } : { ...ev, occ: d };
   const tm = (a, b) => (a ? E.fmtTime(a) + (b ? '–' + E.fmtTime(b) : '') : '');
   const status = !x ? '' : x.type === 'absent'
@@ -460,8 +465,9 @@ function occSheet(ev, d) {
     ${par && !ev.pe ? (x ? `<button class="btn soft block mt" data-act="occ-restore" data-id="${ev.id}" data-d="${d}">↩️ Rétablir la séance</button>`
       : `<div class="row gap mt"><button class="btn soft f1" data-act="occ-absent" data-id="${ev.id}" data-d="${d}">🙋 Absent</button>${ev.matchSwap ? `<button class="btn soft f1" data-act="occ-match" data-id="${ev.id}" data-d="${d}">⚽ Match de foot</button>` : ''}</div>`) : ''}
     ${par ? `<button class="btn soft block mt" data-act="occ-alerts" data-id="${ev.id}">🔔 Mes rappels</button>` : ''}
-    ${mine ? `<div class="row gap mt"><button class="btn ghost f1" data-act="occ-edit" data-id="${ev.id}" data-d="${d}">✏️ Modifier</button><button class="btn danger f1" data-act="occ-del" data-id="${ev.id}" data-d="${d}">${IC.trash} Supprimer…</button></div>`
-      : par ? `<div class="hint mt">Créé par ${esc(ev.createdByName || "l'autre parent")} : lui seul peut le modifier ou le supprimer.</div>` : ''}
+    ${par ? props.map(pr => propBox(pr)).join('') : ''}
+    ${par ? `<div class="row gap mt"><button class="btn ghost f1" data-act="occ-edit" data-id="${ev.id}" data-d="${d}">✏️ Modifier</button><button class="btn danger f1" data-act="occ-del" data-id="${ev.id}" data-d="${d}">${IC.trash} Supprimer…</button></div>` : ''}
+    ${par && !mine ? `<div class="hint mt">Créé par ${esc(creatorName(ev))} : à valider par ${esc(creatorName(ev))}.</div>` : ''}
     <div class="sh-actions"><button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
 }
 const evColl = ev => (ev.pe ? 'pevents' : 'events');
@@ -472,12 +478,12 @@ function occEditForm(ev, days) {
     <div class="muted small">${esc(ev.title)}${ev.childIds?.length ? ' · ' + esc(childNames(ev.childIds)) : ''} : ${many ? 'ces jours-là' : 'ce jour-là'} seulement, le reste de la série ne change pas.</div>
     ${many ? `<div class="tiny muted mtx">${days.map(d => E.fmtDate(d, 'short')).join(' · ')}</div>` : ''}
     <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="${o.time || ''}"></div><div><label class="lbl">Jusqu'à (option)</label><input class="in" type="time" name="timeEnd" value="${o.timeEnd || o.endTime || ''}"></div></div>
-    <label class="lbl">Qui dépose les enfants ?</label>${whoChips('from', o.from)}
-    <label class="lbl">Lieu de dépose</label>${placeSel('dropAt', o.dropAt || '', o.dropTxt || '', 'Non précisé')}
-    <label class="lbl">Qui récupère les enfants ?</label>${whoChips('to', o.to)}
-    <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', o.pickAt || '', o.pickTxt || '', 'Non précisé')}
+    <label class="lbl">Qui dépose les enfants ?</label>${whoPick('from', o.from, o.fromTxt || '')}
+    <label class="lbl">Lieu de dépose</label>${placeSel('dropAt', o.dropAt || '', o.dropTxt || '')}
+    <label class="lbl">Qui récupère les enfants ?</label>${whoPick('to', o.to, o.toTxt || '')}
+    <label class="lbl">Lieu de récupération</label>${placeSel('pickAt', o.pickAt || '', o.pickTxt || '')}
     <label class="lbl">Note pour ${many ? 'ces séances' : 'cette séance'} (option)</label><input class="in" name="notes" maxlength="200" value="${esc(ev.ovr?.[days[0]]?.notes || '')}">
-    ${days.some(d => ev.ovr?.[d]) ? `<button class="btn soft block mt" data-act="occ-ovr-reset" data-id="${ev.id}" data-days="${days.join(',')}">↩️ Revenir aux réglages de la série</button>` : ''}
+    ${canEditEv(ev) && days.some(d => ev.ovr?.[d]) ? `<button class="btn soft block mt" data-act="occ-ovr-reset" data-id="${ev.id}" data-days="${days.join(',')}">↩️ Revenir aux réglages de la série</button>` : ''}
     <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="occ-ovr-save" data-id="${ev.id}" data-days="${days.join(',')}">Enregistrer</button></div>`);
   sh.addEventListener('chipchange', () => placeToggle(sh)); placeToggle(sh);
 }
@@ -490,6 +496,58 @@ function pickDaysSheet(ev, d, act, label, cls) {
 }
 /** Prochaines séances d'un événement (pour en supprimer plusieurs) */
 function nextOccs(ev, d) { const from = d < E.todayISO() ? d : E.todayISO(); return E.expandEvents([ev], from, E.addDays(from, 190), settings()).map(o => o.occ).slice(0, 80); }
+// ───── Modification d'un événement par l'autre parent : proposée, puis validée (ou non) par le parent qui l'a créé
+const creatorName = ev => parentLabel(ev.createdBy, ev.createdByName || "l'autre parent");
+const daysTxt = days => days.map(d => E.fmtDate(d, 'wdm')).join(', ');
+function propText(ev, p) {
+  if (p.mode === 'all') return `Toute la série : ${evText(p.data)}`;
+  if (p.mode === 'days') return `${ucf(daysTxt(p.days))} : ${evText({ ...ev, ...p.o }, false)}`;
+  if (p.mode === 'del-days') return `Supprimer ${p.days.length > 1 ? 'les séances' : 'la séance'} : ${daysTxt(p.days)}`;
+  return 'Supprimer toute la série';
+}
+function propBox(p) {
+  const mine = p.by === uid(), ev = findEvent(p.evId), dec = ev && canEditEv(ev) && !mine;
+  return `<div class="alert pend mt"><div class="ai">✏️</div><div class="f1"><div class="at">${esc(mine ? 'Votre proposition' : parentLabel(p.by, p.byName || "L'autre parent") + ' propose')} : ${esc(p.summary)}</div>
+    <div class="small">${mine ? `En attente de validation par ${esc(ev ? creatorName(ev) : "l'autre parent")}` : fmtStamp(p.at)}</div>
+    <div class="row gap6 mtx">${dec ? `<button class="btn ok sm" data-act="prop-ok" data-id="${p.id}">✓ Valider</button><button class="btn danger sm" data-act="prop-no" data-id="${p.id}">✗ Refuser</button>` : mine ? `<button class="btn soft sm" data-act="prop-cancel" data-id="${p.id}">Annuler ma proposition</button>` : ''}</div></div></div>`;
+}
+export function propSheet(id) {
+  const p = (S.evprop || []).find(x => x.id === id);
+  if (!p) return toast('Cette proposition a déjà été traitée.', 'warn');
+  const ev = findEvent(p.evId);
+  openSheet(`<h3 class="sh-title">${esc(p.icon || '✏️')} ${esc(p.title || 'Événement')}</h3>${ev ? `<div class="muted small">${esc(ucf(evText(ev)))}</div>` : ''}${propBox(p)}
+    ${ev ? `<button class="btn soft block mt" data-act="ev-open" data-id="${ev.id}" data-d="${p.days?.[0] || ev.date}">🗓️ Voir l'événement</button>` : ''}
+    <div class="sh-actions"><button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
+}
+async function proposeEv(ev, mode, extra) {
+  const p = { evId: ev.id, coll: evColl(ev), title: ev.title, icon: ev.icon || catIcon(ev.cat), mode, days: [], ...extra, by: uid(), byName: myName(), at: Date.now(), to: ev.createdBy || '' };
+  p.summary = propText(ev, p);
+  const id = await addItem('evprop', p);
+  await log('agenda', `Modification proposée : ${ev.title}`, { body: `${p.summary} · votre accord est nécessaire`, link: `agenda?prop=${id}`, icon: '✏️' });
+  return id;
+}
+/** Enregistre les réglages d'un événement (changement « tout le cercle » ↔ « parents seulement » : même identifiant, autre collection) */
+async function saveEvData(ev, data) {
+  const coll = data.vis === 'parents' ? 'pevents' : 'events';
+  if (evColl(ev) === coll) return updItem(coll, ev.id, data);
+  await S.be.db.set(fpath(coll, ev.id), { createdAt: ev.createdAt || Date.now(), createdBy: ev.createdBy || uid(), createdByName: ev.createdByName || myName(), exceptions: ev.exceptions || [], ovr: ev.ovr || {}, ...data, updatedAt: Date.now(), updatedBy: uid() });
+  await S.be.db.del(fpath(evColl(ev), ev.id));
+}
+async function delEvent(ev) {
+  await S.be.db.del(fpath(evColl(ev), ev.id));
+  for (const x of S.evx.filter(x => x.evId === ev.id)) await S.be.db.del(fpath('evx', x.id)).catch(() => { });
+  for (const p of evProps(ev.id)) await S.be.db.del(fpath('evprop', p.id)).catch(() => { });
+}
+async function applyProp(p) {
+  const ev = findEvent(p.evId);
+  if (ev) {
+    if (p.mode === 'all') await saveEvData(ev, p.data);
+    else if (p.mode === 'days') { const ovr = { ...(ev.ovr || {}) }; for (const d of p.days) ovr[d] = p.o; await updItem(evColl(ev), ev.id, { ovr }); }
+    else if (p.mode === 'del-days') { const ex = [...new Set([...(ev.exceptions || []), ...p.days])].sort(); await updItem(evColl(ev), ev.id, { exceptions: ex }); for (const d of p.days) if (S.evx.some(x => x.evId === ev.id && x.date === d)) await S.be.db.del(fpath('evx', E.evxKey(ev.id, d))).catch(() => { }); }
+    else if (p.mode === 'del-all') await delEvent(ev);
+  }
+  await S.be.db.del(fpath('evprop', p.id)).catch(() => { });
+}
 async function delOccs(ev, days) {
   const ex = [...new Set([...(ev.exceptions || []), ...days])].sort();
   await updItem(evColl(ev), ev.id, { exceptions: ex });
@@ -499,6 +557,10 @@ async function delOccs(ev, days) {
 
 export const after = {
   agenda() {
+    if (S.route.params.prop) {
+      if (!isParent() || !S.loaded.evprop || !S.loaded.events) return;
+      const id = S.route.params.prop; history.replaceState(null, '', '#/agenda'); S.route = { view: 'agenda', params: {} }; setTimeout(() => propSheet(id), 250); return;
+    }
     if (S.route.params.preset === 'activites') {
       if (!isParent() || !S.loaded.events || !S.children.length) return; // attendre le chargement du cercle
       history.replaceState(null, '', '#/agenda'); S.route = { view: 'agenda', params: {} }; setTimeout(presetSheet, 300); return;
@@ -519,22 +581,24 @@ export const actions = {
     const sh = el.closest('.sheet'), f = readForm(sh), data = evFromForm(f);
     if (typeof data === 'string') return toast(data, 'warn');
     const id = el.dataset.id, ev = id ? findEvent(id) : null;
-    if (!isParent() || (id && !canEditEv(ev))) return toast("Seul le parent qui a créé l'événement peut le modifier.", 'warn');
+    if (!isParent() || (id && !ev)) return toast('Seuls les parents modifient les événements.', 'warn');
     el.disabled = true;
     const coll = data.vis === 'parents' ? 'pevents' : 'events', lock = coll === 'pevents' ? ' 🔒' : '';
+    // réglages de l'événement inchangés : seuls mes rappels changent
+    const same = !!ev && !!sh._f0 && JSON.stringify(evFromForm(sh._f0)) === JSON.stringify(data);
+    const own = !ev || canEditEv(ev);
     const ok = await guard(async () => {
       let eid = id;
-      if (id && evColl(ev) === coll) await updItem(coll, id, data);
-      else if (id) { // passage « tout le cercle » ↔ « parents seulement » : même identifiant, autre collection
-        await S.be.db.set(fpath(coll, id), { createdAt: ev.createdAt || Date.now(), createdBy: ev.createdBy || uid(), createdByName: ev.createdByName || myName(), exceptions: ev.exceptions || [], ...data, updatedAt: Date.now(), updatedBy: uid() });
-        await S.be.db.del(fpath(evColl(ev), id));
-      } else eid = await addItem(coll, data);
+      if (same) { await saveItemAlerts('ev', eid, f); queueReminders(); return 'Rappels enregistrés'; }
+      if (ev && !own) { await proposeEv(ev, 'all', { data }); await saveItemAlerts('ev', eid, f); return `Envoyé à ${creatorName(ev)} pour validation`; }
+      if (ev) await saveEvData(ev, data); else eid = await addItem(coll, data);
       await saveItemAlerts('ev', eid, f);
+      await rememberSugg(f, { people: ['from', 'to', 'altBy'], places: ['dropAt', 'pickAt', 'altAt'] });
       await log('agenda', `${id ? 'Événement modifié' : 'Nouvel événement'} : ${f.title}${lock}`, { body: evText(data) + (lock ? ' · visible uniquement par les parents' : ''), link: `agenda?d=${data.date}` });
       queueReminders();
-      return true;
-    }, 'Événement enregistré');
-    if (ok) closeSheet(); else el.disabled = false;
+      return 'Événement enregistré';
+    });
+    if (ok) { closeSheet(); toast(ok, 'ok', 3000); } else el.disabled = false;
   },
   'act-perso': el => { const f = readForm(el.closest('.card')); go('activites', { m: 'perso', from: f.from, to: f.to }); },
   'preset-act-go': async el => {
@@ -564,45 +628,67 @@ export const actions = {
     if (ok) { closeSheet(); toast(`${plural(n, 'changement')} enregistré${n > 1 ? 's' : ''}${pick.length > 1 ? ' dans les deux cercles' : ''}`, 'ok', 3500); } else el.disabled = false;
   },
   'occ-edit': el => {
-    const ev = findEvent(el.dataset.id), d = el.dataset.d || ev?.date; if (!canEditEv(ev)) return toast("Seul le parent qui a créé l'événement peut le modifier.", 'warn');
+    const ev = findEvent(el.dataset.id), d = el.dataset.d || ev?.date; if (!ev || !isParent()) return toast('Seuls les parents modifient les événements.', 'warn');
     const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date);
     if (!rec) return closeSheetsThen(() => eventSheet(ev, d));
     openSheet(`<h3 class="sh-title">✏️ Modifier</h3><div class="muted small mb">${esc(ev.title)}</div>
       <button class="btn soft block" data-act="occ-edit-go" data-m="day" data-id="${ev.id}" data-d="${d}">🗓️ Ce jour seulement · ${E.fmtDate(d, 'wdm')}</button>
       <button class="btn soft block mt" data-act="occ-edit-pick" data-id="${ev.id}" data-d="${d}">☑️ Plusieurs jours…</button>
       <button class="btn primary block mt" data-act="occ-edit-go" data-m="all" data-id="${ev.id}" data-d="${d}">🔁 Toute la série</button>
-      <div class="hint">Un jour ou plusieurs : heures, qui dépose ou récupère et où. Toute la série : tous les réglages.</div>
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button></div>`);
   },
-  'occ-edit-pick': el => { const ev = findEvent(el.dataset.id); if (canEditEv(ev)) pickDaysSheet(ev, el.dataset.d, 'occ-edit-go', 'modifier', 'primary'); },
+  'occ-edit-pick': el => { const ev = findEvent(el.dataset.id); if (ev && isParent()) pickDaysSheet(ev, el.dataset.d, 'occ-edit-go', 'modifier', 'primary'); },
   'occ-edit-go': el => {
-    const ev = findEvent(el.dataset.id), m = el.dataset.m; if (!canEditEv(ev)) return;
+    const ev = findEvent(el.dataset.id), m = el.dataset.m; if (!ev || !isParent()) return;
     if (m === 'all') return closeSheetsThen(() => eventSheet(ev, el.dataset.d));
     const days = m === 'day' ? [el.dataset.d] : [...el.closest('.sheet').querySelectorAll('input[name=days]:checked')].map(i => i.value);
     if (!days.length) return toast('Cochez au moins un jour.', 'warn');
     closeSheetsThen(() => occEditForm(ev, days));
   },
   'occ-ovr-save': async el => {
-    const ev = findEvent(el.dataset.id), days = el.dataset.days.split(','), f = readForm(el.closest('.sheet')); if (!canEditEv(ev)) return;
+    const ev = findEvent(el.dataset.id), days = el.dataset.days.split(','), f = readForm(el.closest('.sheet')); if (!ev || !isParent()) return;
     const t = x => String(x || '').trim();
     if (f.timeEnd && f.time && f.timeEnd <= f.time) return toast("L'heure de fin doit suivre l'heure de début.", 'warn');
+    if ((f.from === 'autre' && !t(f.fromTxt)) || (f.to === 'autre' && !t(f.toTxt))) return toast('Indiquez le nom de la personne.', 'warn');
     if ((f.dropAt === 'autre' && !t(f.dropAtTxt)) || (f.pickAt === 'autre' && !t(f.pickAtTxt))) return toast('Précisez le lieu.', 'warn');
     const dropPlace = placeLabel(f.dropAt, f.dropAtTxt), pickPlace = placeLabel(f.pickAt, f.pickAtTxt);
-    const o = { time: f.time || '', timeEnd: f.timeEnd || '', endTime: f.timeEnd || '', from: f.from || '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace,
-      to: f.to || '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', pickPlace, place: pickPlace || dropPlace, ...(t(f.notes) ? { notes: t(f.notes) } : {}) };
-    const ovr = { ...(ev.ovr || {}) }; for (const d of days) ovr[d] = o;
+    const o = { time: f.time || '', timeEnd: f.timeEnd || '', endTime: f.timeEnd || '', from: f.from || '', fromTxt: f.from === 'autre' ? t(f.fromTxt) : '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace,
+      to: f.to || '', toTxt: f.to === 'autre' ? t(f.toTxt) : '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', pickPlace, place: pickPlace || dropPlace, ...(t(f.notes) ? { notes: t(f.notes) } : {}) };
+    // rien de changé par rapport à ces jours-là : rien n'est enregistré
+    const cur = d => { const x = { ...ev, ...(ev.ovr?.[d] || {}) }; return Object.keys(o).every(k => String(x[k] ?? '') === String(o[k] ?? '')) && (!!t(f.notes) || !ev.ovr?.[d]?.notes); };
+    if (days.every(cur)) return toast(NO_CHANGE, 'warn', 4500);
+    const own = canEditEv(ev);
     const ok = await guard(async () => {
+      if (!own) { await proposeEv(ev, 'days', { days, o }); return `Envoyé à ${creatorName(ev)} pour validation`; }
+      const ovr = { ...(ev.ovr || {}) }; for (const d of days) ovr[d] = o;
       await updItem(evColl(ev), ev.id, { ovr });
+      await rememberSugg(f, { people: ['from', 'to'], places: ['dropAt', 'pickAt'] });
       await log('agenda', `${days.length > 1 ? days.length + ' séances modifiées' : 'Séance modifiée'} : ${ev.title}`, { body: `${days.map(d => E.fmtDate(d, 'wdm')).join(', ')} · ${evText({ ...ev, ...o }, false)}`, link: `agenda?d=${days[0]}` });
-      queueReminders(); return true;
-    }, days.length > 1 ? `${days.length} séances modifiées` : 'Séance modifiée');
-    if (ok) closeSheetsThen(() => occSheet(findEvent(ev.id) || ev, days[0]));
+      queueReminders(); return days.length > 1 ? `${days.length} séances modifiées` : 'Séance modifiée';
+    });
+    if (ok) { toast(ok, 'ok', 3000); closeSheetsThen(() => occSheet(findEvent(ev.id) || ev, days[0])); }
   },
   'occ-ovr-reset': async el => {
     const ev = findEvent(el.dataset.id), days = el.dataset.days.split(','); if (!canEditEv(ev)) return;
     const ovr = { ...(ev.ovr || {}) }; for (const d of days) delete ovr[d];
     const ok = await guard(async () => { await updItem(evColl(ev), ev.id, { ovr }); queueReminders(); return true; }, 'Réglages de la série rétablis');
     if (ok) closeSheetsThen(() => occSheet(findEvent(ev.id) || ev, days[0]));
+  },
+  'prop-open': el => propSheet(el.dataset.id),
+  'prop-ok': async el => {
+    const p = (S.evprop || []).find(x => x.id === el.dataset.id), ev = p && findEvent(p.evId); if (!p || !ev || !canEditEv(ev)) return;
+    const ok = await guard(async () => { await applyProp(p); await log('agenda', `Modification acceptée : ${p.title}`, { body: p.summary, link: p.mode === 'del-all' ? 'agenda' : `agenda?d=${p.days?.[0] || ev.date}`, icon: '✅' }); queueReminders(); return true; }, 'Modification appliquée');
+    if (ok) closeSheetsThen(null);
+  },
+  'prop-no': async el => {
+    const p = (S.evprop || []).find(x => x.id === el.dataset.id); if (!p) return;
+    const ok = await guard(async () => { await S.be.db.del(fpath('evprop', p.id)); await log('agenda', `Modification refusée : ${p.title}`, { body: p.summary, icon: '✗' }); return true; }, 'Modification refusée');
+    if (ok) closeSheetsThen(null);
+  },
+  'prop-cancel': async el => {
+    const p = (S.evprop || []).find(x => x.id === el.dataset.id); if (!p || p.by !== uid()) return;
+    const ok = await guard(async () => { await S.be.db.del(fpath('evprop', p.id)); await log('agenda', `Proposition retirée : ${p.title}`, { body: p.summary, icon: '↩️' }); return true; }, 'Proposition retirée');
+    if (ok) closeSheetsThen(null);
   },
   'occ-alerts': el => { const ev = findEvent(el.dataset.id); if (ev) myAlertsSheet('ev', ev.id, ev.title); },
   'occ-absent': el => {
@@ -617,19 +703,21 @@ export const actions = {
     openSheet(`<h3 class="sh-title">⚽ Match de foot à la place</h3><div class="muted small mb">${esc(ev.title)} · ${E.fmtDate(d, 'wdmy')} : la séance est annulée.</div>
       <label class="lbl">Match de</label>${chips('child', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), [ev.childIds?.[0] || S.children[0]?.id || ''])}
       <div class="two"><div><label class="lbl">Début</label><input class="in" type="time" name="time"></div><div><label class="lbl">Fin (option)</label><input class="in" type="time" name="timeEnd"></div></div>
-      <label class="lbl">Lieu</label><input class="in" name="place" maxlength="120" placeholder="Ex. Stade de Concyr, Olivet">
-      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="occ-x-save" data-t="match" data-id="${ev.id}" data-d="${d}">Enregistrer</button></div>`);
+      <label class="lbl">Lieu</label>${placeSel('mpl', '', '')}
+      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="occ-x-save" data-t="match" data-id="${ev.id}" data-d="${d}">Enregistrer</button></div>`, { onMount: sh => sh.addEventListener('chipchange', () => placeToggle(sh)) });
   },
   'occ-x-save': async el => {
     const ev = findEvent(el.dataset.id), d = el.dataset.d, t = el.dataset.t, f = readForm(el.closest('.sheet'));
     if (!ev || !isParent()) return;
     if (t === 'match' && !f.time) return toast("Indiquez l'heure du match.", 'warn');
     if (t === 'match' && f.timeEnd && f.timeEnd <= f.time) return toast("L'heure de fin doit suivre l'heure de début.", 'warn');
-    if (t === 'match' && !f.place) return toast('Indiquez le lieu du match.', 'warn');
+    const mplace = t === 'match' ? placeLabel(f.mpl, f.mplTxt) : '';
+    if (t === 'match' && !mplace) return toast('Indiquez le lieu du match.', 'warn');
     const x = { evId: ev.id, date: d, type: t, title: ev.title, childIds: ev.childIds || [], by: uid(), byName: myName(), at: Date.now(),
-      ...(t === 'absent' ? { cause: f.cause || '' } : { child: f.child || '', time: f.time, timeEnd: f.timeEnd || '', place: f.place }) };
+      ...(t === 'absent' ? { cause: f.cause || '' } : { child: f.child || '', time: f.time, timeEnd: f.timeEnd || '', place: mplace, placeAt: f.mpl || '' }) };
     const ok = await guard(async () => {
       await S.be.db.set(fpath('evx', E.evxKey(ev.id, d)), x);
+      if (t === 'match') await rememberSugg(f, { places: ['mpl'] });
       await log('agenda', t === 'absent' ? `Absent : ${ev.title}${ev.childIds?.length ? ' (' + childNames(ev.childIds) + ')' : ''}` : `Match de foot à la place de : ${ev.title}`,
         { body: `${E.fmtDate(d, 'wdm')}${t === 'absent' ? (x.cause ? ' · ' + x.cause : '') : ` · ${childName(x.child)} · ${E.fmtTime(x.time)}${x.timeEnd ? '–' + E.fmtTime(x.timeEnd) : ''} · ${x.place}`}`, link: `agenda?d=${d}` });
       queueReminders();
@@ -643,7 +731,7 @@ export const actions = {
     if (ok) closeSheetsThen(() => occSheet(ev, d));
   },
   'occ-del': async el => {
-    const ev = findEvent(el.dataset.id), d = el.dataset.d || ev?.date; if (!canEditEv(ev)) return toast("Seul le parent qui a créé l'événement peut le supprimer.", 'warn');
+    const ev = findEvent(el.dataset.id), d = el.dataset.d || ev?.date; if (!ev || !isParent()) return toast('Seuls les parents suppriment les événements.', 'warn');
     const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date);
     if (!rec) return actions['occ-del-go']({ dataset: { id: ev.id, m: 'all' } });
     openSheet(`<h3 class="sh-title">🗑️ Supprimer</h3><div class="muted small mb">${esc(ev.title)}</div>
@@ -653,23 +741,26 @@ export const actions = {
       <div class="hint">Une séance supprimée disparaît de l'agenda et du bilan. Pour une absence, utilisez plutôt « 🙋 Absent ».</div>
       <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button></div>`);
   },
-  'occ-del-pick': el => { const ev = findEvent(el.dataset.id); if (canEditEv(ev)) pickDaysSheet(ev, el.dataset.d, 'occ-del-go', 'supprimer', 'danger'); },
+  'occ-del-pick': el => { const ev = findEvent(el.dataset.id); if (ev && isParent()) pickDaysSheet(ev, el.dataset.d, 'occ-del-go', 'supprimer', 'danger'); },
   'occ-del-go': async el => {
-    const ev = findEvent(el.dataset.id), m = el.dataset.m; if (!canEditEv(ev)) return;
+    const ev = findEvent(el.dataset.id), m = el.dataset.m; if (!ev || !isParent()) return;
+    const own = canEditEv(ev);
     if (m === 'all') {
-      if (!(await confirmBox('Supprimer toute la série ?', `${esc(ev.title)} : toutes les séances, passées et à venir.`, 'Supprimer', true))) return;
+      if (!(await confirmBox(own ? 'Supprimer toute la série ?' : 'Proposer de supprimer toute la série ?', `${esc(ev.title)} : toutes les séances, passées et à venir.${own ? '' : ' À valider par ' + esc(creatorName(ev)) + '.'}`, own ? 'Supprimer' : 'Envoyer', true))) return;
       const ok = await guard(async () => {
-        await S.be.db.del(fpath(evColl(ev), ev.id));
-        for (const x of S.evx.filter(x => x.evId === ev.id)) await S.be.db.del(fpath('evx', x.id)).catch(() => { });
-        await log('agenda', `Événement supprimé : ${ev.title}`); queueReminders(); return true;
-      }, 'Événement supprimé');
-      if (ok) closeSheetsThen(null);
+        if (!own) { await proposeEv(ev, 'del-all', {}); return `Envoyé à ${creatorName(ev)} pour validation`; }
+        await delEvent(ev); await log('agenda', `Événement supprimé : ${ev.title}`); queueReminders(); return 'Événement supprimé';
+      });
+      if (ok) { toast(ok, 'ok', 3000); closeSheetsThen(null); }
       return;
     }
     const days = m === 'day' ? [el.dataset.d] : [...el.closest('.sheet').querySelectorAll('input[name=days]:checked')].map(i => i.value);
     if (!days.length) return toast('Cochez au moins un jour.', 'warn');
-    const ok = await guard(async () => { await delOccs(ev, days); queueReminders(); return true; }, days.length > 1 ? `${days.length} séances supprimées` : 'Séance supprimée');
-    if (ok) closeSheetsThen(null);
+    const ok = await guard(async () => {
+      if (!own) { await proposeEv(ev, 'del-days', { days }); return `Envoyé à ${creatorName(ev)} pour validation`; }
+      await delOccs(ev, days); queueReminders(); return days.length > 1 ? `${days.length} séances supprimées` : 'Séance supprimée';
+    });
+    if (ok) { toast(ok, 'ok', 3000); closeSheetsThen(null); }
   },
   'ics-sheet': () => {
     const today = E.todayISO();
