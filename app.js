@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.15';
-import { createBackend } from './backend.js?v=6.15';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.15';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.15';
-import * as Home from './views-home.js?v=6.15';
-import * as Agenda from './views-agenda.js?v=6.15';
-import * as Plan from './views-planning.js?v=6.15';
-import * as Exch from './views-exchange.js?v=6.15';
-import * as Fam from './views-family.js?v=6.15';
-import * as Bud from './views-budget.js?v=6.15';
-import * as More from './views-more.js?v=6.15';
-import * as Admin from './views-admin.js?v=6.15';
-import * as Install from './install.js?v=6.15';
-import * as Sac from './views-sac.js?v=6.15';
-import * as Print from './print.js?v=6.15';
+import * as E from './engine.js?v=6.16';
+import { createBackend } from './backend.js?v=6.16';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, stat, isParent, can, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.16';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo } from './ui.js?v=6.16';
+import * as Home from './views-home.js?v=6.16';
+import * as Agenda from './views-agenda.js?v=6.16';
+import * as Plan from './views-planning.js?v=6.16';
+import * as Exch from './views-exchange.js?v=6.16';
+import * as Fam from './views-family.js?v=6.16';
+import * as Bud from './views-budget.js?v=6.16';
+import * as More from './views-more.js?v=6.16';
+import * as Admin from './views-admin.js?v=6.16';
+import * as Install from './install.js?v=6.16';
+import * as Sac from './views-sac.js?v=6.16';
+import * as Print from './print.js?v=6.16';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -212,10 +212,11 @@ function doRender() {
 /** Bandeau du mode test : session Maman TEST, ou cercle de test ouvert */
 function testBanner() {
   const t = LS.get('testAcc', null), me = S.user?.email || '';
-  if (/^maman\.test\./.test(me)) return `<div class="testbar"><span>🧪 Vous êtes <b>Maman TEST</b></span><button class="btn soft sm" data-act="test-back">Revenir à mon compte</button></div>`;
+  const sw = '<button class="btn soft sm" data-act="test-who" title="Changer de personnage">🔄</button>';
+  if (/^maman\.test\./.test(me)) return `<div class="testbar"><span>🧪 Vous êtes <b>Maman TEST</b></span>${sw}<button class="btn soft sm" data-act="test-back">Mon compte</button></div>`;
   const pr = Object.entries(t?.proches || {}).find(([, c]) => c.email === me);
-  if (pr) return `<div class="testbar"><span>🧪 Vous êtes <b>${esc(pr[0])} TEST</b> (proche)</span><button class="btn soft sm" data-act="test-back">Revenir à mon compte</button></div>`;
-  if (t && S.fid === t.fid) return `<div class="testbar"><span>🧪 Cercle de test</span><button class="btn soft sm" data-act="fam-switch" data-id="${t.realFid || ''}">Mon vrai cercle</button></div>`;
+  if (pr) return `<div class="testbar"><span>🧪 Vous êtes <b>${esc(pr[0])} TEST</b> (proche)</span>${sw}<button class="btn soft sm" data-act="test-back">Mon compte</button></div>`;
+  if (t && S.fid === t.fid) return `<div class="testbar"><span>🧪 Cercle de test</span>${sw}<button class="btn soft sm" data-act="fam-switch" data-id="${t.realFid || ''}">Mon vrai cercle</button></div>`;
   return '';
 }
 function renderAdmin() {
@@ -303,9 +304,11 @@ Object.assign(ACTIONS, {
 });
 
 // ───── Abonnements Firestore (selon le rôle : parent = tout le cercle, proche = agenda, souvenirs, ses notes + rubriques autorisées)
-const SUBS = ['members', 'invites', 'children', 'childInfo', 'plannings', 'exchanges', 'events', 'tasks', 'notes', 'expenses', 'docs', 'contacts', 'memories', 'sac', 'sacRuns'];
+const SUBS = ['members', 'invites', 'children', 'childInfo', 'plannings', 'exchanges', 'events', 'pevents', 'evx', 'tasks', 'notes', 'expenses', 'docs', 'contacts', 'memories', 'sac', 'sacRuns'];
 const AP_SUBS = new Set(['memories', 'docs', 'memoriesMine', 'docsMine', 'members']);
-const FEED_SUBS = new Set(['children', 'childInfo', 'plannings', 'exchanges', 'events', 'tasks', 'notes']);
+const FEED_SUBS = new Set(['children', 'childInfo', 'plannings', 'exchanges', 'events', 'pevents', 'evx', 'tasks', 'notes']);
+// changements qui reprogramment les rappels personnalisés (relais, événements, échanges)
+const ALERT_SUBS = new Set(['members', 'plannings', 'exchanges', 'events', 'pevents', 'evx']);
 let unUser = null, unFam = [], unData = [];
 function stopData() { unData.forEach(f => { try { f(); } catch (e) { /* */ } }); unData = []; S.dataKey = ''; }
 function resetFamily() {
@@ -320,6 +323,7 @@ function listenSub(sub, path, opts = null, into = null) {
     S.loaded[sub] = true; S.render();
     if (FEED_SUBS.has(sub)) queueFeed();
     if (sub === 'members' && !S.remindersDone && S.loaded.plannings) { S.remindersDone = true; setTimeout(scheduleReminders, 4000); }
+    else if (S.remindersDone && ALERT_SUBS.has(sub)) queueReminders();
     if (isParent()) scheduleMigrate();
     if (AP_SUBS.has(sub)) queueApprovals();
     if (sub === 'sac' || sub === 'members') Sac.queueSacReminders();
@@ -342,7 +346,7 @@ function ensureData() {
     // ancien journal commun (avant les historiques personnels)
     unData.push(S.be.db.listenCol(P('activity'), rows => { S.legacy = rows; S.render(); }, { where: [['at', '<', LEGACY_T0]], orderBy: ['at', 'desc'], limit: 150 }, err => console.warn('legacy', err?.code || err)));
   } else {
-    for (const sub of ['children', 'plannings', 'events']) listenSub(sub, P(sub));
+    for (const sub of ['children', 'plannings', 'events', 'evx']) listenSub(sub, P(sub));
     // souvenirs et documents : publiés (validés) + les siens en attente
     const pubMine = (sub) => { let a = [], b = []; const m = () => { const x = new Map(); for (const r of [...a, ...b]) x.set(r.id, r); S[sub] = [...x.values()]; };
       listenSub(sub, P(sub), { where: [['pub', '==', true]] }, rows => { a = rows; m(); }); listenSub(sub + 'Mine', P(sub), { where: [['createdBy', '==', me]] }, rows => { b = rows; m(); }); };

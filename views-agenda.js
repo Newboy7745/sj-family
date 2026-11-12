@@ -1,15 +1,15 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.15';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.15';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.15';
-import { vacRecap } from './views-sac.js?v=6.15';
-import { kidChips, cellBg } from './views-home.js?v=6.15';
-import { altText, whoChips, placeSel, placeToggle, placeLabel, dpText } from './views-more.js?v=6.15';
-import { openPrint } from './print.js?v=6.15';
+import * as E from './engine.js?v=6.16';
+import { occs, allEvents, findEvent, canEditEv, evxMap, me, queueReminders, S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.16';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.16';
+import { vacRecap } from './views-sac.js?v=6.16';
+import { kidChips, cellBg } from './views-home.js?v=6.16';
+import { altText, whoChips, placeSel, placeToggle, placeLabel, dpText, alertsBlock, alertsBlockBind, saveItemAlerts, myAlertsSheet } from './views-more.js?v=6.16';
+import { openPrint } from './print.js?v=6.16';
 
 export const EV_CATS = [
-  { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Activité' },
-  { v: 'anniv', i: '🎂', l: 'Anniversaire' }, { v: 'famille', i: '👨‍👩‍👧', l: 'Famille' }, { v: 'vacances', i: '🏖️', l: 'Sortie / vacances' }, { v: 'autre', i: '📌', l: 'Autre' },
+  { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Sport / activité' }, { v: 'cours', i: '📖', l: 'Cours' },
+  { v: 'accomp', i: '🚌', l: 'Sortie scolaire (accompagnement)' }, { v: 'anniv', i: '🎂', l: 'Anniversaire' }, { v: 'famille', i: '👨‍👩‍👧', l: 'Famille' }, { v: 'vacances', i: '🏖️', l: 'Sortie / vacances' }, { v: 'autre', i: '📌', l: 'Autre' },
 ];
 const catIcon = c => EV_CATS.find(x => x.v === c)?.i || '📌';
 const ym = iso => iso.slice(0, 7);
@@ -28,8 +28,9 @@ function monthGrid(m) {
   const first = `${m}-01`, start = E.mondayOf(first);
   const [y, mo] = m.split('-').map(Number), last = `${m}-${String(E.monthDays(y, mo)).padStart(2, '0')}`;
   const end = E.addDays(E.mondayOf(last), 6);
-  const evs = E.expandEvents(S.events, start, end, settings()).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
+  const evs = occs(start, end, ids);
   const byDay = {}; for (const e of evs) (byDay[e.occ] ||= []).push(e);
+  for (const d in byDay) byDay[d].sort((a, b) => (!!a.x && !a.match) - (!!b.x && !b.match)); // séances annulées après
   for (const c of S.children) if (c.birth && ids.includes(c.id)) for (const yy of [y - 1, y, y + 1]) { const d = `${yy}${c.birth.slice(4)}`; if (d >= start && d <= end) (byDay[d] ||= []).push({ icon: '🎂', title: `Anniversaire ${c.prenom}` }); }
   const hoBy = {}; for (const h of eng.handovers(ids, start, end)) (hoBy[h.date] ||= []).push(h);
   const hoCell = d => (hoBy[d] || []).length ? '<span class="rel">🔁</span>' + hoBy[d].map(h => { const pl = h.dropPlace || h.place || ''; return `<span class="rl">${E.fmtTime(h.time)}${pl ? `<i>${esc(pl)}</i>` : ''}</span>`; }).join('') : '';
@@ -38,7 +39,7 @@ function monthGrid(m) {
     const codes = ids.map(id => eng.code(id, d)), info = eng.dayInfo(d);
     const lbl = info.comment || info.ferie;
     const ovr = ids.some(id => eng.isOverridden(id, d));
-    const de = byDay[d] || [], dots = de.slice(0, 2).map(e => `<span class="evl" title="${esc(e.title)}">${e.icon || '📌'}${e.time ? E.fmtTime(e.time) : ''}</span>`).join('') + (de.length > 2 ? `<span class="evl more">+${de.length - 2}</span>` : '');
+    const de = byDay[d] || [], dots = de.slice(0, 2).map(e => `<span class="evl ${e.x && !e.match ? 'x' : ''}" title="${esc(e.title)}">${e.icon || '📌'}${e.time ? E.fmtTime(e.time) : ''}</span>`).join('') + (de.length > 2 ? `<span class="evl more">+${de.length - 2}</span>` : '');
     cells += `<button class="cday ${ym(d) !== m ? 'out' : ''} ${d === today ? 'today' : ''} ${d < today ? 'past' : ''} ${ovr ? 'ovr' : ''}" style="background:${cellBg(codes)}" data-act="open-day" data-d="${d}">
       ${info.ferie ? '<span class="fer"></span>' : info.eid ? `<span class="eid" title="Fête de l'Aïd">${MOON(12)}</span>` : ''}<span class="dn">${+d.slice(8)}</span>${hoCell(d)}
       ${lbl ? `<span class="cm">${esc(lbl.length > 16 ? lbl.slice(0, 15) + '…' : lbl)}</span>` : ''}<span class="dots">${dots}</span>${info.holiday ? '<span class="hol"></span>' : ''}</button>`;
@@ -49,13 +50,12 @@ function monthLists(m) {
   const eng = engine(), ids = selIds(), [y, mo] = m.split('-').map(Number);
   const from = `${m}-01`, to = `${m}-${String(E.monthDays(y, mo)).padStart(2, '0')}`;
   const hs = eng.handovers(ids, E.addDays(from, -1), to);
-  const evs = E.expandEvents(S.events, from, to, settings()).filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
+  const evs = occs(from, to, ids);
   const tab = S.ui.agTab || 'relais';
   const body = tab === 'relais'
     ? (hs.length ? hs.map(h => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${h.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(h.date, 'wdm')} · ${hoTime(h)}${h.custom ? ' <span class="pill warn">convenu</span>' : ''}</div>
         <div class="ls">${esc(pName(h.from))} → ${esc(pName(h.to))} · ${esc(childNames(h.childIds))}${h.kind === 'midi' ? ' · mi-journée' : h.kind === 'matin' ? ' · le matin' : ''}${esc(hoPlace(h))}</div></div></button>`).join('') : '<div class="empty">Aucun relais ce mois-ci.</div>')
-    : (evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div>
-        <div class="ls">${E.fmtDate(e.occ, 'wdm')} · ${esc(evText(e, false))}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${E.evKind(e) !== 'date' ? ' · 🔁' : ''}</div></div></button>`).join('') : '<div class="empty">Aucun événement ce mois-ci.</div>');
+    : (evs.length ? evs.map(e => occRow(e)).join('') : '<div class="empty">Aucun événement ce mois-ci.</div>');
   return `<div class="card"><div class="seg"><button class="${tab === 'relais' ? 'on' : ''}" data-act="ag-tab" data-t="relais">🔁 Relais (${hs.length})</button><button class="${tab === 'events' ? 'on' : ''}" data-act="ag-tab" data-t="events">🗓️ Événements (${evs.length})</button></div>${body}</div>`;
 }
 function yearView(y) {
@@ -114,7 +114,7 @@ export const views = {
       <div class="seg mt"><button class="${mode === 'mois' ? 'on' : ''}" data-act="ag-mode" data-m="mois">Mois</button><button class="${mode === 'annee' ? 'on' : ''}" data-act="ag-mode" data-m="annee">Année</button><button class="${mode === 'liste' ? 'on' : ''}" data-act="ag-mode" data-m="liste">Relais à venir</button></div>
       ${head}
       ${mode === 'mois' ? `<div class="card tight">${monthGrid(m)}${legend()}</div>
-        <div class="row gap6 mb"><button class="btn primary f1 sm" data-act="ev-new">${IC.plus} Événement</button><button class="btn soft sm" data-act="ag-today">Aujourd'hui</button><button class="btn soft sm" data-act="print-year" title="Imprimer le calendrier annuel">${IC.print}</button><button class="btn soft sm" data-act="ics-sheet" title="Exporter">${IC.download}</button></div>
+        <div class="row gap6 mb">${isParent() ? `<button class="btn primary f1 sm" data-act="ev-new">${IC.plus} Événement</button><button class="btn soft sm" data-go="activites" title="Bilan des activités">📊</button>` : ''}<button class="btn soft sm ${isParent() ? '' : 'f1'}" data-act="ag-today">Aujourd'hui</button><button class="btn soft sm" data-act="print-year" title="Imprimer le calendrier annuel">${IC.print}</button><button class="btn soft sm" data-act="ics-sheet" title="Exporter">${IC.download}</button></div>
         ${monthLists(m)}` : ''}
       ${mode === 'annee' ? `<button class="btn soft block mb" data-act="print-year" data-y="${y}">${IC.print} Imprimer le calendrier ${y}</button>${yearView(y)}` : ''}
       ${mode === 'liste' ? listView() : ''}`,
@@ -190,7 +190,7 @@ views.vacp = p => {
   const ho = eng.handovers(kids.map(c => c.id), E.addDays(h.s, -1), h.e);
   const xs = S.exchanges.filter(x => (x.changes || []).some(c => inP(c.d)) && x.state !== 'cancelled').sort((a, b) => (a.proposedAt || 0) - (b.proposedAt || 0));
   const XS = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'] };
-  const evs = E.expandEvents(S.events, h.s, h.e, settings());
+  const evs = occs(h.s, h.e);
   const tasks = can('tasks') ? S.tasks.filter(t => inP(t.due)).sort((a, b) => a.due.localeCompare(b.due)) : [];
   const exps = can('expenses') ? S.expenses.filter(e => inP(e.date)).sort((a, b) => a.date.localeCompare(b.date)) : [];
   const mems = S.memories.filter(m => inP(m.date) && shownItem(m)), nMem = new Set(mems.map(m => m.grp || m.id)).size;
@@ -199,13 +199,96 @@ views.vacp = p => {
     ${sec('👨‍👩‍👧 Garde', null, custody || '<div class="small muted">Aucun enfant.</div>')}
     ${sec('🔁 Relais', ho.length, ho.length ? ho.map(x => `<button class="li" style="width:100%;text-align:left" data-act="open-day" data-d="${x.date}"><div class="le">🔁</div><div class="f1"><div class="lt">${E.fmtDate(x.date, 'wdm')} · ${hoTime(x)}${x.custom ? ' <span class="pill warn">convenu</span>' : ''}</div><div class="ls">${esc(pName(x.from))} → ${esc(pName(x.to))} · ${esc(childNames(x.childIds))}${esc(hoPlace(x))}</div></div></button>`).join('') : '<div class="small muted">Aucun relais pendant ces vacances.</div>')}
     ${sec('🔄 Échanges', xs.length, xs.length ? xs.map(x => { const [c, l] = XS[x.state] || ['', x.state]; return `<button class="li" style="width:100%;text-align:left" data-go="exchanges" data-params='${JSON.stringify({ tab: x.state === 'pending' ? (x.proposedBy === uid() ? 'mine' : 'todo') : 'hist' })}'><div class="le">${x.type === 'time' ? '⏰' : '🔄'}</div><div class="f1"><div class="lt">${esc(x.summary || 'Échange')}</div><div class="ls">${esc(childNames(x.childIds))} · demandé par ${esc(x.proposedByName || '')} le ${fmtStamp(x.proposedAt)}</div></div><span class="pill ${c}">${l}</span></button>`; }).join('') : '<div class="small muted">Aucun échange sur cette période.</div>')}
-    ${sec('🗓️ Événements', evs.length, evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.occ, 'wdm')} · ${esc(evText(e, false))}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}</div></div></button>`).join('') : '<div class="small muted">Aucun événement.</div>', ` <a class="act" data-act="ev-new" data-d="${h.s}">${IC.plus}</a>`)}
+    ${sec('🗓️ Événements', evs.length, evs.length ? evs.map(e => occRow(e)).join('') : '<div class="small muted">Aucun événement.</div>', ` <a class="act" data-act="ev-new" data-d="${h.s}">${IC.plus}</a>`)}
     ${vacRecap(h.id)}
     ${can('tasks') ? sec('✅ Tâches', tasks.length, tasks.length ? tasks.map(t => `<button class="li" style="width:100%;text-align:left" data-act="task-open" data-id="${t.id}"><div class="le">${t.done ? '✅' : '⬜'}</div><div class="f1"><div class="lt">${esc(t.title)}</div><div class="ls">📅 ${E.fmtDate(t.due, 'wdm')}${t.childIds?.length ? ' · ' + esc(childNames(t.childIds)) : ''}${t.done ? ' · fait' : ''}</div></div></button>`).join('') : '<div class="small muted">Aucune tâche à échéance pendant ces vacances.</div>') : ''}
     ${can('expenses') ? sec('💰 Dépenses', exps.length, exps.length ? `${exps.map(e => `<div class="li"><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${E.fmtDate(e.date, 'wdm')} · payé par ${esc(pr[e.paidBy]?.name || '')}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}</div></div><b>${fmtMoney(e.amount)}</b></div>`).join('')}<div class="row between mt"><b>Total</b><b>${fmtMoney(exps.reduce((t, e) => t + (+e.amount || 0), 0))}</b></div>` : '<div class="small muted">Aucune dépense datée de ces vacances.</div>', ` <a class="act" data-go="budget">Budget ›</a>`) : ''}
     ${nMem ? sec('📸 Souvenirs', nMem, `<button class="btn soft block" data-go="memories">Voir les souvenirs ›</button>`) : ''}`;
   return { title: `${h.n} ${yy}`, back: 'vacances', html };
 };
+/** Ligne d'une séance : état (absent, remplacée par un match), 🔒 réservé aux parents */
+function occRow(e, withDate = true) {
+  const off = e.x && !e.match;
+  const st = e.match ? ` · remplace ${esc(e.src.title)}` : off ? (e.x.type === 'absent' ? ` · ❌ Absent${e.x.cause ? ' (' + esc(e.x.cause) + ')' : ''}` : ' · 🔁 Remplacé par un match de foot') : '';
+  return `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${e.occ}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt ${off ? 'occ-x' : ''}">${esc(e.title)}${e.pe ? ' 🔒' : ''}</div>
+    <div class="ls">${withDate ? E.fmtDate(e.occ, 'wdm') + ' · ' : ''}${esc(evText(e, false))}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${!e.match && E.evKind(e) !== 'date' ? ' · 🔁' : ''}${st}</div></div></button>`;
+}
+// ───── Bilan des activités : séances, heures, absences sur l'année scolaire, de vacances à vacances ou entre deux dates
+const hTxt = m => (m ? `${Math.floor(m / 60)} h${m % 60 ? ' ' + String(m % 60).padStart(2, '0') : ''}` : '0 h');
+const plural = (n, w) => `${n} ${w}${n > 1 ? 's' : ''}`;
+views.activites = p => {
+  if (!isParent()) return { title: 'Activités', back: 'agenda', html: '<div class="card empty">Bilan réservé aux parents.</div>' };
+  const st = settings(), today = E.todayISO(), sy = schoolY(today), mode = p.m || 'annee';
+  const pers = E.schoolPeriods(sy, st.zone || 'B', st.customHolidays || []);
+  let from, to, label, sel = null;
+  if (mode === 'vac') { sel = pers.find(x => x.id === p.per) || pers.find(x => x.from <= today && today <= x.to) || pers[0]; from = sel.from; to = sel.to; label = sel.n; }
+  else if (mode === 'perso') { from = /^\d{4}-\d{2}-\d{2}$/.test(p.from || '') ? p.from : `${sy}-09-01`; to = /^\d{4}-\d{2}-\d{2}$/.test(p.to || '') && p.to >= from ? p.to : today; label = 'Dates choisies'; }
+  else { from = `${sy}-09-01`; to = `${sy + 1}-08-31`; label = `Année scolaire ${sy}-${sy + 1}`; }
+  const ids = selIds(), evs = allEvents().filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i)));
+  const groups = E.activityStats(evs, evxMap(), from, to, st);
+  const card = g => `<div class="card"><h3>${g.icon} ${esc(g.title)} <span class="muted small" style="font-weight:600">${esc(childNames(g.childIds))}</span></h3>
+    <div class="act-st"><div><b>${g.done}</b><span>${g.done > 1 ? 'séances faites' : 'séance faite'}</span></div><div><b>${hTxt(g.minDone)}</b><span>heures faites</span></div><div><b>${g.match ? '—' : g.absent}</b><span>${g.match ? 'match' : g.absent > 1 ? 'absences' : 'absence'}</span></div></div>
+    <div class="small mt">À venir : ${plural(g.todo, 'séance')} · ${hTxt(g.minAll - g.minDone)}<br><b>Total sur la période : ${plural(g.planned, 'séance')} · ${hTxt(g.minAll)}</b>${g.matched ? `<br>${g.matched} séance${g.matched > 1 ? 's remplacées' : ' remplacée'} par un match de foot` : ''}</div>
+    ${g.causes.length ? `<div class="tiny muted mt">Absences : ${g.causes.map(c => `${E.fmtDate(c.d, 'short')} (${esc(c.c)})`).join(' · ')}</div>` : ''}</div>`;
+  const seg = (m, l) => `<button class="${mode === m ? 'on' : ''}" data-go="activites" data-params='${JSON.stringify({ m })}'>${l}</button>`;
+  return {
+    title: 'Bilan des activités', back: 'agenda',
+    html: `${kidChips()}<div class="seg mt">${seg('annee', 'Année scolaire')}${seg('vac', 'Vacances à vacances')}${seg('perso', 'Dates')}</div>
+      ${mode === 'vac' ? `<div class="chips mb">${pers.map(x => `<button class="chip sm ${x.id === sel.id ? 'on' : ''}" data-go="activites" data-params='${JSON.stringify({ m: 'vac', per: x.id })}'>${esc(x.n)}</button>`).join('')}</div>` : ''}
+      ${mode === 'perso' ? `<div class="card tight"><div class="two"><div><label class="lbl">Du</label><input class="in" type="date" name="from" value="${from}"></div><div><label class="lbl">Au</label><input class="in" type="date" name="to" value="${to}"></div></div><button class="btn primary block mt" data-act="act-perso">Afficher</button></div>` : ''}
+      <div class="hint mb">📅 ${esc(label)} : du ${E.fmtDate(from, 'wdmy')} au ${E.fmtDate(to, 'wdmy')}. Une activité regroupe tous ses jours (ex. foot du mercredi et du vendredi). Faites = passées et non annulées.</div>
+      ${groups.length ? groups.map(card).join('') : '<div class="card empty">Aucune activité sur cette période.</div>'}`,
+  };
+};
+
+// ───── Lien de création des activités de l'année (foot et PDC de Selman et Jandal) : sans doublon
+const ACT_PRESET = [
+  { t: 'Entraînement de foot', k: 'Selman', cat: 'activite', dows: [1, 3], time: '18:00', timeEnd: '19:30', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no' },
+  { t: 'Entraînement de foot', k: 'Jandal', cat: 'activite', dows: [2], time: '13:30', timeEnd: '15:00', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no' },
+  { t: 'Entraînement de foot', k: 'Jandal', cat: 'activite', dows: [4], time: '18:30', timeEnd: '19:30', place: 'Stade de Concyr', from: '2026-09-15', hol: 'no' },
+  { t: 'PDC', k: 'Selman', cat: 'cours', dows: [2], time: '10:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1' },
+  { t: 'PDC', k: 'Jandal', cat: 'cours', dows: [2], time: '09:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1' },
+  { t: 'PDC', k: 'Jandal', cat: 'cours', dows: [5], time: '09:00', timeEnd: '11:00', place: 'El Fayhae', from: '2026-10-07', hol: 'w1', match: true },
+];
+const norm = x => String(x || '').trim().toLowerCase();
+function presetData(a, kid) {
+  return { title: a.t, cat: a.cat, icon: catIcon(a.cat), childIds: [kid.id], kind: 'dow', date: a.from, endDate: '', dow: a.dows[0], dows: a.dows, every: 1, parity: 'pair',
+    school: a.hol !== 'yes', holW1: a.hol === 'w1', year: String(schoolY(a.from)), vis: 'all', matchSwap: !!a.match, time: a.time, timeEnd: a.timeEnd, endTime: a.timeEnd,
+    from: '', dropAt: 'autre', dropTxt: a.place, dropPlace: a.place, to: '', pickAt: 'autre', pickTxt: a.place, pickPlace: a.place, place: a.place, alt: null, notes: '',
+    repeat: 'weekly', until: `${schoolY(a.from) + 1}-08-31`, who: 'custodian' };
+}
+/** Cercles où créer les activités : celui-ci, et (depuis votre vrai compte) l'autre entre vrai cercle et cercle de test */
+async function presetTargets() {
+  const out = [{ fid: S.fid, name: S.family?.name || '', kids: S.children, evs: allEvents(), cur: true }], t = LS.get('testAcc', null), db = S.be.db;
+  if (t?.fid && t.realFid && S.acc !== 'test' && isParent()) {
+    const fid = S.fid === t.fid ? t.realFid : S.fid === t.realFid ? t.fid : null;
+    if (fid) {
+      try { const [kids, evs, fam] = await Promise.all([db.list(`families/${fid}/children`), db.list(`families/${fid}/events`), db.get(`families/${fid}`)]); out.push({ fid, name: fam?.name || '', kids, evs, cur: false }); }
+      catch (e) { console.warn('autre cercle', e); }
+    }
+  }
+  return out;
+}
+function presetRows(tg) {
+  return ACT_PRESET.map(a => {
+    const kid = tg.kids.find(c => norm(c.prenom) === norm(a.k)), data = kid ? presetData(a, kid) : null;
+    const dup = !!data && tg.evs.some(e => norm(e.title) === norm(a.t) && (e.childIds || []).join() === kid.id && E.evKind(e) === 'dow' && E.evDays(e).join() === a.dows.join() && e.time === a.time);
+    return { a, kid, data, dup };
+  });
+}
+async function presetSheet() {
+  const tgs = await presetTargets();
+  const sec = (tg, k) => { const rows = presetRows(tg), todo = rows.filter(r => r.data && !r.dup).length;
+    return `<label class="row gap mt"><input type="checkbox" name="pt" value="${k}" ${todo ? 'checked' : 'disabled'} style="width:20px;height:20px"><b class="f1">${esc(tg.name)}${tg.cur ? ' <span class="muted small">(ce cercle)</span>' : ''}</b><span class="small muted">${todo ? `${plural(todo, 'à créer')}` : 'déjà fait'}</span></label>
+    ${rows.map(r => `<div class="li"><div class="le">${catIcon(r.a.cat)}</div><div class="f1"><div class="lt">${esc(r.a.t)} · ${esc(r.a.k)}${r.dup ? ' <span class="pill ok">déjà dans l\'agenda</span>' : !r.kid ? ' <span class="pill err">enfant introuvable</span>' : ''}</div>
+      <div class="ls">${r.data ? esc(ucf(evText(r.data))) : ''} · depuis le ${E.fmtDate(r.a.from, 'dm')}${r.a.match ? ' · peut être remplacé par un match de foot' : ''}</div></div></div>`).join('')}`; };
+  const any = tgs.some(tg => presetRows(tg).some(r => r.data && !r.dup));
+  const sh = openSheet(`<h3 class="sh-title">⚽📖 Activités de l'année</h3>${tgs.map(sec).join('')}
+    <div class="hint">Vous en serez le créateur : vous seul pourrez les modifier ou les supprimer. Absences et matchs : les deux parents.</div>
+    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">${any ? 'Annuler' : 'Fermer'}</button>${any ? `<button class="btn primary f1" data-act="preset-act-go">Créer</button>` : ''}</div>`);
+  sh._tgs = tgs;
+}
+
 export function coveredYears() {
   const ys = new Set();
   for (const p of S.plannings) if (p.state === 'active' && p.start && p.days) { const a = +p.start.slice(0, 4), b = +E.addDays(p.start, p.days.length - 1).slice(0, 4); for (let y = a; y <= b; y++) ys.add(y); }
@@ -223,25 +306,26 @@ export function openDay(d) {
     return `<div class="li"><div class="le" style="background:${cellBg([code])}">${esc(c.emoji || '🧒')}</div><div class="f1"><div class="lt">${esc(c.prenom)}</div><div class="ls">${esc(txt)}${eng.isOverridden(c.id, d) ? ' · <b>échange</b>' : ''}${p ? ' · ' + esc(p.title) : ''}</div></div></div>`;
   }).join('');
   const hs = eng.handovers(ids, d, d);
-  const evs = E.expandEvents(S.events, d, d, settings());
+  const evs = occs(d, d);
   const tags = [info.ferie && `<span class="pill err">🎌 ${esc(info.ferie)}</span>`, info.eid && `<span class="pill" style="background:#E3F4EE;color:#00664F">${MOON(13)} ${esc(info.eid)}</span>`, info.comment && info.comment !== info.ferie && info.comment !== info.eid && `<span class="pill navy">${esc(info.comment)}</span>`, info.holiday && `<span class="pill warn">${info.holiday.i} ${esc(info.holiday.n)}</span>`].filter(Boolean).join(' ');
   openSheet(`<h3 class="sh-title">${E.fmtDate(d, 'wdmy')}</h3>${tags ? `<div class="row wrap gap6 mb">${tags}</div>` : ''}
     ${kids || '<p class="muted">Aucun enfant.</p>'}
     ${hs.length ? `<div class="lbl">Relais</div>${hs.map(h => `<div class="tile"><span style="font-size:24px">🔁</span><div class="f1"><b>${hoTime(h)}</b> · ${esc(pName(h.from))} → ${esc(pName(h.to))}<div class="small muted">${esc(childNames(h.childIds))}${h.kind === 'matin' ? ' · le matin' : ''}${h.custom ? ' · horaire convenu' : ''}${esc(hoPlace(h))}</div>
         ${h.alt && isParent() && !h.custom ? `<button class="btn soft sm mtx" data-act="x-alt" data-d="${d}" data-kind="${h.kind}" data-kids="${h.childIds.join(',')}">↩️ Si impossible : ${esc(altText(h.alt, h))}</button>` : ''}</div>
       ${isParent() ? `<button class="btn soft sm" data-act="x-time" data-d="${d}" data-kind="${h.kind}" data-time="${h.time}" title="Changer l'horaire de ce relais">${IC.clock}</button>` : ''}</div>`).join('')}` : ''}
-    <div class="lbl">Événements</div>${evs.length ? evs.map(e => `<button class="li" style="width:100%;text-align:left" data-act="ev-open" data-id="${e.id}" data-d="${d}"><div class="le">${e.icon || catIcon(e.cat)}</div><div class="f1"><div class="lt">${esc(e.title)}</div><div class="ls">${esc(evText(e, false))}${e.childIds?.length ? ' · ' + esc(childNames(e.childIds)) : ''}${E.evKind(e) !== 'date' ? ' · 🔁 ' + esc(evText(e).split(' · ')[0]) : ''}</div></div></button>`).join('') : '<p class="muted small">Aucun événement.</p>'}
-    <div class="row gap mt"><button class="btn primary f1" data-act="ev-new" data-d="${d}">${IC.plus} Événement</button>${isParent() ? `<button class="btn ghost f1" data-act="x-new" data-d="${d}">🔄 Échange</button>` : ''}</div>`);
+    <div class="lbl">Événements</div>${evs.length ? evs.map(e => occRow(e, false)).join('') : '<p class="muted small">Aucun événement.</p>'}
+    ${isParent() ? `<div class="row gap mt"><button class="btn primary f1" data-act="ev-new" data-d="${d}">${IC.plus} Événement</button><button class="btn ghost f1" data-act="x-new" data-d="${d}">🔄 Échange</button></div>` : ''}`);
 }
 
 // ───── Événements : mêmes conditions que les relais habituels (quand, heures, dépose, récupération, lieux, repli)
 // en plus des siennes (titre, catégorie, enfants, plusieurs jours, chaque mois, chaque année, notes).
 // Quand deux réglages se ressemblent, c'est celui des relais qui est gardé (pas de doublon).
 const ucf = x => x ? x.charAt(0).toUpperCase() + x.slice(1) : x;
+const joinFr = a => (a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' et ' + a[a.length - 1]);
 const schoolY = iso => (+iso.slice(5, 7) >= 8 ? +iso.slice(0, 4) : +iso.slice(0, 4) - 1);
 /** Anciens événements (répétition, « qui accompagne », lieu libre) lus avec les nouveaux réglages */
 function evForm(ev, date) {
-  if (!ev) return { kind: 'date', date, dow: E.dow(date), every: 1, parity: E.isoWeek(date).week % 2 ? 'impair' : 'pair', school: false, cat: 'activite', childIds: selIds(), from: '', to: '', dropAt: '', pickAt: '' };
+  if (!ev) return { kind: 'date', date, dow: E.dow(date), dows: [E.dow(date)], every: 1, parity: E.isoWeek(date).week % 2 ? 'impair' : 'pair', school: false, cat: 'activite', childIds: selIds(), from: '', to: '', dropAt: '', pickAt: '', vis: 'all' };
   const e = { ...ev };
   if (!e.kind) {
     const r = e.repeat || 'none';
@@ -251,6 +335,7 @@ function evForm(ev, date) {
     if (e.place && !e.pickAt) { e.pickAt = 'autre'; e.pickTxt = e.place; }
     e.timeEnd = e.endTime || '';
   }
+  e.dows = E.evDays(e); e.vis = e.pe ? 'parents' : 'all';
   return e;
 }
 /** « Chaque mercredi des semaines paires en période scolaire · 14h–15h30 · déposés par Khalid (Club) · récupérés… » */
@@ -259,7 +344,7 @@ export function evText(e, withWhen = true) {
   let when = '';
   if (withWhen) {
     if (k === 'date') when = E.fmtDate(e.date, 'wdm') + (e.endDate && e.endDate > e.date ? ' → ' + E.fmtDate(e.endDate, 'wdm') : '');
-    else if (k === 'dow') when = `${+e.every === 2 ? 'le ' : 'chaque '}${E.JOURS[+(e.dow ?? E.dow(e.date))]}${+e.every === 2 ? ` des semaines ${e.parity === 'impair' ? 'impaires' : 'paires'}` : ''}${e.school ? ' en période scolaire' : ''}`;
+    else if (k === 'dow') { const hol = E.evHol(e); when = `${+e.every === 2 ? 'le ' : 'chaque '}${joinFr(E.evDays(e).map(i => E.JOURS[i]))}${+e.every === 2 ? ` des semaines ${e.parity === 'impair' ? 'impaires' : 'paires'}` : ''}${hol === 'no' ? ' en période scolaire' : hol === 'w1' ? ' (vacances : 1re semaine seulement)' : ''}`; }
     else if (k === 'vacStart') when = 'veille des vacances scolaires';
     else if (k === 'vacEnd') when = 'dernier jour des vacances scolaires';
     else if (k === 'monthly') when = `chaque mois le ${+e.date.slice(8)}`;
@@ -274,19 +359,22 @@ export function evText(e, withWhen = true) {
 }
 function eventSheet(ev = null, date = E.todayISO()) {
   const e = evForm(ev, date);
-  const ro = !!ev && !isParent() && ev.createdBy !== uid();
+  const ro = !!ev && !canEditEv(ev);
   const k0 = e.kind === 'dow' && +e.every === 2 ? (e.parity === 'impair' ? 'dowI' : 'dowP') : e.kind;
   const today = E.todayISO(), sy = schoolY(today), wk = E.isoWeek(today).week;
   const sh = openSheet(`<h3 class="sh-title">${ev ? '✏️ Modifier' : '🗓️ Nouvel'} événement</h3>
     <label class="lbl">Titre</label><input class="in" name="title" value="${esc(e.title || '')}" placeholder="Ex. Dentiste, Foot, Réunion parents-profs" autofocus>
     <label class="lbl">Catégorie</label>${chips('cat', EV_CATS.map(c => ({ v: c.v, l: `${c.i} ${c.l}` })), [e.cat])}
     <label class="lbl">Enfants concernés</label>${chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), e.childIds || [], { multi: true })}
+    <label class="lbl">Qui voit cet événement ?</label>${chips('vis', [{ v: 'all', l: '👨‍👩‍👧 Tout le cercle' }, { v: 'parents', l: '🔒 Les parents seulement' }], [e.vis || 'all'])}
+    <div class="hint" data-part="vish">🔒 Ex. accompagnement d'une sortie scolaire : seul l'autre parent est informé, les proches ne le voient pas.</div>
     <label class="lbl">Quand ?</label>${chips('kind', [{ v: 'date', l: '📌 Une date' }, { v: 'dow', l: '📅 Chaque semaine' }, { v: 'dowP', l: '2️⃣ Semaines paires' }, { v: 'dowI', l: '1️⃣ Semaines impaires' }, { v: 'vacStart', l: '🎒 Veille des vacances' }, { v: 'vacEnd', l: '🏁 Fin des vacances' }, { v: 'monthly', l: '🗓️ Chaque mois' }, { v: 'yearly', l: '🎂 Chaque année' }], [k0])}
     <div data-part="par" class="hint hide">Cette semaine : n° ${wk} (semaine ${wk % 2 ? 'impaire' : 'paire'}).</div>
     <div class="two"><div><label class="lbl" data-part="dl">Date</label><input class="in" type="date" name="date" value="${e.date}"></div><div data-part="end"><label class="lbl">Jusqu'au (option)</label><input class="in" type="date" name="endDate" value="${e.endDate || ''}"></div></div>
     <div data-part="year"><label class="lbl">Année scolaire</label>${chips('year', [{ v: '', l: 'Toutes les années' }, ...[sy, sy + 1].map(y => ({ v: String(y), l: `${y}-${y + 1}` }))], [e.year || ''])}</div>
-    <div data-part="dow"><label class="lbl">Jour</label>${chips('dow', E.JOURS.map((j, i) => ({ v: String(i), l: ucf(j) })), [String(e.dow ?? E.dow(e.date))])}
-      <label class="row gap mt"><span class="sw"><input type="checkbox" name="school" ${e.school ? 'checked' : ''}><span></span></span><span class="f1">Seulement en période scolaire (pas pendant les vacances)</span></label></div>
+    <div data-part="dow"><label class="lbl">Jours (un ou plusieurs)</label>${chips('dows', E.JOURS.map((j, i) => ({ v: String(i), l: ucf(j) })), e.dows.map(String), { multi: true })}
+      <label class="lbl">Pendant les vacances scolaires ?</label>${chips('hol', [{ v: 'no', l: '🚫 Rien (période scolaire seulement)' }, { v: 'w1', l: '1️⃣ 1re semaine seulement' }, { v: 'yes', l: '✅ Maintenu' }], [E.evHol(e)])}
+      <div class="hint">Les jours fériés ne changent rien : supprimez la séance de ce jour-là si besoin.</div></div>
     <div class="two"><div><label class="lbl">Heure</label><input class="in" type="time" name="time" value="${e.time || ''}"></div><div><label class="lbl">Jusqu'à (option)</label><input class="in" type="time" name="timeEnd" value="${e.timeEnd || ''}"></div></div>
     <div class="hint">Laissez l'heure vide pour un événement sur la journée.</div>
     <label class="lbl">Qui dépose les enfants ?</label>${whoChips('from', e.from)}
@@ -300,10 +388,15 @@ function eventSheet(ev = null, date = E.todayISO()) {
       <label class="lbl">Qui dépose les enfants ?</label>${chips('altBy', [{ v: 'A', l: esc(parents().A.name) }, { v: 'B', l: esc(parents().B.name) }], [e.alt?.by || e.from || 'A'])}
       <label class="lbl">Lieu</label>${placeSel('altAt', e.alt?.at || '', e.alt?.txt || '')}
     </div>
+    <label class="row gap mt"><span class="sw"><input type="checkbox" name="matchSwap" ${e.matchSwap ? 'checked' : ''}><span></span></span><span class="f1">Une séance peut être remplacée par un match de foot (horaires et lieu du match)</span></label>
     <label class="lbl">Notes</label><textarea class="in" name="notes" rows="3">${esc(e.notes || '')}</textarea>
-    <div class="sh-actions">${ro ? '<button class="btn primary f1" data-act="close-sheet">Fermer</button>' : `${ev ? `<button class="btn danger" data-act="ev-del" data-id="${ev.id}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="ev-save" data-id="${ev?.id || ''}">Enregistrer</button>`}</div>`);
+    ${ro ? '' : alertsBlock('ev', ev?.id || null)}
+    <div class="sh-actions">${ro ? '<button class="btn primary f1" data-act="close-sheet">Fermer</button>' : `${ev ? `<button class="btn danger" data-act="occ-del" data-id="${ev.id}" data-d="${date}">${IC.trash}</button>` : ''}<button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="ev-save" data-id="${ev?.id || ''}">Enregistrer</button>`}</div>`);
+  let cat0 = e.cat;
   const upd = () => {
     const f = readForm(sh), k = f.kind || 'date', rec = k !== 'date';
+    if (f.cat !== cat0) { cat0 = f.cat; const v = sh.querySelector('[data-group="vis"] [data-val="parents"]'); if (f.cat === 'accomp' && v && !v.classList.contains('on')) v.click(); }
+    sh.querySelector('[data-part="vish"]').classList.toggle('hide', f.vis !== 'parents');
     sh.querySelector('[data-part="dow"]').classList.toggle('hide', !k.startsWith('dow'));
     sh.querySelector('[data-part="par"]').classList.toggle('hide', k !== 'dowP' && k !== 'dowI');
     sh.querySelector('[data-part="end"]').classList.toggle('hide', rec);
@@ -313,6 +406,7 @@ function eventSheet(ev = null, date = E.todayISO()) {
     placeToggle(sh);
   };
   sh.addEventListener('chipchange', upd); sh.addEventListener('change', upd); upd();
+  if (!ro) alertsBlockBind(sh);
   return sh;
 }
 /** Contrôle et mise en forme des réglages de l'événement (mêmes contrôles que les horaires réguliers) */
@@ -328,11 +422,13 @@ function evFromForm(f) {
   if (f.altOn && !f.altTime) return "Indiquez l'heure de la solution de repli.";
   if (f.altOn && !f.altAt) return 'Choisissez le lieu de la solution de repli.';
   if (f.altOn && f.altAt === 'autre' && !t(f.altAtTxt)) return 'Précisez le lieu de la solution de repli.';
+  if (k.startsWith('dow') && !(f.dows || []).length) return 'Choisissez au moins un jour.';
   const kind = k.startsWith('dow') ? 'dow' : k, every = k === 'dowP' || k === 'dowI' ? 2 : 1, year = rec ? f.year || '' : '';
   const dropPlace = placeLabel(f.dropAt, f.dropAtTxt), pickPlace = placeLabel(f.pickAt, f.pickAtTxt);
   return {
     title: f.title, cat: f.cat || 'autre', icon: catIcon(f.cat), childIds: f.childIds || [], kind, date: f.date, endDate: rec ? '' : f.endDate || '',
-    dow: kind === 'dow' ? +(f.dow ?? E.dow(f.date)) : E.dow(f.date), every, parity: k === 'dowI' ? 'impair' : 'pair', school: kind === 'dow' && !!f.school, year,
+    dow: kind === 'dow' ? +(f.dows[0]) : E.dow(f.date), dows: kind === 'dow' ? f.dows.map(Number).sort((a, b) => a - b) : [], every, parity: k === 'dowI' ? 'impair' : 'pair',
+    school: kind === 'dow' && f.hol !== 'yes', holW1: kind === 'dow' && f.hol === 'w1', year, vis: f.vis === 'parents' ? 'parents' : 'all', matchSwap: !!f.matchSwap,
     time: f.time || '', timeEnd: f.timeEnd || '', endTime: f.timeEnd || '',
     from: f.from || '', dropAt: f.dropAt || '', dropTxt: f.dropAt === 'autre' ? t(f.dropAtTxt) : '', dropPlace,
     to: f.to || '', pickAt: f.pickAt || '', pickTxt: f.pickAt === 'autre' ? t(f.pickAtTxt) : '', pickPlace, place: pickPlace || dropPlace,
@@ -342,8 +438,41 @@ function evFromForm(f) {
     repeat: kind === 'dow' ? (every === 2 ? 'biweekly' : 'weekly') : kind === 'monthly' || kind === 'yearly' ? kind : 'none', until: year ? `${+year + 1}-08-31` : '', who: f.from || 'custodian',
   };
 }
+/** Fiche d'une séance (un jour donné) : état, absence, match, mes rappels ; modifier / supprimer pour le parent créateur */
+function occSheet(ev, d) {
+  const x = ev.pe ? null : evxMap()[E.evxKey(ev.id, d)] || null, par = isParent(), mine = canEditEv(ev);
+  const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date), o = { ...ev, occ: d };
+  const tm = (a, b) => (a ? E.fmtTime(a) + (b ? '–' + E.fmtTime(b) : '') : '');
+  const status = !x ? '' : x.type === 'absent'
+    ? `<div class="alert mt"><div class="ai">❌</div><div class="f1"><div class="at">Absent${x.cause ? ' : ' + esc(x.cause) : ''}</div><div class="small">Noté par ${esc(x.byName || '')} · ${fmtStamp(x.at)}</div></div></div>`
+    : `<div class="alert info mt"><div class="ai">⚽</div><div class="f1"><div class="at">Remplacé par un match de foot${x.child ? ' de ' + esc(childName(x.child)) : ''}</div><div class="small">${tm(x.time, x.timeEnd) || 'Horaire non précisé'}${x.place ? ' · 📍 ' + esc(x.place) : ''} · noté par ${esc(x.byName || '')}</div></div></div>`;
+  openSheet(`<h3 class="sh-title">${ev.icon || catIcon(ev.cat)} ${esc(ev.title)}</h3>
+    <div class="muted small">${E.fmtDate(d, 'wdmy')}${ev.childIds?.length ? ' · ' + esc(childNames(ev.childIds)) : ''}${ev.pe ? ' · <span class="pill">🔒 Parents seulement</span>' : ''}</div>
+    <div class="card tight mt"><div class="small ${x ? 'occ-x' : ''}">${esc(ucf(evText(o, false)))}</div>${rec ? `<div class="tiny muted mtx">🔁 ${esc(ucf(evText(ev).split(' · ')[0]))}</div>` : ''}${ev.notes ? `<div class="small mt">📝 ${esc(ev.notes)}</div>` : ''}</div>
+    ${status}
+    ${par && !ev.pe ? (x ? `<button class="btn soft block mt" data-act="occ-restore" data-id="${ev.id}" data-d="${d}">↩️ Rétablir la séance</button>`
+      : `<div class="row gap mt"><button class="btn soft f1" data-act="occ-absent" data-id="${ev.id}" data-d="${d}">🙋 Absent</button>${ev.matchSwap ? `<button class="btn soft f1" data-act="occ-match" data-id="${ev.id}" data-d="${d}">⚽ Match de foot</button>` : ''}</div>`) : ''}
+    ${par ? `<button class="btn soft block mt" data-act="occ-alerts" data-id="${ev.id}">🔔 Mes rappels</button>` : ''}
+    ${mine ? `<div class="row gap mt"><button class="btn ghost f1" data-act="occ-edit" data-id="${ev.id}" data-d="${d}">✏️ Modifier</button><button class="btn danger f1" data-act="occ-del" data-id="${ev.id}" data-d="${d}">${IC.trash} Supprimer…</button></div>`
+      : par ? `<div class="hint mt">Créé par ${esc(ev.createdByName || "l'autre parent")} : lui seul peut le modifier ou le supprimer.</div>` : ''}
+    <div class="sh-actions"><button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
+}
+const evColl = ev => (ev.pe ? 'pevents' : 'events');
+/** Prochaines séances d'un événement (pour en supprimer plusieurs) */
+function nextOccs(ev, d) { const from = d < E.todayISO() ? d : E.todayISO(); return E.expandEvents([ev], from, E.addDays(from, 190), settings()).map(o => o.occ).slice(0, 80); }
+async function delOccs(ev, days) {
+  const ex = [...new Set([...(ev.exceptions || []), ...days])].sort();
+  await updItem(evColl(ev), ev.id, { exceptions: ex });
+  for (const d of days) if (S.evx.some(x => x.evId === ev.id && x.date === d)) await S.be.db.del(fpath('evx', E.evxKey(ev.id, d))).catch(() => { });
+  await log('agenda', `${days.length > 1 ? days.length + ' séances supprimées' : 'Séance supprimée'} : ${ev.title}`, { body: days.map(d => E.fmtDate(d, 'wdm')).join(', '), link: `agenda?d=${days[0]}` });
+}
+
 export const after = {
-  agenda() { const d = S.ui.openDay; if (d) { S.ui.openDay = null; S.route = { view: 'agenda', params: { mode: 'mois', m: ym(d) } }; history.replaceState(null, '', `#/agenda?mode=mois&m=${ym(d)}`); setTimeout(() => openDay(d), 150); } },
+  agenda() {
+    if (S.route.params.preset === 'activites') {
+      if (!isParent() || !S.loaded.events || !S.children.length) return; // attendre le chargement du cercle
+      history.replaceState(null, '', '#/agenda'); S.route = { view: 'agenda', params: {} }; setTimeout(presetSheet, 300); return;
+    } const d = S.ui.openDay; if (d) { S.ui.openDay = null; S.route = { view: 'agenda', params: { mode: 'mois', m: ym(d) } }; history.replaceState(null, '', `#/agenda?mode=mois&m=${ym(d)}`); setTimeout(() => openDay(d), 150); } },
 };
 export const actions = {
   'print-year': el => openPrint(el.dataset.y ? +el.dataset.y : null),
@@ -354,25 +483,122 @@ export const actions = {
   'ag-month': el => go('agenda', { mode: 'mois', m: el.dataset.m }),
   'ag-today': () => go('agenda', { mode: 'mois', m: ym(E.todayISO()) }),
   'ag-tab': el => { S.ui.agTab = el.dataset.t; S.render(); },
-  'ev-new': el => eventSheet(null, el.dataset.d || E.todayISO()),
-  'ev-open': el => { const ev = S.events.find(x => x.id === el.dataset.id); if (ev) eventSheet(ev); },
+  'ev-new': el => { if (!isParent()) return toast('Seuls les parents créent des événements.', 'warn'); eventSheet(null, el.dataset.d || E.todayISO()); },
+  'ev-open': el => { const ev = findEvent(el.dataset.id); if (ev) occSheet(ev, el.dataset.d || ev.date); },
   'ev-save': async el => {
     const sh = el.closest('.sheet'), f = readForm(sh), data = evFromForm(f);
     if (typeof data === 'string') return toast(data, 'warn');
+    const id = el.dataset.id, ev = id ? findEvent(id) : null;
+    if (!isParent() || (id && !canEditEv(ev))) return toast("Seul le parent qui a créé l'événement peut le modifier.", 'warn');
     el.disabled = true;
-    const id = el.dataset.id;
+    const coll = data.vis === 'parents' ? 'pevents' : 'events', lock = coll === 'pevents' ? ' 🔒' : '';
     const ok = await guard(async () => {
-      if (id) { await updItem('events', id, data); await log('agenda', `Événement modifié : ${f.title}`, { body: evText(data) }); }
-      else { await addItem('events', data); await log('agenda', `Nouvel événement : ${f.title}`, { body: evText(data) }); }
+      let eid = id;
+      if (id && evColl(ev) === coll) await updItem(coll, id, data);
+      else if (id) { // passage « tout le cercle » ↔ « parents seulement » : même identifiant, autre collection
+        await S.be.db.set(fpath(coll, id), { createdAt: ev.createdAt || Date.now(), createdBy: ev.createdBy || uid(), createdByName: ev.createdByName || myName(), exceptions: ev.exceptions || [], ...data, updatedAt: Date.now(), updatedBy: uid() });
+        await S.be.db.del(fpath(evColl(ev), id));
+      } else eid = await addItem(coll, data);
+      await saveItemAlerts('ev', eid, f);
+      await log('agenda', `${id ? 'Événement modifié' : 'Nouvel événement'} : ${f.title}${lock}`, { body: evText(data) + (lock ? ' · visible uniquement par les parents' : ''), link: `agenda?d=${data.date}` });
+      queueReminders();
       return true;
     }, 'Événement enregistré');
     if (ok) closeSheet(); else el.disabled = false;
   },
-  'ev-del': async el => {
-    const ev = S.events.find(x => x.id === el.dataset.id); if (!ev) return;
-    if (!(await confirmBox('Supprimer cet événement ?', esc(ev.title), 'Supprimer', true))) return;
-    await guard(async () => { await S.be.db.del(fpath('events', ev.id)); await log('agenda', `Événement supprimé : ${ev.title}`); }, 'Événement supprimé');
-    closeSheet();
+  'act-perso': el => { const f = readForm(el.closest('.card')); go('activites', { m: 'perso', from: f.from, to: f.to }); },
+  'preset-act-go': async el => {
+    const sh = el.closest('.sheet'), tgs = sh._tgs || [], pick = [...sh.querySelectorAll('input[name=pt]:checked')].map(i => tgs[+i.value]).filter(Boolean);
+    if (!pick.length || !isParent()) return toast('Cochez au moins un cercle.', 'warn');
+    el.disabled = true;
+    let n = 0;
+    const ok = await guard(async () => {
+      for (const tg of pick) {
+        const todo = presetRows(tg).filter(r => r.data && !r.dup);
+        for (const r of todo) {
+          if (tg.cur) await addItem('events', r.data);
+          else await S.be.db.set(`families/${tg.fid}/events/${S.be.db.newId()}`, { ...r.data, createdAt: Date.now(), createdBy: uid(), createdByName: myName() });
+          n++;
+        }
+        if (tg.cur && todo.length) await log('agenda', `${plural(todo.length, 'activité')} ajoutée${todo.length > 1 ? 's' : ''} à l'agenda`, { body: todo.map(r => `${r.a.t} (${r.a.k})`).join(', ') });
+      }
+      queueReminders(); return true;
+    });
+    if (ok) { closeSheet(); toast(`${plural(n, 'activité')} créée${n > 1 ? 's' : ''}${pick.length > 1 ? ' dans les deux cercles' : ''}`, 'ok', 3500); } else el.disabled = false;
+  },
+  'occ-edit': el => { const ev = findEvent(el.dataset.id); if (canEditEv(ev)) closeSheetsThen(() => eventSheet(ev, el.dataset.d)); },
+  'occ-alerts': el => { const ev = findEvent(el.dataset.id); if (ev) myAlertsSheet('ev', ev.id, ev.title); },
+  'occ-absent': el => {
+    const ev = findEvent(el.dataset.id), d = el.dataset.d; if (!ev) return;
+    openSheet(`<h3 class="sh-title">🙋 Absent</h3><div class="muted small mb">${esc(ev.title)} · ${E.fmtDate(d, 'wdmy')}${ev.childIds?.length ? ' · ' + esc(childNames(ev.childIds)) : ''}</div>
+      <label class="lbl">Cause (facultatif)</label><input class="in" name="cause" maxlength="120" placeholder="Ex. malade, rendez-vous, sortie en famille">
+      <div class="hint">La séance reste dans l'agenda, barrée, et compte comme une absence dans le bilan.</div>
+      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="occ-x-save" data-t="absent" data-id="${ev.id}" data-d="${d}">Enregistrer</button></div>`);
+  },
+  'occ-match': el => {
+    const ev = findEvent(el.dataset.id), d = el.dataset.d; if (!ev) return;
+    openSheet(`<h3 class="sh-title">⚽ Match de foot à la place</h3><div class="muted small mb">${esc(ev.title)} · ${E.fmtDate(d, 'wdmy')} : la séance est annulée.</div>
+      <label class="lbl">Match de</label>${chips('child', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), [ev.childIds?.[0] || S.children[0]?.id || ''])}
+      <div class="two"><div><label class="lbl">Début</label><input class="in" type="time" name="time"></div><div><label class="lbl">Fin (option)</label><input class="in" type="time" name="timeEnd"></div></div>
+      <label class="lbl">Lieu</label><input class="in" name="place" maxlength="120" placeholder="Ex. Stade de Concyr, Olivet">
+      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="occ-x-save" data-t="match" data-id="${ev.id}" data-d="${d}">Enregistrer</button></div>`);
+  },
+  'occ-x-save': async el => {
+    const ev = findEvent(el.dataset.id), d = el.dataset.d, t = el.dataset.t, f = readForm(el.closest('.sheet'));
+    if (!ev || !isParent()) return;
+    if (t === 'match' && !f.time) return toast("Indiquez l'heure du match.", 'warn');
+    if (t === 'match' && f.timeEnd && f.timeEnd <= f.time) return toast("L'heure de fin doit suivre l'heure de début.", 'warn');
+    if (t === 'match' && !f.place) return toast('Indiquez le lieu du match.', 'warn');
+    const x = { evId: ev.id, date: d, type: t, title: ev.title, childIds: ev.childIds || [], by: uid(), byName: myName(), at: Date.now(),
+      ...(t === 'absent' ? { cause: f.cause || '' } : { child: f.child || '', time: f.time, timeEnd: f.timeEnd || '', place: f.place }) };
+    const ok = await guard(async () => {
+      await S.be.db.set(fpath('evx', E.evxKey(ev.id, d)), x);
+      await log('agenda', t === 'absent' ? `Absent : ${ev.title}${ev.childIds?.length ? ' (' + childNames(ev.childIds) + ')' : ''}` : `Match de foot à la place de : ${ev.title}`,
+        { body: `${E.fmtDate(d, 'wdm')}${t === 'absent' ? (x.cause ? ' · ' + x.cause : '') : ` · ${childName(x.child)} · ${E.fmtTime(x.time)}${x.timeEnd ? '–' + E.fmtTime(x.timeEnd) : ''} · ${x.place}`}`, link: `agenda?d=${d}` });
+      queueReminders();
+      return true;
+    }, t === 'absent' ? 'Absence notée' : 'Match noté');
+    if (ok) closeSheetsThen(() => occSheet(ev, d));
+  },
+  'occ-restore': async el => {
+    const ev = findEvent(el.dataset.id), d = el.dataset.d; if (!ev || !isParent()) return;
+    const ok = await guard(async () => { await S.be.db.del(fpath('evx', E.evxKey(ev.id, d))); await log('agenda', `Séance rétablie : ${ev.title}`, { body: E.fmtDate(d, 'wdm'), link: `agenda?d=${d}` }); queueReminders(); return true; }, 'Séance rétablie');
+    if (ok) closeSheetsThen(() => occSheet(ev, d));
+  },
+  'occ-del': async el => {
+    const ev = findEvent(el.dataset.id), d = el.dataset.d || ev?.date; if (!canEditEv(ev)) return toast("Seul le parent qui a créé l'événement peut le supprimer.", 'warn');
+    const rec = E.evKind(ev) !== 'date' || (ev.endDate && ev.endDate > ev.date);
+    if (!rec) return actions['occ-del-go']({ dataset: { id: ev.id, m: 'all' } });
+    openSheet(`<h3 class="sh-title">🗑️ Supprimer</h3><div class="muted small mb">${esc(ev.title)}</div>
+      <button class="btn soft block" data-act="occ-del-go" data-m="day" data-id="${ev.id}" data-d="${d}">🗓️ Ce jour seulement · ${E.fmtDate(d, 'wdm')}</button>
+      <button class="btn soft block mt" data-act="occ-del-pick" data-id="${ev.id}" data-d="${d}">☑️ Plusieurs jours…</button>
+      <button class="btn danger block mt" data-act="occ-del-go" data-m="all" data-id="${ev.id}">${IC.trash} Toute la série</button>
+      <div class="hint">Une séance supprimée disparaît de l'agenda et du bilan. Pour une absence, utilisez plutôt « 🙋 Absent ».</div>
+      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button></div>`);
+  },
+  'occ-del-pick': el => {
+    const ev = findEvent(el.dataset.id), d = el.dataset.d; if (!canEditEv(ev)) return;
+    const list = nextOccs(ev, d);
+    openSheet(`<h3 class="sh-title">☑️ Séances à supprimer</h3><div class="muted small">${esc(ev.title)} · cochez les jours</div>
+      <div class="ckl">${list.map(o => `<label><input type="checkbox" name="days" value="${o}" ${o === d ? 'checked' : ''}><span class="f1">${E.fmtDate(o, 'wdmy')}</span></label>`).join('') || '<div class="muted small">Aucune séance à venir.</div>'}</div>
+      <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn danger f1" data-act="occ-del-go" data-m="multi" data-id="${ev.id}">Supprimer</button></div>`);
+  },
+  'occ-del-go': async el => {
+    const ev = findEvent(el.dataset.id), m = el.dataset.m; if (!canEditEv(ev)) return;
+    if (m === 'all') {
+      if (!(await confirmBox('Supprimer toute la série ?', `${esc(ev.title)} : toutes les séances, passées et à venir.`, 'Supprimer', true))) return;
+      const ok = await guard(async () => {
+        await S.be.db.del(fpath(evColl(ev), ev.id));
+        for (const x of S.evx.filter(x => x.evId === ev.id)) await S.be.db.del(fpath('evx', x.id)).catch(() => { });
+        await log('agenda', `Événement supprimé : ${ev.title}`); queueReminders(); return true;
+      }, 'Événement supprimé');
+      if (ok) closeSheetsThen(null);
+      return;
+    }
+    const days = m === 'day' ? [el.dataset.d] : [...el.closest('.sheet').querySelectorAll('input[name=days]:checked')].map(i => i.value);
+    if (!days.length) return toast('Cochez au moins un jour.', 'warn');
+    const ok = await guard(async () => { await delOccs(ev, days); queueReminders(); return true; }, days.length > 1 ? `${days.length} séances supprimées` : 'Séance supprimée');
+    if (ok) closeSheetsThen(null);
   },
   'ics-sheet': () => {
     const today = E.todayISO();
@@ -389,7 +615,7 @@ export const actions = {
   'ics-go': el => {
     const f = readForm(el.closest('.sheet'));
     if (!f.kids.length) return toast('Choisissez au moins un enfant.', 'warn');
-    const ics = E.buildICS({ engine: engine(), childIds: f.kids, children: S.children, parents: parents(), from: f.from, to: f.to, events: f.ev ? S.events : [], withHandovers: f.ho, withBlocks: f.bl });
+    const ics = E.buildICS({ engine: engine(), childIds: f.kids, children: S.children, parents: parents(), from: f.from, to: f.to, events: f.ev ? allEvents() : [], withHandovers: f.ho, withBlocks: f.bl });
     download(`SJ-Family-${f.kids.map(childName).join('-')}.ics`, ics, 'text/calendar');
     toast('Fichier .ics créé'); closeSheet();
   },

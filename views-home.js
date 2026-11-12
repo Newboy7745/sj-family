@@ -1,9 +1,9 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.15';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.15';
+import * as E from './engine.js?v=6.16';
+import { occs, S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.16';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.15';
-import { evText } from './views-agenda.js?v=6.15';
+import { esc, fmtAgo } from './ui.js?v=6.16';
+import { evText } from './views-agenda.js?v=6.16';
 
 export function kidChips() {
   if (S.children.length < 1) return '';
@@ -102,7 +102,7 @@ function setupSteps() {
 }
 function todayAgenda() {
   const today = E.todayISO(), tom = E.addDays(today, 1), ids = new Set(selIds());
-  const evs = E.expandEvents(S.events, today, tom, settings()).filter(e => !e.childIds?.length || e.childIds.some(i => ids.has(i)));
+  const evs = occs(today, tom, [...ids]);
   const bdays = S.children.filter(c => c.birth && ids.has(c.id) && (c.birth.slice(5) === today.slice(5) || c.birth.slice(5) === tom.slice(5)));
   const tasks = can('tasks') ? S.tasks.filter(t => !t.done && t.due && t.due <= tom && (!t.childIds?.length || t.childIds.some(i => ids.has(i)))) : [];
   if (!evs.length && !tasks.length && !bdays.length) return '';
@@ -111,7 +111,8 @@ function todayAgenda() {
   return `<div class="card"><h3>🗓️ Aujourd'hui & demain <a class="act" data-go="agenda">Agenda ›</a></h3>
     ${bdays.map(c => row(0, { i: '🎂', t: `Anniversaire de ${c.prenom} (${E.age(c.birth, c.birth.slice(5) === today.slice(5) ? today : tom)} ans)`, s: c.birth.slice(5) === today.slice(5) ? "Aujourd'hui" : 'Demain' })).join('')}
     ${evs.map(e => {
-      if (e.kind) return row(0, { i: e.icon || '📌', t: e.title, s: `${E.relDay(e.occ, today)} · ${evText(e, false)}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}` });
+      if (e.x && !e.match) return row(0, { i: e.x.type === 'match' ? '🔁' : '❌', t: e.title, s: `${E.relDay(e.occ, today)} · ${e.x.type === 'match' ? 'remplacé par un match de foot' : 'absent' + (e.x.cause ? ' (' + e.x.cause + ')' : '')}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}` });
+      if (e.kind) return row(0, { i: e.icon || '📌', t: e.title + (e.pe ? ' 🔒' : ''), s: `${E.relDay(e.occ, today)} · ${evText(e, false)}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}` });
       const resp = e.who && e.who !== 'custodian' ? (e.who === 'both' ? 'Les deux parents' : pName(e.who)) : (() => { const k = e.childIds?.[0] || selIds()[0]; const p = k ? eng.presence(k, e.occ, E.t2m(e.time) ?? 600) : null; return p ? `${pShort(p)} (parent de garde)` : ''; })();
       return row(0, { i: e.icon || '📌', t: e.title, s: `${E.relDay(e.occ, today)}${e.time ? ' · ' + E.fmtTime(e.time) : ''}${e.childIds?.length ? ' · ' + childNames(e.childIds) : ''}${resp ? ' · ' + resp : ''}` });
     }).join('')}

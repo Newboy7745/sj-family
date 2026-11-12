@@ -404,6 +404,10 @@ export function patternShare(str, countedOnly = false) {
 
 // ───────────── Événements récurrents ─────────────
 /** Type de répétition d'un événement (anciens événements : champ « repeat ») */
+/** Jours de la semaine d'un événement hebdomadaire (0 = lundi) : plusieurs jours possibles */
+export function evDays(e) { return [...new Set((Array.isArray(e.dows) && e.dows.length ? e.dows : [e.dow ?? dow(e.date)]).map(Number))].sort((a, b) => a - b); }
+/** Vacances : 'yes' (séances maintenues), 'no' (période scolaire seulement), 'w1' (1re semaine des vacances seulement) */
+export function evHol(e) { return !e.school ? 'yes' : e.holW1 ? 'w1' : 'no'; }
 export function evKind(e) {
   if (e.kind) return e.kind;
   const r = e.repeat || 'none';
@@ -429,13 +433,16 @@ export function expandEvents(events, from, to, settings = null) {
     if (k === 'date') { add(e.date); if (e.endDate && e.endDate > e.date) for (const iso of eachDay(addDays(e.date, 1), e.endDate)) add(iso); continue; }
     if (e.date > until) continue;
     if (k === 'dow') {
-      // à partir de la date de début, le jour choisi, une semaine sur deux (paire / impaire) si demandé, hors vacances si demandé
-      const d0 = e.date > lo ? e.date : lo, wd = +(e.dow ?? dow(e.date));
-      let iso = addDays(d0, (wd - dow(d0) + 7) % 7);
-      for (; iso <= until; iso = addDays(iso, 7)) {
-        if (+e.every === 2 && ((isoWeek(iso).week % 2 === 0) !== (e.parity !== 'impair'))) continue;
-        if (e.school && H().some(h => h.s <= iso && iso <= h.e)) continue;
-        add(iso);
+      // à partir de la date de début, le(s) jour(s) choisi(s), une semaine sur deux (paire / impaire) si demandé ;
+      // vacances scolaires : séances maintenues, supprimées (school) ou seulement la 1re semaine (school + holW1)
+      const d0 = e.date > lo ? e.date : lo;
+      for (const wd of evDays(e)) {
+        let iso = addDays(d0, (wd - dow(d0) + 7) % 7);
+        for (; iso <= until; iso = addDays(iso, 7)) {
+          if (+e.every === 2 && ((isoWeek(iso).week % 2 === 0) !== (e.parity !== 'impair'))) continue;
+          if (e.school) { const h = H().find(h => h.s <= iso && iso <= h.e); if (h && !(e.holW1 && iso <= addDays(h.s, 6))) continue; }
+          add(iso);
+        }
       }
     } else if (k === 'vacStart' || k === 'vacEnd') {
       for (const h of H()) {
@@ -460,6 +467,54 @@ export function expandEvents(events, from, to, settings = null) {
     }
   }
   return out.sort((a, b) => (a.occ + (a.time || '')).localeCompare(b.occ + (b.time || '')));
+}
+
+/**
+ * État de chaque séance : evx = { 'idEvénement_date': { type: 'absent' | 'match', cause, child, time, timeEnd, place } }.
+ * Chaque occurrence reçoit .x (son état). Les matchs qui remplacent une séance sont ajoutés comme occurrences (.match).
+ */
+export const evxKey = (id, iso) => `${id}_${iso}`;
+export function withStatus(occs, evx = {}) {
+  const out = [];
+  for (const o of occs) {
+    const x = evx[evxKey(o.id, o.occ)] || null;
+    out.push(x ? { ...o, x } : o);
+    if (x?.type === 'match') out.push({ id: o.id, src: o, match: true, x, occ: o.occ, title: 'Match de foot', icon: '⚽', cat: 'activite', childIds: x.child ? [x.child] : (o.childIds || []), time: x.time || '', timeEnd: x.timeEnd || '', place: x.place || '', dropPlace: x.place || '', pickPlace: x.place || '', kind: 'date', date: o.occ });
+  }
+  return out.sort((a, b) => (a.occ + (a.time || '')).localeCompare(b.occ + (b.time || '')));
+}
+/** Séances qui ont vraiment lieu (sans absences ni séances remplacées par un match), matchs compris */
+export const activeOccs = occs => occs.filter(o => !o.x || o.match);
+/** Durée d'une séance en minutes (0 si toute la journée) */
+export function occMinutes(o) { const a = o.time, b = o.timeEnd || o.endTime; return a && b && b > a ? t2m(b) - t2m(a) : 0; }
+/**
+ * Bilan des activités sur une période : par activité (même titre et mêmes enfants, tous jours confondus),
+ * séances prévues, faites, à venir, absences, remplacées par un match ; heures faites et prévues. Les matchs à part.
+ */
+export function activityStats(events, evx, from, to, settings, now = { date: todayISO(), min: nowMin() }) {
+  const occs = withStatus(expandEvents(events, from, to, settings), evx), G = new Map();
+  const past = o => o.occ < now.date || (o.occ === now.date && t2m(o.timeEnd || o.endTime || o.time || '23:59') <= now.min);
+  for (const o of occs) {
+    const kids = [...(o.childIds || [])].sort().join(',');
+    const key = o.match ? `match|${kids}` : `${String(o.title || '').trim().toLowerCase()}|${kids}`;
+    const g = G.get(key) || { key, title: o.match ? 'Matchs de foot' : o.title, icon: o.icon || '📌', childIds: o.childIds || [], match: !!o.match, ids: new Set(), planned: 0, done: 0, todo: 0, absent: 0, matched: 0, minDone: 0, minAll: 0, causes: [] };
+    g.ids.add(o.id); G.set(key, g);
+    if (!o.match && o.x?.type === 'absent') { g.absent++; if (o.x.cause) g.causes.push({ d: o.occ, c: o.x.cause }); continue; }
+    if (!o.match && o.x?.type === 'match') { g.matched++; continue; }
+    const m = occMinutes(o); g.planned++; g.minAll += m;
+    if (past(o)) { g.done++; g.minDone += m; } else g.todo++;
+  }
+  return [...G.values()].map(g => ({ ...g, ids: [...g.ids] })).sort((a, b) => (a.match - b.match) || a.childIds.join().localeCompare(b.childIds.join()) || a.title.localeCompare(b.title));
+}
+/** Périodes « de vacances à vacances » d'une année scolaire : rentrée → Toussaint, Toussaint → Noël, …, été */
+export function schoolPeriods(year, zone = 'B', custom = []) {
+  const ys = `${year}-09-01`, ye = `${year + 1}-08-31`;
+  const hs = schoolHolidays(zone, custom).filter(h => h.kind !== 'pont' && h.s > ys && h.s <= ye).sort((a, b) => a.s.localeCompare(b.s));
+  const nm = h => String(h.n || '').replace(/^Vacances (de la |de l'|d'|de |du )/i, '').replace(/^./, c => c.toUpperCase());
+  const out = []; let start = ys, name = 'Rentrée';
+  for (const h of hs) { out.push({ id: `${year}-${out.length}`, from: start, to: addDays(h.s, -1), n: `${name} → ${nm(h)}` }); start = h.s; name = nm(h); }
+  out.push({ id: `${year}-${out.length}`, from: start, to: ye, n: name === 'Été' ? 'Été' : `${name} → fin août` });
+  return out;
 }
 
 // ───────────── Export agenda (.ics) ─────────────
@@ -505,7 +560,7 @@ export function buildICS({ engine, childIds, children, parents, from, to, events
 }
 
 // ───────────── Flux des widgets (lu par l'app Android et Scriptable) ─────────────
-export function buildFeed({ engine, family, children, parents, events = [], tasks = [], notes = [], includeHealth = false, today = todayISO(), appUrl, apk = 0 }) {
+export function buildFeed({ engine, family, children, parents, events = [], evx = {}, tasks = [], notes = [], includeHealth = false, today = todayISO(), appUrl, apk = 0 }) {
   const prevMonth = (() => { let [y, m] = today.split('-').map(Number); m--; if (m < 1) { m = 12; y--; } return `${y}-${pad(m)}-01`; })();
   // début du flux : jusqu'à un an en arrière (navigation ‹ › dans les widgets), au moins le mois précédent
   let from = mondayOf(prevMonth);
@@ -525,7 +580,7 @@ export function buildFeed({ engine, family, children, parents, events = [], task
       return { id: c.id, name: c.prenom, emoji: c.emoji || '🧒', color: c.color || '', days, info };
     }),
     handovers: engine.handovers(ids, from, to).map(h => ({ d: h.date, t: h.time, f: h.from, to: h.to, k: h.childIds, p: h.place || '', m: h.kind === 'midi' ? 1 : 0, ...(h.kind === 'matin' ? { mo: 1 } : {}), ...(h.timeEnd ? { t2: h.timeEnd } : {}), ...(h.dropPlace ? { dp: h.dropPlace } : {}) })),
-    events: expandEvents(events, today, addDays(today, 45), family?.settings).slice(0, 60).map(e => ({ d: e.occ, t: e.time || '', t2: e.timeEnd || e.endTime || '', n: e.title, i: e.icon || '📌', k: e.childIds || [], w: e.place || '', dp: e.dropPlace || '', pp: e.kind ? e.pickPlace || '' : e.place || '', by: e.from || '', tk: e.to || '' })),
+    events: activeOccs(withStatus(expandEvents(events, today, addDays(today, 45), family?.settings), evx)).slice(0, 60).map(e => ({ d: e.occ, t: e.time || '', t2: e.timeEnd || e.endTime || '', n: e.title, i: e.icon || '📌', k: e.childIds || [], w: e.place || '', dp: e.dropPlace || '', pp: e.kind ? e.pickPlace || '' : e.place || '', by: e.from || '', tk: e.to || '' })),
     tasks: tasks.filter(t => !t.done).slice(0, 10).map(t => ({ n: t.title, d: t.due || '', k: t.childIds || [] })),
     notes: notes.slice(0, 3).map(n => ({ x: String(n.text || '').slice(0, 140), at: n.at, by: n.byName || '', k: n.childIds || [] })),
     off: {},

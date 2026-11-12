@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.15';
-import { randomId } from './backend.js?v=6.15';
-import { S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.15';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.15';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.15';
-import { createFamily, procheText } from './views-family.js?v=6.15';
-import { openPrint } from './print.js?v=6.15';
+import * as E from './engine.js?v=6.16';
+import { randomId } from './backend.js?v=6.16';
+import { ALERT_LABELS, alertDefaults, alertText, itemAlerts, queueReminders, isPending, S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.16';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.16';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.16';
+import { createFamily, procheText } from './views-family.js?v=6.16';
+import { openPrint } from './print.js?v=6.16';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -46,6 +46,52 @@ function memDl(url, m, ext) {
   const name = `${(m.title || 'souvenir').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/\s+/g, '-') || 'souvenir'}-${m.date || ''}.${ext}`;
   return `<a class="btn soft block mt" href="${url}" download="${esc(name)}">${IC.download} Télécharger ${ext === 'mp4' ? 'la vidéo' : 'la photo'}</a>`;
 }
+// ───────────── Rappels personnalisés : éditeur (combien de temps avant, nombre de rappels, intervalle)
+const AL_BEFORE = [5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440, 2880], AL_EVERY = [5, 10, 15, 30, 60, 120, 240, 1440];
+const durL = min => (min >= 1440 && min % 1440 === 0 ? (min === 1440 ? '1 jour' : `${min / 1440} jours`) : min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ' ' + min % 60 : ''}` : `${min} min`);
+const opts = (list, v) => list.map(x => `<option value="${x}" ${+v === x ? 'selected' : ''}>${durL(x)}</option>`).join('');
+export function alertEditor(pfx, label, cfg) {
+  return `<div class="alr" data-alr="${pfx}"><label class="row gap mt"><span class="sw"><input type="checkbox" name="${pfx}On" ${cfg.on ? 'checked' : ''}><span></span></span><span class="f1 b">${label}</span></label>
+    <div data-alb class="${cfg.on ? '' : 'hide'}"><div class="three"><div><label class="lbl">Avant</label><select class="in" name="${pfx}B">${opts(AL_BEFORE, cfg.b || 60)}</select></div>
+      <div><label class="lbl">Rappels</label><select class="in" name="${pfx}N">${[1, 2, 3, 4, 5].map(n => `<option value="${n}" ${+(cfg.n || 1) === n ? 'selected' : ''}>${n} fois</option>`).join('')}</select></div>
+      <div data-ali><label class="lbl">Toutes les</label><select class="in" name="${pfx}I">${opts(AL_EVERY, cfg.i || 15)}</select></div></div>
+    <div class="hint" data-alt>🔔 ${esc(alertText(cfg))}</div></div></div>`;
+}
+export const readAlert = (f, pfx) => ({ on: !!f[pfx + 'On'], b: +f[pfx + 'B'] || 60, n: +f[pfx + 'N'] || 1, i: +f[pfx + 'I'] || 15 });
+/** Met à jour l'affichage des éditeurs de rappels d'une feuille */
+export function alertBind(sh) {
+  const run = () => { const f = readForm(sh); sh.querySelectorAll('[data-alr]').forEach(b => { const c = readAlert(f, b.dataset.alr); b.querySelector('[data-alb]').classList.toggle('hide', !c.on); b.querySelector('[data-ali]').classList.toggle('vhide', c.n < 2); b.querySelector('[data-alt]').textContent = '🔔 ' + alertText(c); }); };
+  sh.addEventListener('change', run); run();
+}
+/** Réglage des rappels d'un parent pour un événement (kind 'ev') ou un échange (kind 'x') */
+export function alertsBlock(kind, id) {
+  const m = me(), cur = id ? itemAlerts(m, kind, id) : { mode: 'def' }, d = alertDefaults(m);
+  const dr = cur.drop || (kind === 'x' ? d.relDrop : d.evDrop), pk = cur.pick || (kind === 'x' ? d.relPick : d.evPick);
+  return `<div data-part="als"><label class="lbl">🔔 Mes rappels ${kind === 'x' ? 'pour les relais de cet échange' : 'pour cet événement'}</label>
+    ${chips('alMode', [{ v: 'def', l: 'Mes réglages habituels' }, { v: 'custom', l: '✏️ Personnalisés' }, { v: 'off', l: '🔕 Aucun' }], [cur.mode || 'def'])}
+    <div data-part="alc" class="${cur.mode === 'custom' ? '' : 'hide'}">${alertEditor('alD', kind === 'x' ? 'Remise des enfants' : 'Dépose', dr)}${alertEditor('alP', 'Récupération', pk)}</div>
+    <div class="hint" data-part="ald">${cur.mode === 'off' ? 'Aucun rappel pour vous.' : `Habituels : ${kind === 'x' ? `remise ${esc(alertText(d.relDrop))} · récupération ${esc(alertText(d.relPick))}` : `dépose ${esc(alertText(d.evDrop))} · récupération ${esc(alertText(d.evPick))}`}${kind === 'x' ? '' : ', si vous déposez ou récupérez ce jour-là'}.`}</div>
+    ${m.ntfyOn ? '' : '<div class="hint warn">⚠️ Activez d\'abord les notifications sur ce téléphone : Réglages › Notifications push.</div>'}</div>`;
+}
+export function alertsBlockBind(sh) {
+  const upd = () => { const f = readForm(sh); sh.querySelector('[data-part="alc"]')?.classList.toggle('hide', f.alMode !== 'custom'); sh.querySelector('[data-part="ald"]')?.classList.toggle('hide', f.alMode === 'custom'); };
+  sh.addEventListener('chipchange', upd); upd(); alertBind(sh);
+}
+/** Enregistre le réglage dans ma fiche (alerts.ev[id] / alerts.x[id]) */
+export async function saveItemAlerts(kind, id, f) {
+  const m = me(), a = JSON.parse(JSON.stringify(m.alerts || {}));
+  const mode = f.alMode || 'def';
+  a[kind] = a[kind] || {};
+  if (mode === 'def') delete a[kind][id]; else a[kind][id] = mode === 'custom' ? { mode, drop: readAlert(f, 'alD'), pick: readAlert(f, 'alP') } : { mode };
+  if (JSON.stringify(a) !== JSON.stringify(m.alerts || {})) { await updItem('members', uid(), { alerts: a }); queueReminders(); }
+}
+export function myAlertsSheet(kind, id, title) {
+  const sh = openSheet(`<h3 class="sh-title">🔔 Mes rappels</h3><div class="muted small mb">${esc(title)}</div>${alertsBlock(kind, id)}
+    <div class="hint">Ce réglage ne concerne que vous. L'autre parent règle ses propres rappels.</div>
+    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="al-save" data-k="${kind}" data-id="${esc(id)}">Enregistrer</button></div>`);
+  alertsBlockBind(sh);
+}
+
 // ───────────── Souvenirs : dossiers, horodatage
 const pad2 = n => String(n).padStart(2, '0');
 /** « 11/11/2026 · 16:55 » */
@@ -64,8 +110,11 @@ const FOLDERS = [
   { k: 'pvideos', t: 'Vidéos privées', i: '🎬', ok: m => m.priv && m.type === 'video', par: true },
 ];
 const durTxt = s => s ? `${Math.floor(s / 60)}:${pad2(Math.round(s % 60))}` : '';
+/** Croix rouge d'un coin à l'autre : média ou document refusé par l'autre parent (reste supprimable) */
+const XMARK = '<svg class="xmark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Refusé"><line x1="0" y1="0" x2="100" y2="100"/><line x1="100" y1="0" x2="0" y2="100"/></svg>';
 function memTile(m) {
-  return `<button class="ph ${m.pub === false && !m.priv ? 'pend' : ''}" data-act="mem-open" data-id="${m.id}" title="${esc(m.title || '')}">${m.thumb ? `<img src="${m.thumb}" alt="">` : '📷'}${m.type === 'video' ? `<i class="play">▶</i>${m.dur ? `<em class="du">${durTxt(m.dur)}</em>` : ''}` : ''}${m.pub === false && !m.priv ? `<b class="pb">${m.refused ? '❌' : isExpired(m) ? '⌛' : '⏳'}</b>` : ''}<span class="ts">${fmtDT(memAt(m))}</span></button>`;
+  const st = m.refused ? 'refused' : isPending(m) ? 'pend' : '';
+  return `<button class="ph ${st}" data-act="mem-open" data-id="${m.id}" title="${esc(m.title || '')}">${m.thumb ? `<img src="${m.thumb}" alt="">` : '📷'}${m.type === 'video' ? `<i class="play">▶</i>${m.dur ? `<em class="du">${durTxt(m.dur)}</em>` : ''}` : ''}${st === 'pend' ? `<b class="pb">${isExpired(m) ? '⌛' : '⏳'}</b>` : ''}${m.refused ? XMARK : ''}<span class="ts">${fmtDT(memAt(m))}</span></button>`;
 }
 /** Carte de dossier : mosaïque des 4 dernières miniatures, pastille, nombre et date du dernier ajout */
 function folderCard(fd, items) {
@@ -234,7 +283,7 @@ export const views = {
       title: 'Documents', back: 'home',
       html: `${kidChips()}${can('docs') ? `<button class="btn primary block mb mt" data-act="doc-new">${IC.plus} Ajouter un document</button>` : ''}
       <div class="chips scroll mb"><button class="chip sm ${!cat ? 'on' : ''}" data-go="docs">Tous</button>${DCATS.map(c => `<button class="chip sm ${cat === c.v ? 'on' : ''}" data-go="docs" data-params='{"cat":"${c.v}"}'>${c.l}</button>`).join('')}</div>
-      <div class="card">${list.length ? list.map(d => `<div class="li"><button data-act="doc-open" data-id="${d.id}">${thumbHtml(d.thumb, d.mime)}</button><div class="f1"><button style="text-align:left;width:100%" data-act="doc-open" data-id="${d.id}"><div class="lt">${esc(d.title)}</div>${d.pub === false ? `<div class="ls" style="color:var(--warn)">${esc(approvalText(d))}</div>` : ''}<div class="ls">${DCATS.find(c => c.v === d.cat)?.l || ''}${d.childIds?.length ? ' · ' + esc(childNames(d.childIds)) : ''} · 🕓 ${fmtDT(d.createdAt || Date.now())} · ${esc(d.createdByName || '')}${d.fromNote ? ' · 📒 note' : ''}</div></button>
+      <div class="card">${list.length ? list.map(d => `<div class="li ${d.refused ? 'refused' : isPending(d) ? 'pend' : ''}">${d.refused ? XMARK : ''}<button data-act="doc-open" data-id="${d.id}">${thumbHtml(d.thumb, d.mime)}</button><div class="f1"><button style="text-align:left;width:100%" data-act="doc-open" data-id="${d.id}"><div class="lt">${esc(d.title)}</div>${d.pub === false ? `<div class="ls" style="color:var(--warn)">${esc(approvalText(d))}</div>` : ''}<div class="ls">${DCATS.find(c => c.v === d.cat)?.l || ''}${d.childIds?.length ? ' · ' + esc(childNames(d.childIds)) : ''} · 🕓 ${fmtDT(d.createdAt || Date.now())} · ${esc(d.createdByName || '')}${d.fromNote ? ' · 📒 note' : ''}</div></button>
         ${canApprove(d) ? `<div class="row gap wrap" style="margin-top:6px"><button class="btn ok sm" data-act="appr-ok" data-c="docs" data-id="${d.id}">✓ Valider</button><button class="btn danger sm" data-act="appr-no" data-c="docs" data-id="${d.id}">✗ Refuser</button>${isMuted(d) ? '' : `<button class="btn ghost sm" data-act="appr-mute" data-c="docs" data-g="${esc(grpOf(d))}" title="Couper les rappels">🔕</button>`}</div>` : ''}
         ${canResend(d) ? `<div class="row gap" style="margin-top:6px"><button class="btn primary sm" data-act="appr-resend" data-c="docs" data-g="${esc(grpOf(d))}">📤 Renvoyer pour validation</button></div>` : ''}</div>
         ${isParent() || d.createdBy === uid() ? `<button class="ib" data-act="doc-del" data-id="${d.id}">${IC.trash}</button>` : ''}</div>`).join('') : '<div class="empty"><div class="e-i">📁</div>Coffre-fort vide. Ajoutez carnet de santé, certificats, jugement…</div>'}</div>
@@ -334,12 +383,14 @@ export const views = {
         <div class="prow"><span>Périodes personnalisées</span><b>${(st.customHolidays || []).length}</b></div></div>
       <div class="card"><h3>📲 Notifications push</h3>
         <div class="prow"><span>Alertes sur ce téléphone</span><b>${m.ntfyOn ? '✅ Activées' : '⏸️ Désactivées'}</b></div>
-        ${par ? `<div class="prow"><span>Rappel avant chaque relais</span><b>${m.remind === 'off' ? 'Aucun' : (m.remind || 120) >= 60 ? ((m.remind || 120) / 60) + ' h avant' : m.remind + ' min avant'}</b></div>` : ''}
+        ${par ? Object.entries(alertDefaults(m)).map(([k, c]) => `<div class="prow"><span>${ALERT_LABELS[k]}</span><b>${esc(alertText(c))}</b></div>`).join('') : ''}
         <button class="btn primary block mt" data-act="push-setup">Configurer</button>
         <div class="hint">Gratuit, sans compte, sur iPhone et Samsung, via l'application « ntfy ». Vous n'êtes jamais notifié de vos propres actions.</div></div>
       <div class="card"><h3>📱 Widgets</h3><p class="small muted" style="margin-top:0">Garde du jour, semaine, mois, pleine page et programme sur l'écran d'accueil.</p><button class="btn ghost block" data-go="widgets">Configurer les widgets</button></div>
       <div class="card"><h3>📤 Exporter</h3><button class="btn soft block" data-act="print-year">🖨️ Imprimer le calendrier annuel</button><button class="btn soft block mt" data-act="ics-sheet">📅 Vers Google Agenda / Samsung / iPhone (.ics)</button>${can('expenses') ? '<button class="btn soft block mt" data-act="exp-csv">💰 Dépenses (tableur .csv)</button>' : ''}</div>
       ${par ? `<div class="card"><h3>🎒 Sac</h3><p class="small muted" style="margin-top:0">Repartir de zéro : efface les affaires, listes des vacances et relais du sac (ce cercle et le cercle de test), avec leurs notifications. Vos listes type sont gardées.</p><button class="btn soft block" style="color:var(--err)" data-act="sac-reset">🧹 Tout effacer et recommencer</button></div>` : ''}
+      ${par ? `<div class="card"><h3>🛡️ Règles Firestore</h3><p class="small muted" style="margin-top:0">Après une mise à jour qui le demande : copiez les règles ici, puis dans Firebase › Firestore › Règles, remplacez tout le texte et touchez « Publier ».</p>
+        <button class="btn soft block" data-act="rules-copy">📋 Copier les règles (version ${VERSION})</button></div>` : ''}
       <div class="card"><h3>ℹ️ Application</h3>
         <button class="btn soft block" data-act="app-refresh">${IC.refresh} Mettre à jour / vider le cache</button>
         ${S.be.mode === 'demo' ? `<button class="btn soft block mt" data-act="demo-off">Quitter le mode démo</button>` : ''}
@@ -681,18 +732,37 @@ export const actions = {
   'set-hol-del': async el => { const st = settings(); await guard(() => setFamily({ settings: { ...st, customHolidays: (st.customHolidays || []).filter(h => h.id !== el.dataset.id) } }), 'Période supprimée'); el.closest('.per')?.remove(); },
   'push-setup': () => {
     const m = me(), topic = m.ntfyTopic || ('sjf-' + randomId(14).toLowerCase());
-    openSheet(`<h3 class="sh-title">📲 Notifications push</h3>
+    const sh = openSheet(`<h3 class="sh-title">📲 Notifications push</h3>
       <div class="steps"><div class="st"><span class="sn">1</span><span class="f1">Installez l'app gratuite <b>ntfy</b> : <a class="lnk" href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Samsung / Android</a> · <a class="lnk" href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a></span></div>
       <div class="st"><span class="sn">2</span><span class="f1">Dans ntfy, touchez <b>+</b> et abonnez-vous à ce sujet secret :</span></div></div>
       <code class="tok">${esc(topic)}</code><button class="btn soft block mt" data-act="w-copy" data-v="${esc(topic)}">${IC.copy} Copier le sujet</button>
       <label class="row gap mt2"><span class="sw"><input type="checkbox" name="on" ${m.ntfyOn ? 'checked' : ''}><span></span></span><span class="f1"><b>Recevoir les alertes</b> ${isParent() ? '(échanges, dépenses, agenda, liaison… des autres membres)' : '(nouveaux souvenirs, notes qui vous sont adressées)'}</span></label>
-      ${isParent() ? `<label class="lbl">Rappel avant chaque relais</label><select class="in" name="remind">${[['off', 'Aucun rappel'], ['30', '30 min avant'], ['60', '1 h avant'], ['120', '2 h avant'], ['240', '4 h avant'], ['1440', 'La veille (24 h avant)']].map(([v, l]) => `<option value="${v}" ${String(m.remind || '120') === v ? 'selected' : ''}>${l}</option>`).join('')}</select>` : ''}
+      ${isParent() ? `<div class="lbl">Mes rappels habituels</div>${Object.entries(alertDefaults(m)).map(([k, c]) => alertEditor(k, ALERT_LABELS[k], c)).join('')}
+        <div class="hint">Relais : rappel pour vos remises et vos récupérations. Événements : rappel si c'est vous qui déposez ou récupérez (ou si vous avez les enfants ce jour-là). Pour un événement ou un échange précis : bouton « 🔔 Mes rappels ».</div>` : ''}
       <input type="hidden" name="topic" value="${esc(topic)}">
       <div class="sh-actions"><button class="btn soft f1" data-act="push-test" data-t="${esc(topic)}">Tester</button><button class="btn primary f1" data-act="push-save">Enregistrer</button></div>`);
+    if (isParent()) alertBind(sh);
+  },
+  'rules-copy': async () => {
+    let txt = '';
+    try { txt = await (await fetch(`REGLES-FIRESTORE.txt?v=${VERSION}&t=${Date.now()}`, { cache: 'no-store' })).text(); } catch (e) { /* */ }
+    if (!/FIN des règles/.test(txt)) return toast('Règles introuvables : vérifiez la connexion.', 'err');
+    const n = txt.trim().split('\n').length;
+    if (await copyText(txt)) return toast(`Règles copiées (${n} lignes). Collez-les dans Firebase à la place de tout le texte.`, 'ok', 5000);
+    const sh = openSheet(`<h3 class="sh-title">📋 Règles Firestore</h3><p class="small muted">Copie automatique impossible : touchez le texte, « Tout sélectionner » puis « Copier ».</p><textarea class="in" rows="12" readonly>${esc(txt)}</textarea>
+      <div class="sh-actions"><button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
+    sh.querySelector('textarea').select();
+  },
+  'al-save': async el => {
+    const f = readForm(el.closest('.sheet'));
+    const ok = await guard(async () => { await saveItemAlerts(el.dataset.k, el.dataset.id, f); return true; }, 'Rappels enregistrés');
+    if (ok) closeSheet();
   },
   'push-save': async el => {
-    const f = readForm(el.closest('.sheet'));
-    await guard(async () => { await updItem('members', uid(), { ntfyTopic: f.topic, ntfyOn: !!f.on, remind: f.remind || '120' }); await log('cercle', `Notifications push ${f.on ? 'activées' : 'désactivées'} sur ce téléphone`, { to: 'self', icon: '📲' }); }, 'Notifications enregistrées');
+    const f = readForm(el.closest('.sheet')), m = me();
+    const def = isParent() ? Object.fromEntries(Object.keys(ALERT_LABELS).map(k => [k, readAlert(f, k)])) : null;
+    const extra = def ? { alerts: { ...(m.alerts || {}), def }, remind: def.relPick.on ? String(def.relPick.b) : 'off' } : {};
+    await guard(async () => { await updItem('members', uid(), { ntfyTopic: f.topic, ntfyOn: !!f.on, ...extra }); queueReminders(); await log('cercle', `Notifications push ${f.on ? 'activées' : 'désactivées'} sur ce téléphone`, { to: 'self', icon: '📲' }); }, 'Notifications enregistrées');
     closeSheet();
   },
   'push-test': async el => { await ntfyPublish(el.dataset.t, { title: '✅ SJ Family', message: 'Les notifications fonctionnent sur ce téléphone.', tags: ['tada'] }); toast('Notification de test envoyée'); },
@@ -780,6 +850,7 @@ export function ruleText(r) {
 /** « · déposés par Khalid à l'école · récupérés par Jounayda chez Jounayda · si impossible : … » (relais et événements) */
 export function dpText(r, place = r.place) {
   const p = parents(), N = c => p[c]?.name || '';
+  if (!r.from && !r.to && place && (!r.dropPlace || r.dropPlace === place)) return ` · 📍 ${place}${r.alt?.on ? ' · si impossible : ' + altText(r.alt) : ''}`;
   const drop = r.from || r.dropPlace ? ` · déposés${r.from ? ' par ' + N(r.from) : ''}${r.dropPlace ? ' ' + placeWord(r.dropPlace) : ''}` : '';
   const pick = r.to || place ? ` · récupérés${r.to ? ' par ' + N(r.to) : ''}${place ? ' ' + placeWord(place) : ''}` : '';
   return `${drop}${pick}${r.alt?.on ? ' · si impossible : ' + altText(r.alt) : ''}`;
@@ -900,10 +971,100 @@ function testCard() {
     <p class="small muted" style="margin-top:0">Un cercle d'essai séparé avec une <b>Maman TEST</b>, pour tout essayer (validations, listes des vacances, notes…) sans toucher à votre vrai cercle ni prévenir l'autre parent.</p>
     ${t ? `<div class="prow"><span>Compte Maman TEST</span><b class="small">${esc(t.email)}</b></div>
       <div class="row gap mt"><button class="btn primary f1" data-act="test-switch">👩 Passer en Maman TEST</button><button class="btn soft f1" data-act="test-creds">🔑 Identifiants</button></div>
-      ${inTest ? testProches(t) : ''}
+)      ${inTest ? testProches(t) : ''}
+      <button class="btn soft block mt" data-act="test-who">🔄 Changer de personnage</button>
+      <button class="btn soft block mt" data-act="test-copy">📥 Copier depuis mon vrai cercle…</button>
       <button class="btn soft block mt" data-act="fam-switch" data-id="${inTest ? (t.realFid || '') : t.fid}">${inTest ? '🏠 Revenir à mon vrai cercle' : '🧪 Ouvrir le cercle de test'}</button>`
     : `<button class="btn primary block" data-act="test-create">🧪 Créer le cercle de test avec une Maman TEST</button>`}</div>`;
 }
+/** Personnages du mode test : vous, Maman TEST, les proches TEST (déjà ouverts, ou acceptés par les deux parents) */
+function whoSheet() {
+  const t = testAcc(); if (!t) return;
+  const me = S.user?.email || '', cur = S.acc !== 'test' ? 'moi' : /^maman\.test\./.test(me) ? 'maman' : (Object.entries(t.proches || {}).find(([, c]) => c.email === me) || [])[0];
+  const canCreate = S.fid === t.fid && isParent() && (testOwner() || S.acc === 'test');
+  const row = (k, ic, n, sub, act) => `<div class="li"><div class="le">${ic}</div><div class="f1"><div class="lt">${esc(n)}</div><div class="ls">${sub}</div></div>${cur === k ? '<span class="pill ok">vous êtes ici</span>' : act || ''}</div>`;
+  const rows = [
+    row('moi', '👨', `${t.mainName || (S.acc !== 'test' ? myName() : 'Mon compte')} (vous)`, 'Votre vrai compte, parent A', `<button class="btn soft sm" data-act="test-back">Devenir</button>`),
+    row('maman', '👩', 'Maman TEST', 'Parent B du cercle de test', `<button class="btn soft sm" data-act="test-go" data-id="maman">Devenir</button>`),
+    ...T_PROCHES.map(x => {
+      const has = !!t.proches?.[x[0]]?.uid, inv = (S.invites || []).find(v => v.prenom === x[0] && v.nom === 'TEST'), okInv = inv && ['pending', 'joined'].includes(inv.state);
+      const act = has ? `<button class="btn soft sm" data-act="test-go" data-id="${esc(x[0])}">Devenir</button>` : canCreate && okInv ? `<button class="btn soft sm" data-act="test-as" data-id="${esc(x[0])}">Devenir</button>` : '';
+      const why = has || okInv ? '' : S.acc === 'test' && !isParent() ? ' · <span class="muted">à ouvrir une 1re fois depuis un parent</span>' : ' · <span class="muted">attend l\'accord des deux parents</span>';
+      return row(x[0], '👵', `${x[0]} TEST`, `Proche · ${esc(x[1])}${why}`, act || '<span class="small muted">—</span>');
+    }),
+  ].join('');
+  openSheet(`<h3 class="sh-title">🔄 Changer de personnage</h3><p class="small muted" style="margin-top:0">Passez directement d'un personnage à l'autre. Votre vrai compte reste connecté.</p>${rows}
+    <div class="sh-actions"><button class="btn primary f1" data-act="close-sheet">Fermer</button></div>`);
+}
+// ───── Copier des éléments du vrai cercle dans le cercle de test (au choix, sans doublon)
+const COPY_CATS = [
+  { k: 'events', l: '🗓️ Événements et activités', colls: ['events', 'pevents'], n: d => `${d.icon || '📌'} ${d.title || 'Événement'}${d.time ? ' · ' + d.time : ''}` },
+  { k: 'plannings', l: '📅 Plannings de garde', colls: ['plannings'], n: d => `${d.icon || '📅'} ${d.title || 'Planning'}${d.state && d.state !== 'active' ? ' (' + d.state + ')' : ''}` },
+  { k: 'exchanges', l: '🔄 Échanges', colls: ['exchanges'], n: d => d.summary || 'Échange' },
+  { k: 'tasks', l: '✅ Tâches', colls: ['tasks'], n: d => d.title || 'Tâche' },
+  { k: 'contacts', l: '📇 Contacts', colls: ['contacts'], n: d => d.name || 'Contact' },
+  { k: 'expenses', l: '💶 Dépenses', colls: ['expenses'], n: d => `${d.title || 'Dépense'}${d.amount != null ? ' · ' + d.amount + ' €' : ''}` },
+  { k: 'sac', l: '🎒 Sac', colls: ['sac'], n: d => d.title || d.name || d.label || 'Objet' },
+  { k: 'docs', l: '📁 Documents', colls: ['docs'], n: d => d.title || 'Document' },
+  { k: 'memories', l: '📸 Souvenirs (photos et vidéos)', colls: ['memories'], n: d => `${d.type === 'video' ? '🎬' : '🖼️'} ${d.title || 'Souvenir'}${d.priv ? ' 🔒' : ''}` },
+];
+async function copySources() {
+  const t = testAcc(), db = S.be.db, src = t.realFid, dst = t.fid, out = [];
+  for (const c of COPY_CATS) {
+    const items = [];
+    for (const coll of c.colls) {
+      const [a, b] = await Promise.all([db.list(`families/${src}/${coll}`).catch(() => []), db.list(`families/${dst}/${coll}`).catch(() => [])]);
+      const have = new Set(b.flatMap(x => [x.id, x.copiedFrom].filter(Boolean)));
+      // même contenu déjà présent (planning copié à la création du cercle de test, activités créées dans les deux cercles)
+      const same = d => b.some(x => (coll === 'plannings' && x.title === d.title && x.start === d.start)
+        || ((coll === 'events' || coll === 'pevents') && x.title === d.title && (x.time || '') === (d.time || '') && x.date === d.date && JSON.stringify(x.dows || []) === JSON.stringify(d.dows || [])));
+      for (const d of a) items.push({ coll, d, dup: have.has(d.id) || same(d) });
+    }
+    out.push({ ...c, items });
+  }
+  return out;
+}
+function copySheet(cats) {
+  const box = (c, it, i) => `<label><input type="checkbox" name="cp" value="${c.k}:${i}" ${it.dup ? 'disabled' : 'checked'}><span class="f1 small">${esc(c.n(it.d))}${it.dup ? ' <span class="pill ok">déjà copié</span>' : ''}</span></label>`;
+  const sh = openSheet(`<h3 class="sh-title">📥 Copier dans le cercle de test</h3><p class="small muted" style="margin-top:0">Choisissez ce que vous voulez retrouver dans « 🧪 Famille TEST ». Votre vrai cercle n'est pas modifié et personne n'est prévenu. Rien n'est copié deux fois.</p>
+    <label class="row gap mt"><span class="sw"><input type="checkbox" name="cpSettings"><span></span></span><span class="f1">⚙️ Réglages du cercle (zone, horaires, relais habituels)</span></label>
+    ${cats.map(c => `<details class="cpcat"><summary><input type="checkbox" data-cpall="${c.k}" ${c.items.some(x => !x.dup) ? 'checked' : 'disabled'}> <b>${c.l}</b> <span class="muted small">(${c.items.length})</span></summary>
+      <div class="ckl">${c.items.length ? c.items.map((it, i) => box(c, it, i)).join('') : '<div class="small muted">Rien dans le vrai cercle.</div>'}</div></details>`).join('')}
+    <div class="hint">Les enfants sont reliés par leur prénom. Les éléments copiés sont à votre nom dans le cercle de test.</div>
+    <div class="sh-actions"><button class="btn ghost f1" data-act="close-sheet">Annuler</button><button class="btn primary f1" data-act="test-copy-go">Copier</button></div>`);
+  sh._cats = cats;
+  sh.addEventListener('change', e => {
+    const a = e.target.dataset?.cpall;
+    if (a) sh.querySelectorAll(`input[name=cp][value^="${a}:"]:not(:disabled)`).forEach(i => { i.checked = e.target.checked; });
+  });
+  sh.querySelectorAll('summary input').forEach(i => i.addEventListener('click', e => e.stopPropagation()));
+}
+/** Copie : mêmes identifiants (pas de doublon), enfants reliés par prénom, auteur = vous */
+async function copyToTest(cats, picks, withSettings) {
+  const t = testAcc(), db = S.be.db, src = t.realFid, dst = t.fid, me = uid(), nm = myName();
+  const [kS, kD, famS] = await Promise.all([db.list(`families/${src}/children`), db.list(`families/${dst}/children`), db.get(`families/${src}`)]);
+  const norm = x => String(x || '').trim().toLowerCase(), kmap = {};
+  for (const k of kS) { const d = kD.find(x => norm(x.prenom) === norm(k.prenom)); if (d) kmap[k.id] = d.id; }
+  const mk = ids => (ids || []).map(i => kmap[i]).filter(Boolean);
+  let n = 0;
+  if (withSettings && famS?.settings) { await db.update(`families/${dst}`, { settings: { ...famS.settings } }); n++; }
+  for (const c of cats) for (const [i, it] of c.items.entries()) {
+    if (it.dup || !picks.has(`${c.k}:${i}`)) continue;
+    const { id, ...d } = it.d;
+    const data = { ...d, copiedFrom: id, createdBy: me, createdByName: nm };
+    if (Array.isArray(d.childIds)) data.childIds = mk(d.childIds);
+    if (d.childId) data.childId = kmap[d.childId] || null;
+    if ('by' in d) data.by = me;
+    if (d.blobId) { const b = await db.get(`families/${src}/blobs/${d.blobId}`).catch(() => null); if (b) { const { id: _b, ...bd } = b; await db.set(`families/${dst}/blobs/${d.blobId}`, { ...bd, by: me }); } }
+    if (c.k === 'memories' && d.type === 'video') for (let v = 0; v < (d.chunks || 0); v++) {
+      const b = await db.get(`families/${src}/blobs/${id}_v${v}`).catch(() => null); if (b) { const { id: _b, ...bd } = b; await db.set(`families/${dst}/blobs/${id}_v${v}`, { ...bd, by: me }); }
+    }
+    await db.set(`families/${dst}/${it.coll}/${id}`, data); n++;
+    if (c.k === 'events') for (const x of await db.list(`families/${src}/evx`, { where: [['evId', '==', id]] }).catch(() => [])) { const { id: xid, ...xd } = x; await db.set(`families/${dst}/evx/${xid}`, { ...xd, by: me }); }
+  }
+  return n;
+}
+
 function credsSheet(t) {
   openSheet(`<h3 class="sh-title">🔑 Maman TEST</h3><p class="small muted">Compte d'essai (adresse fictive, aucun e-mail envoyé). Pour l'utiliser : <b>Passer en Maman TEST</b>, ou connectez-vous avec ces identifiants dans un autre navigateur (Samsung Internet) pour avoir les deux parents en même temps.</p>
     <div class="prow"><span>E-mail</span><b>${esc(t.email)}</b></div><div class="prow"><span>Mot de passe</span><b>${esc(t.pw)}</b></div>
@@ -916,7 +1077,7 @@ Object.assign(actions, {
     await new Promise(r => setTimeout(r, 400)); // laisse la fenêtre de confirmation se fermer
     el.disabled = true; toast('Création du cercle de test…', 'ok', 2500);
     const realFid = S.fid, db = S.be.db, rnd = randomId(6).toLowerCase();
-    const t = { email: `maman.test.${rnd}@example.com`, pw: 'Test-' + randomId(6), realFid, mainEmail: S.user.email, ownerUid: uid() };
+    const t = { email: `maman.test.${rnd}@example.com`, pw: 'Test-' + randomId(6), realFid, mainEmail: S.user.email, mainName: myName(), ownerUid: uid() };
     const kids = [...S.children], infos = [...S.childInfo], pls = S.plannings.filter(x => x.state === 'active'), st = settings(), short = parents()[myCode() || 'A'].short || 'Papa';
     const ok = await guard(async () => {
       const fid = await createFamily({ name: '🧪 Famille TEST', mine: short, oprenom: 'Maman', onom: 'TEST', noInvite: true, zone: st.zone, ht: st.handoverTime });
@@ -945,12 +1106,29 @@ Object.assign(actions, {
     if (ok) credsSheet(t);
   },
   'test-creds': () => { const t = testAcc(); if (t) credsSheet(t); },
+  'test-who': () => whoSheet(),
+  // passer directement d'un personnage de test à un autre (comptes déjà créés)
+  'test-go': el => { const t = testAcc(), who = el.dataset.id; if (!t || (who !== 'maman' && !t.proches?.[who]?.uid)) return; LS.set('testAs', who); LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
+  'test-copy': async el => {
+    const t = testAcc(); if (!t?.realFid || S.acc === 'test' || !isParent()) return toast('Depuis votre vrai compte seulement.', 'warn');
+    el.disabled = true; toast('Lecture de votre vrai cercle…', 'ok', 1500);
+    const cats = await guard(copySources); el.disabled = false;
+    if (cats) copySheet(cats);
+  },
+  'test-copy-go': async el => {
+    const sh = el.closest('.sheet'), picks = new Set([...sh.querySelectorAll('input[name=cp]:checked')].map(i => i.value)), withSet = !!sh.querySelector('[name=cpSettings]')?.checked;
+    if (!picks.size && !withSet) return toast('Cochez au moins un élément.', 'warn');
+    el.disabled = true; toast('Copie en cours…', 'ok', 2000);
+    const n = await guard(() => copyToTest(sh._cats, picks, withSet));
+    el.disabled = false;
+    if (n != null) { closeSheet(); toast(`${n} élément${n > 1 ? 's copiés' : ' copié'} dans le cercle de test 🧪`, 'ok', 3500); }
+  },
   // Maman TEST tourne dans une session séparée : votre compte reste connecté
   'test-switch': () => { if (!testAcc() || (!testOwner() && S.acc !== 'test')) return; LS.set('testAs', 'maman'); LS.set('acc', 'test'); location.hash = '#/home'; location.reload(); },
   // Devenir un proche de test (accepté par les deux parents) : compte créé et ajouté au cercle de test la première fois
   'test-as': async el => {
     const t = testAcc(), who = el.dataset.id, x = T_PROCHES.find(y => y[0] === who);
-    if (!t || !x || S.fid !== t.fid || !testOwner()) return;
+    if (!t || !x || S.fid !== t.fid || !isParent() || (!testOwner() && S.acc !== 'test')) return;
     const inv = (S.invites || []).find(v => v.prenom === who && v.nom === 'TEST');
     if (!inv || !['pending', 'joined'].includes(inv.state)) return toast(`${who} attend encore l'accord des deux parents.`, 'warn');
     t.proches = t.proches || {};

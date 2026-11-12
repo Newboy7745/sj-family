@@ -295,6 +295,33 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
 - **Tout est daté et horodaté** : chaque photo ou vidéo garde la date et l'heure de prise de vue (sur la miniature, dans
   la visionneuse, avec l'heure d'ajout si elle diffère) ; chaque document affiche sa date et son heure d'ajout.
 
+## 10 undecies. Nouveautés 6.16
+
+> ⚠️ **Règles Firestore modifiées** : Réglages › 🛡️ Règles Firestore › « Copier les règles », puis Firebase › Firestore ›
+> Règles : remplacez tout le texte, « Publier ». La 2e ligne doit dire « SJ Family 6.16 », la dernière « FIN des règles SJ Family 6.16 ».
+
+- **Qui fait quoi** : seuls les parents créent des événements (les proches les voient) ; seul le parent qui a créé un
+  événement le modifie ou le supprime. Absences et matchs : l'un ou l'autre parent.
+- **Plusieurs jours par semaine** (ex. mardi et jeudi) et **vacances scolaires** : rien, 1re semaine seulement, ou maintenu.
+- **Fiche d'une séance** (touchez l'événement dans l'agenda) : 🙋 Absent (cause facultative), ⚽ Match de foot à la place
+  (si l'événement le permet : enfant, horaires, lieu), ↩️ Rétablir, 🔔 Mes rappels ; pour le créateur : ✏️ Modifier et
+  🗑️ Supprimer ce jour, plusieurs jours (cases à cocher) ou toute la série.
+- **Réservé aux parents** : « Qui voit cet événement ? 🔒 Les parents seulement » (choisi d'office pour 🚌 Sortie scolaire
+  (accompagnement)) : seul l'autre parent est informé, les proches ne le voient pas.
+- **Rappels personnalisés** (Réglages › Notifications push) : pour la remise et la récupération des relais, la dépose et la
+  récupération des événements : combien de temps avant, combien de rappels, à quel intervalle. Pour un événement ou un
+  échange précis : « 🔔 Mes rappels » (habituels, personnalisés ou aucun). Rappels annulés si la séance est annulée.
+- **Bilan des activités** (Agenda › 📊) : séances faites, à venir, heures, absences, matchs, par activité (tous jours
+  confondus) sur l'année scolaire, de vacances à vacances ou entre deux dates.
+- **Widgets** : séances annulées retirées, matchs ajoutés (pas de nouvelle appli à installer).
+- **Activités de l'année** : lien `…/#/agenda?preset=activites` (foot et PDC de Selman et Jandal), sans doublon,
+  dans le vrai cercle et le cercle de test (cases à cocher).
+- **Validation des souvenirs et documents** : en attente = entourés de rouge ; refusés = barrés d'une croix rouge d'un
+  coin à l'autre, visibles seulement par la personne qui les a envoyés (toujours supprimables).
+- **Mode test** : bouton 🔄 dans le bandeau pour passer directement d'un personnage à l'autre (vous, Maman TEST, les proches
+  TEST) ; « 📥 Copier depuis mon vrai cercle… » (Réglages › Mode test) : événements, plannings, échanges, tâches,
+  contacts, dépenses, sac, documents, souvenirs, réglages, au choix, sans doublon.
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

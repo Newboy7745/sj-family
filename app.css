@@ -420,3 +420,29 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .fold .fs{font-size:12.5px;color:var(--muted);margin:0 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grid3 .ph span.ts{left:0;right:0;bottom:0;padding:12px 5px 4px;font-size:10.5px;font-weight:800;background:linear-gradient(transparent,rgba(10,20,35,.62));text-shadow:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .grid3 .ph .du{position:absolute;right:5px;bottom:20px;font-style:normal;font-size:10.5px;font-weight:800;color:#fff;background:rgba(15,27,45,.6);border-radius:6px;padding:1px 5px}
+/* 6.16 · rappels personnalisés, séances, bilan des activités */
+.three{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.three .lbl{margin-top:8px}
+.vhide{visibility:hidden}
+.hint.warn{color:var(--warn)}
+.alr{border-top:1px solid var(--line);padding-top:4px;margin-top:6px}
+.alr:first-of-type{border-top:0}
+.occ-x{text-decoration:line-through;opacity:.6}
+.cday .evl.x{opacity:.45;text-decoration:line-through}
+.act-st{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.act-st>div{background:#F4F7FB;border-radius:12px;padding:8px 6px;text-align:center}
+.act-st b{display:block;font-size:20px;color:var(--navy)}
+.act-st span{font-size:11.5px;color:var(--muted)}
+.ckl{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow:auto;margin-top:6px}
+.ckl label{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:12px}
+.ckl input{width:20px;height:20px}
+/* éléments en attente de validation : entourés en rouge ; refusés : croix rouge d'un coin à l'autre */
+.grid3 .ph.pend{outline:3px solid #E0393E;outline-offset:-3px}
+.grid3 .ph.refused{outline:3px solid #E0393E;outline-offset:-3px}
+.grid3 .ph.refused img{opacity:.55}
+.xmark{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+.xmark line{stroke:#E0393E;stroke-width:4;vector-effect:non-scaling-stroke;stroke-linecap:round}
+.li.pend{outline:2px solid #E0393E;outline-offset:2px;border-radius:12px}
+.li.refused{position:relative;outline:2px solid #E0393E;outline-offset:2px;border-radius:12px}
+.li.refused .lt{text-decoration:line-through}
+.testbar>span{flex:1}

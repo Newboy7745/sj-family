@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.15';
-import { toast, esc } from './ui.js?v=6.15';
+import * as E from './engine.js?v=6.16';
+import { toast, esc } from './ui.js?v=6.16';
 
-export const VERSION = '6.15';
+export const VERSION = '6.16';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Version minimale de l'appli Android des widgets (numéro de compilation) : au-dessous, le widget propose la mise à jour */
 export const WIDGETS_APK = 13;
@@ -54,7 +54,7 @@ export { LS };
 
 export const S = {
   be: null, user: null, profile: null, fid: null, family: null, families: {}, meMember: null, priv: null,
-  members: [], invites: [], children: [], childInfo: [], plannings: [], exchanges: [], events: [], tasks: [], notes: [],
+  members: [], invites: [], children: [], childInfo: [], plannings: [], exchanges: [], events: [], pevents: [], evx: [], tasks: [], notes: [],
   expenses: [], docs: [], contacts: [], memories: [], sac: [], sacRuns: [], activity: [], legacy: [], loaded: {},
   sel: new Set(LS.get('sel', [])), route: { view: 'home', params: {} }, ui: {},
 };
@@ -93,6 +93,18 @@ export function hoPlace(h, pre = ' · ') {
   return `${pre}📍 ${d && p && d !== p ? `Dépose : ${d} · Récupération : ${p}` : p || d}`;
 }
 export const pColor = c => parents()[c]?.color || '#ddd';
+/** Événements visibles : ceux du cercle, plus (parents) ceux réservés aux parents, ex. accompagnement d'une sortie scolaire */
+export function allEvents() { return isParent() ? [...S.events, ...S.pevents.map(e => ({ ...e, pe: true }))] : S.events; }
+export const findEvent = id => allEvents().find(e => e.id === id) || null;
+/** Absences et matchs des séances : { 'idEvénement_date': état } */
+export function evxMap() { const m = {}; for (const x of S.evx) if (x.evId && x.date) m[E.evxKey(x.evId, x.date)] = x; return m; }
+/** Seul le parent qui a créé l'événement le modifie ou le supprime (un événement créé par un proche reste gérable par les parents) */
+export function canEditEv(ev) { const p = parents(); return !!ev && isParent() && (ev.createdBy === uid() || ![p.A.uid, p.B.uid].includes(ev.createdBy)); }
+/** Occurrences avec leur état (absence, match) entre deux dates, pour les enfants choisis */
+export function occs(from, to, ids = null) {
+  const o = E.withStatus(E.expandEvents(allEvents(), from, to, settings()), evxMap());
+  return ids ? o.filter(e => !e.childIds?.length || e.childIds.some(i => ids.includes(i))) : o;
+}
 export function me() { return S.meMember || S.members.find(m => m.uid === uid()) || { uid: uid(), name: S.profile?.prenom || 'Moi' }; }
 export function myCode() { const p = parents(); return p.A.uid && p.A.uid === uid() ? 'A' : p.B.uid && p.B.uid === uid() ? 'B' : null; }
 export const isParent = () => !!myCode();
@@ -203,28 +215,97 @@ export function pushTo(uids, title, message, link = null, nid = null) {
   const click = `${APP_URL}#/${link || 'notifs'}${(link || '').includes('?') ? '&' : '?'}fam=${S.fid}${nid ? '&n=' + nid : ''}`;
   for (const u of uids) { const m = S.members.find(x => x.uid === u); if (m && m.uid !== uid() && m.ntfyOn && m.ntfyTopic) ntfyPublish(m.ntfyTopic, { title, message, click }); }
 }
-/** Rappels de relais programmés (≤ 3 jours à l'avance, sans doublon entre téléphones) */
-export async function scheduleReminders() {
-  if (!S.fid || S.be?.mode === 'demo' || !S.children.length || !isParent()) return;
-  const today = E.todayISO(), eng = engine();
-  const hs = eng.handovers(S.children.map(c => c.id), today, E.addDays(today, 2));
-  const now = Date.now();
-  for (const h of hs) {
-    const [Y, M, D] = h.date.split('-').map(Number), [hh, mm] = h.time.split(':').map(Number);
-    const at = new Date(Y, M - 1, D, hh, mm).getTime();
-    for (const m of S.members) {
-      if (!m.ntfyOn || !m.ntfyTopic || !m.parentCode || m.remind === 'off') continue;
-      const before = (+m.remind || 120) * 60000, when = at - before;
-      if (when < now + 60000 || when > now + 70 * 3600000) continue;
-      const key = `${h.date}_${h.time.replace(':', '')}_${h.to}_${m.uid}`;
-      try {
-        const created = await S.be.db.createIfAbsent(fpath('reminders', key), { at: when, uid: m.uid, createdAt: now });
-        if (!created) continue;
-        const mine = h.to === m.parentCode ? `Récupération de ${childNames(h.childIds)}` : `Remise de ${childNames(h.childIds)} à ${pName(h.to)}`;
-        ntfyPublish(m.ntfyTopic, { title: `🔁 Relais ${E.relDay(h.date)} à ${hoTime(h)}`, message: `${mine}${hoPlace(h, ' — ')}`, delay: String(Math.round(when / 1000)), tags: ['bell'] });
-      } catch (e) { console.warn('reminder', e); }
+// ───── Rappels personnalisés : pour chaque action (remise / récupération d'un relais, dépose / récupération d'un événement),
+// combien de temps avant, combien de rappels et à quel intervalle. Réglages par défaut de chaque parent (fiche membre
+// alerts.def), et réglage propre à un événement (alerts.ev[id]) ou à un échange (alerts.x[id]) : habituel, personnalisé ou aucun.
+// Envoi : notifications ntfy programmées (≤ 3 jours à l'avance), registre reminders/al… partagé : pas de doublon, annulation si besoin.
+export const ALERT_LABELS = { relDrop: '🔁 Relais : remise des enfants', relPick: '🔁 Relais : récupération des enfants', evDrop: '🗓️ Événements : dépose', evPick: '🗓️ Événements : récupération' };
+const legacyRemind = m => (m?.remind === 'off' ? { on: false, b: 120, n: 1, i: 30 } : { on: true, b: +m?.remind || 120, n: 1, i: 30 });
+export function alertDefaults(m) {
+  const a = m?.alerts?.def || {}, rel = legacyRemind(m);
+  return { relDrop: a.relDrop || rel, relPick: a.relPick || rel, evDrop: a.evDrop || { on: true, b: 60, n: 1, i: 15 }, evPick: a.evPick || { on: true, b: 30, n: 1, i: 15 } };
+}
+/** Réglage d'un parent pour un événement ('ev') ou un échange ('x') : { mode: 'def' | 'custom' | 'off', drop, pick } */
+export const itemAlerts = (m, kind, id) => m?.alerts?.[kind]?.[id] || { mode: 'def' };
+/** Instants des rappels avant l'heure at (le dernier au plus tard à l'heure dite) */
+export function alertSteps(cfg, at) {
+  if (!cfg?.on) return [];
+  const n = Math.max(1, Math.min(5, +cfg.n || 1)), iv = Math.max(1, +cfg.i || 15) * 60000, out = [];
+  for (let k = 0; k < n; k++) { const t = at - (+cfg.b || 60) * 60000 + k * iv; if (t <= at) out.push(t); }
+  return out;
+}
+export const durTxt = min => (min >= 1440 && min % 1440 === 0 ? (min === 1440 ? '1 jour' : `${min / 1440} jours`) : min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ' ' + String(min % 60).padStart(2, '0') : ''}` : `${min} min`);
+/** « 1 h avant, puis toutes les 15 min (3 rappels) » */
+export function alertText(cfg) {
+  if (!cfg?.on) return 'Aucun rappel';
+  const n = Math.max(1, +cfg.n || 1);
+  return `${durTxt(+cfg.b || 60)} avant${n > 1 ? `, puis toutes les ${durTxt(+cfg.i || 15)} (${n} rappels)` : ''}`;
+}
+const cyrb = str => { let h1 = 0xdeadbeef, h2 = 0x41c6ce57; for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); h1 = Math.imul(h1 ^ c, 2654435761); h2 = Math.imul(h2 ^ c, 1597334677); } h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909); h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909); return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36); };
+const tsOf = (d, t) => { const [Y, M, D] = d.split('-').map(Number), [h, mi] = String(t || '00:00').split(':').map(Number); return new Date(Y, M - 1, D, h, mi).getTime(); };
+/** Échange accepté qui a créé ce relais (jour échangé = ce jour ou le lendemain) */
+const exchangeOf = h => S.exchanges.find(x => x.state === 'accepted' && (x.changes || []).some(c => c.d === h.date || c.d === E.addDays(h.date, 1)));
+/** Rappels voulus dans les heures qui viennent, pour les parents qui ont activé les notifications */
+export function wantedAlerts(now = Date.now(), horizonH = 70) {
+  const out = [], today = E.todayISO(new Date(now)), end = E.addDays(today, 3), eng = engine(), ids = S.children.map(c => c.id);
+  const mem = S.members.filter(m => m.parentCode && m.ntfyOn && m.ntfyTopic);
+  if (!mem.length || !ids.length) return out;
+  const push = (m, key, at, title, message, link, old = null) => { if (at >= now + 60000 && at <= now + horizonH * 3600000) out.push({ key, id: 'al' + cyrb(key), uid: m.uid, topic: m.ntfyTopic, at, title, message, link, old }); };
+  for (const h of eng.handovers(ids, today, end)) {
+    const T = tsOf(h.date, h.time), x = exchangeOf(h);
+    for (const m of mem) {
+      const role = h.from === m.parentCode ? 'drop' : h.to === m.parentCode ? 'pick' : null; if (!role) continue;
+      const ia = x ? itemAlerts(m, 'x', x.id) : { mode: 'def' }; if (ia.mode === 'off') continue;
+      const cfg = ia.mode === 'custom' ? ia[role] : alertDefaults(m)[role === 'drop' ? 'relDrop' : 'relPick'];
+      alertSteps(cfg, T).forEach((at, k) => push(m, `r|${h.date}|${h.time}|${h.from}${h.to}|${h.childIds.join(',')}|${role}|${m.uid}|${k}`, at,
+        `🔁 ${role === 'drop' ? 'Remise' : 'Récupération'} ${E.relDay(h.date)} à ${hoTime(h)}`,
+        `${role === 'drop' ? `${childNames(h.childIds)} → ${pName(h.to)}` : `Récupération de ${childNames(h.childIds)}`}${hoPlace(h, ' — ')}`, `agenda?d=${h.date}`,
+        k === 0 ? `${h.date}_${h.time.replace(':', '')}_${h.to}_${m.uid}` : null)); // rappel déjà programmé par une version précédente
     }
   }
+  for (const o of occs(today, end)) {
+    if ((o.x && !o.match) || !o.time) continue; // absent, remplacé par un match, ou sur la journée
+    const src = o.match ? o.src : o, kid = (o.childIds || [])[0];
+    const hold = kid ? eng.presence(kid, o.occ, E.t2m(o.time)) : null;
+    const by = { drop: src.from || hold, pick: src.to || src.from || hold }, T = { drop: tsOf(o.occ, o.time), pick: o.timeEnd ? tsOf(o.occ, o.timeEnd) : null };
+    const place = o.pickPlace || o.dropPlace || o.place || '';
+    for (const m of mem) {
+      const ia = itemAlerts(m, 'ev', src.id); if (ia.mode === 'off') continue;
+      const def = alertDefaults(m);
+      for (const role of ['drop', 'pick']) {
+        if (!T[role]) continue;
+        let cfg; if (ia.mode === 'custom') cfg = ia[role]; else { if (by[role] !== m.parentCode) continue; cfg = role === 'drop' ? def.evDrop : def.evPick; }
+        alertSteps(cfg, T[role]).forEach((at, k) => push(m, `e|${src.id}|${o.occ}|${o.match ? 'm' : ''}${role}|${m.uid}|${k}`, at,
+          `${o.icon || '📌'} ${role === 'drop' ? 'Dépose' : 'Récupération'} ${E.relDay(o.occ)} à ${E.fmtTime(role === 'drop' ? o.time : o.timeEnd)}`,
+          `${o.title}${o.childIds?.length ? ' · ' + childNames(o.childIds) : ''}${place ? ' — 📍 ' + place : ''}`, `agenda?d=${o.occ}`));
+      }
+    }
+  }
+  return out;
+}
+let remTimer = null;
+export function queueReminders() { clearTimeout(remTimer); remTimer = setTimeout(scheduleReminders, 5000); }
+/** Programme les rappels voulus et annule ceux qui ne le sont plus (réglage changé, séance annulée, événement supprimé) */
+export async function scheduleReminders() {
+  if (!S.fid || !S.children.length || !isParent() || S.alRun) return;
+  S.alRun = true;
+  try {
+    const db = S.be.db, now = Date.now(), want = new Map(wantedAlerts(now).map(a => [a.id, a]));
+    const ledger = await db.list(fpath('reminders'), { where: [['kind', '==', 'al']] }), have = new Set();
+    for (const L of ledger) {
+      if (L.at < now - 7 * 86400000) { await db.del(fpath('reminders', L.id)).catch(() => { }); continue; }
+      const w = want.get(L.id);
+      if (L.at > now + 30000 && (!w || w.at !== L.at || w.topic !== L.topic || w.title !== L.title)) { ntfyCancel(L.topic, L.id); await db.del(fpath('reminders', L.id)).catch(() => { }); continue; }
+      have.add(L.id);
+    }
+    for (const a of want.values()) {
+      if (have.has(a.id)) continue;
+      if (a.old && await db.get(fpath('reminders', a.old)).catch(() => null)) continue; // ancien rappel de relais (avant 6.16) déjà envoyé à ntfy
+      const created = await db.createIfAbsent(fpath('reminders', a.id), { kind: 'al', uid: a.uid, topic: a.topic, at: a.at, title: a.title, createdAt: now });
+      if (!created) continue;
+      ntfyPublish(a.topic, { title: a.title, message: a.message, delay: String(Math.round(a.at / 1000)), seq: a.id, tags: ['bell'], click: `${APP_URL}#/${a.link}&fam=${S.fid}` });
+    }
+  } catch (e) { console.warn('rappels', e); } finally { S.alRun = false; }
 }
 
 // ───── Flux des widgets (document public non listable widgets/{jeton})
@@ -238,7 +319,7 @@ export async function syncFeed(force = false) {
     const par = isParent();
     const feed = E.buildFeed({
       engine: engine(), family: S.family, children: S.children.map(kidFull), parents: parents(),
-      events: S.events, tasks: par ? S.tasks : [], notes: par ? [...S.notes].sort((a, b) => b.at - a.at) : [],
+      events: allEvents(), evx: evxMap(), tasks: par ? S.tasks : [], notes: par ? [...S.notes].sort((a, b) => b.at - a.at) : [],
       includeHealth: par && !!(S.priv?.widgetHealth ?? S.family?.widgetHealth), appUrl: APP_URL, apk: WIDGETS_APK,
     });
     const sig = JSON.stringify({ ...feed, gen: 0 });
@@ -291,7 +372,8 @@ export const isExpired = it => isPending(it) && Date.now() >= expiresAt(it);
 export const canApprove = it => isParent() && isPending(it) && !isExpired(it) && it.createdBy !== uid();
 export const canResend = it => isExpired(it) && it.createdBy === uid();
 /** Les médias expirés ne restent visibles que pour la personne qui les a envoyés (pour les renvoyer) */
-export const shownItem = it => !isExpired(it) || it.createdBy === uid();
+// refusé : ne reste visible que pour la personne qui l'a envoyé (barré d'une croix rouge)
+export const shownItem = it => (it?.refused ? it.createdBy === uid() : !isExpired(it) || it.createdBy === uid());
 export const isMuted = it => !!it?.muted?.[uid()];
 /** Temps restant : « 47 h 12 min », « 15 min » */
 export function leftText(ms) {

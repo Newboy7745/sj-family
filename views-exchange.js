@@ -1,8 +1,8 @@
 // ═══════════════ Échanges de garde & horaires de relais (avec validation de l'autre parent) ═══════════════
-import * as E from './engine.js?v=6.15';
-import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.15';
-import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.15';
-import { placeSel, placeToggle, placeLabel } from './views-more.js?v=6.15';
+import * as E from './engine.js?v=6.16';
+import { S, engine, parents, pName, pShort, hoTime, uid, myName, myCode, isParent, childNames, settings, addItem, updItem, log, guard, needsValidation, selIds } from './core.js?v=6.16';
+import { esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, promptBox, fmtStamp } from './ui.js?v=6.16';
+import { placeSel, placeToggle, placeLabel, myAlertsSheet } from './views-more.js?v=6.16';
 
 const ST = { pending: ['warn', 'En attente'], accepted: ['ok', 'Acceptée'], refused: ['err', 'Refusée'], cancelled: ['', 'Annulée'] };
 // Réponse (ou annulation) faite par l'autre parent : visible dans son onglet jusqu'à ce qu'on l'ait vue puis quitté l'écran
@@ -60,7 +60,7 @@ function card(x, focus = false) {
     <div class="row gap wrap mt">
       ${canDecide ? `<button class="btn ok sm" data-act="x-accept" data-id="${x.id}">✓ Accepter</button><button class="btn danger sm" data-act="x-refuse" data-id="${x.id}">✗ Refuser</button>` : ''}
       ${x.state === 'pending' && x.proposedBy === me ? `<button class="btn soft sm" data-act="x-cancel" data-id="${x.id}">Annuler ma demande</button>` : ''}
-      ${x.state === 'accepted' && isParent() ? `<button class="btn soft sm" data-act="x-revert" data-id="${x.id}">↩️ Demander l'annulation</button>` : ''}
+      ${x.state === 'accepted' && isParent() ? `<button class="btn soft sm" data-act="x-alerts" data-id="${x.id}">🔔 Mes rappels</button><button class="btn soft sm" data-act="x-revert" data-id="${x.id}">↩️ Demander l'annulation</button>` : ''}
     </div></div>`;
 }
 export const views = {
@@ -152,6 +152,7 @@ async function decide(x, state, note = '') {
   await log('echange', `Échange ${state === 'accepted' ? 'accepté' : state === 'refused' ? 'refusé' : 'annulé'} : ${x.summary}`, { body: note, link: `exchanges?id=${x.id}` });
 }
 export const actions = {
+  'x-alerts': el => { const x = S.exchanges.find(y => y.id === el.dataset.id); if (x) myAlertsSheet('x', x.id, x.summary || 'Échange'); },
   'x-new': el => openExchange({ d: el.dataset.d }),
   'x-time': el => openExchange({ type: 'time', d: el.dataset.d, kind: el.dataset.kind, time: '' }),
   'x-save': async el => {

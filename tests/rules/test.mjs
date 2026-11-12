@@ -81,7 +81,8 @@ await t('parent modifie le titre du privé', updateDoc(doc(pa, `families/${F}/me
 await t('proche ne crée pas de blob privé', setDoc(doc(pr, `families/${F}/blobs/bp0`), { kind: 'pmem', by: 'pr', data: 'x' }), false);
 await t('parent crée un blob privé', setDoc(doc(pa, `families/${F}/blobs/bp1`), { kind: 'pmem', by: 'pa', data: 'x' }));
 await t('proche ne lit pas le blob privé', getDoc(doc(pr, `families/${F}/blobs/bp1`)), false);
-await t('proche ajoute un événement', setDoc(doc(pr, `families/${F}/events/e1`), { createdBy: 'pr', title: 'Anniv' }));
+await t('proche ne crée pas d\'événement', setDoc(doc(pr, `families/${F}/events/e1`), { createdBy: 'pr', title: 'Anniv' }), false);
+await t('proche lit les événements', getDocs(collection(pr, `families/${F}/events`)));
 await t('proche notifie un parent', setDoc(doc(pr, `families/${F}/inbox/pa/items/i2`), { by: 'pr', at: 2 }));
 await t('proche ne lit pas l\'historique d\'un parent', getDocs(collection(pr, `families/${F}/inbox/pa/items`)), false);
 await t('proche ne lit pas l\'ancien journal', getDocs(query(collection(pr, `families/${F}/activity`), where('at', '<', T0))), false);
@@ -139,6 +140,28 @@ await t('parent valide le souvenir renvoyé', updateDoc(doc(pa, `families/${F}/m
 await t('parent B envoie un document à valider', setDoc(doc(pb, `families/${F}/docs/d2`), { title: 'Ordonnance', createdBy: 'pb', pub: false, sentAt: now, createdAt: now }));
 await t('parent B ne valide pas son document', updateDoc(doc(pb, `families/${F}/docs/d2`), { pub: true }), false);
 await t('parent A valide le document', updateDoc(doc(pa, `families/${F}/docs/d2`), { pub: true }));
+// Événements : créés par les parents, modifiés ou supprimés par le seul parent créateur ; absences et matchs par les deux parents
+await t('parent A crée un événement', setDoc(doc(pa, `families/${F}/events/ev1`), { createdBy: 'pa', title: 'Foot', kind: 'dow', dows: [1, 3] }));
+await t('parent B ne modifie pas l\'événement de A', updateDoc(doc(pb, `families/${F}/events/ev1`), { title: 'Foot 2' }), false);
+await t('parent B ne supprime pas une séance de A', updateDoc(doc(pb, `families/${F}/events/ev1`), { exceptions: ['2026-11-12'] }), false);
+await t('parent B ne supprime pas l\'événement de A', deleteDoc(doc(pb, `families/${F}/events/ev1`)), false);
+await t('parent A supprime une séance', updateDoc(doc(pa, `families/${F}/events/ev1`), { exceptions: ['2026-11-12'] }));
+await t('proche ne modifie pas un événement', updateDoc(doc(pr, `families/${F}/events/ev1`), { title: 'x' }), false);
+await t('parent B note une absence', setDoc(doc(pb, `families/${F}/evx/ev1_2026-11-17`), { evId: 'ev1', date: '2026-11-17', type: 'absent', cause: 'malade', by: 'pb' }));
+await t('parent A note un match', setDoc(doc(pa, `families/${F}/evx/ev1_2026-11-19`), { evId: 'ev1', date: '2026-11-19', type: 'match', time: '10:00', place: 'Stade', by: 'pa' }));
+await t('proche lit les absences', getDocs(collection(pr, `families/${F}/evx`)));
+await t('proche ne note pas d\'absence', setDoc(doc(pr, `families/${F}/evx/ev1_2026-11-24`), { evId: 'ev1', date: '2026-11-24', type: 'absent' }), false);
+await t('parent B rétablit la séance', deleteDoc(doc(pb, `families/${F}/evx/ev1_2026-11-17`)));
+await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), `families/${F}/events/old`), { createdBy: 'pr', title: 'Ancien' }));
+await t('parent B gère un ancien événement de proche', updateDoc(doc(pb, `families/${F}/events/old`), { title: 'Ancien 2' }));
+await t('parent A supprime son événement', deleteDoc(doc(pa, `families/${F}/events/ev1`)));
+// Réservés aux parents (accompagnement de sortie scolaire)
+await t('parent A crée un événement parents seulement', setDoc(doc(pa, `families/${F}/pevents/pe1`), { createdBy: 'pa', title: 'Sortie scolaire' }));
+await t('parent B le lit', getDoc(doc(pb, `families/${F}/pevents/pe1`)));
+await t('proche ne le lit pas', getDoc(doc(pr, `families/${F}/pevents/pe1`)), false);
+await t('proche ne liste pas les événements parents', getDocs(collection(pr, `families/${F}/pevents`)), false);
+await t('parent B ne le modifie pas', updateDoc(doc(pb, `families/${F}/pevents/pe1`), { title: 'x' }), false);
+await t('proche ne crée pas d\'événement parents', setDoc(doc(pr, `families/${F}/pevents/pe2`), { createdBy: 'pr', title: 'x' }), false);
 await t('parent programme un rappel de validation', setDoc(doc(pa, `families/${F}/reminders/ap_g4_1`), { kind: 'ap', grp: 'g4', sent: now, exp: now + H48, targets: { pb: 'sjf-x' } }));
 await t('parent liste les rappels de validation', getDocs(query(collection(pb, `families/${F}/reminders`), where('kind', '==', 'ap'))));
 await t('proche ne lit pas les rappels', getDocs(query(collection(pr, `families/${F}/reminders`), where('kind', '==', 'ap'))), false);

@@ -1,5 +1,5 @@
 rules_version = '2';
-// SJ Family 6.15 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
+// SJ Family 6.16 — règles Firestore (à coller dans Firebase > Firestore Database > Règles > Publier)
 // Parents : tout le cercle. Proches : agenda à jour, souvenirs, notes qui leur sont adressées, et les rubriques
 // ouvertes par les parents (validées par l'autre parent). Historique personnel pour chacun (inbox).
 service cloud.firestore {
@@ -22,6 +22,8 @@ service cloud.firestore {
     function byMe() { return request.resource.data.get('createdBy', '') == request.auth.uid; }
     function mine() { return resource.data.get('createdBy', '') == request.auth.uid; }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    // l'auteur d'un document est-il un parent ? (un événement créé autrefois par un proche reste gérable par les parents)
+    function byParent(fid) { return resource.data.get('createdBy', '') in [pUid(fid, 'A'), pUid(fid, 'B')]; }
     // Validation d'une importation (souvenir, document) : par l'autre parent, dans les 48 h qui suivent l'envoi.
     // Passé ce délai, la personne qui l'a ajoutée doit la renvoyer (nouvelle date d'envoi).
     function approveOk(fid) {
@@ -104,11 +106,22 @@ service cloud.firestore {
         allow read: if isParent(fid) || (isMember(fid) && resource.data.state == 'accepted');
         allow write: if isParent(fid);
       }
-      // Événements et souvenirs : tout le cercle ; chacun modifie les siens, les parents tout
+      // Événements : visibles par tout le cercle, créés par les parents ; seul le parent créateur les modifie ou les supprime
       match /events/{id} {
         allow read: if isMember(fid);
-        allow create: if isMember(fid) && byMe();
-        allow update, delete: if isParent(fid) || (isMember(fid) && mine());
+        allow create: if isParent(fid) && byMe();
+        allow update, delete: if isParent(fid) && (mine() || !byParent(fid));
+      }
+      // Événements réservés aux parents (ex. accompagnement d'une sortie scolaire)
+      match /pevents/{id} {
+        allow read: if isParent(fid);
+        allow create: if isParent(fid) && byMe();
+        allow update, delete: if isParent(fid) && mine();
+      }
+      // État d'une séance (absent, remplacée par un match) : noté par l'un ou l'autre parent, visible par le cercle
+      match /evx/{id} {
+        allow read: if isMember(fid);
+        allow write: if isParent(fid);
       }
       // Souvenirs : les proches ne voient que ceux validés par un parent (pub) et les leurs
       // Souvenirs : « priv » = photos et vidéos privées des parents, jamais publiées ni visibles par les proches
@@ -205,4 +218,4 @@ service cloud.firestore {
     }
   }
 }
-// FIN des règles SJ Family 6.15 — si cette ligne est la dernière collée, tout est bien copié
+// FIN des règles SJ Family 6.16 — si cette ligne est la dernière collée, tout est bien copié
