@@ -163,9 +163,11 @@ await t('proche ne liste pas les événements parents', getDocs(collection(pr, `
 await t('parent B ne le modifie pas', updateDoc(doc(pb, `families/${F}/pevents/pe1`), { title: 'x' }), false);
 await t('proche ne crée pas d\'événement parents', setDoc(doc(pr, `families/${F}/pevents/pe2`), { createdBy: 'pr', title: 'x' }), false);
 // Proches : retirés par le parent qui les a ajoutés ; sinon, demande validée par l'autre parent
-await env.withSecurityRulesDisabled(ctx => Promise.all([
-  setDoc(doc(ctx.firestore(), `families/${F}/members/pq`), { uid: 'pq', role: 'proche', parentCode: null }),
-  setDoc(doc(ctx.firestore(), `families/${F}/members/ps`), { uid: 'ps', role: 'proche', parentCode: null })]));
+await env.withSecurityRulesDisabled(async ctx => {
+  const d = ctx.firestore();
+  await setDoc(doc(d, `families/${F}/members/pq`), { uid: 'pq', role: 'proche', parentCode: null });
+  await setDoc(doc(d, `families/${F}/members/ps`), { uid: 'ps', role: 'proche', parentCode: null });
+});
 await t('parent note qui a ajouté le proche', updateDoc(doc(pa, `families/${F}/members/pq`), { addedBy: 'pa' }));
 await t('« ajouté par » noté une seule fois', updateDoc(doc(pb, `families/${F}/members/pq`), { addedBy: 'pb' }), false);
 await t('parent B ne retire pas seul un proche ajouté par A', deleteDoc(doc(pb, `families/${F}/members/pq`)), false);
