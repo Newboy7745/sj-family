@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — état global, sélecteurs, écriture des données, notifications
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.18';
-import { toast, esc } from './ui.js?v=6.18';
+import * as E from './engine.js?v=6.19';
+import { toast, esc } from './ui.js?v=6.19';
 
-export const VERSION = '6.18';
+export const VERSION = '6.19';
 export const APP_URL = 'https://newboy7745.github.io/sj-family/';
 /** Version minimale de l'appli Android des widgets (numéro de compilation) : au-dessous, le widget propose la mise à jour */
 export const WIDGETS_APK = 13;
@@ -20,6 +20,8 @@ export const FEED_URL = t => `https://firestore.googleapis.com/v1/projects/sj-fa
 // Compte administrateur : « admin@admin.com » est un alias du compte Firebase khalid.ajdid@gmail.com (aucun mot de passe dans le code)
 export const ADMIN_EMAIL = 'khalid.ajdid@gmail.com';
 export const ADMIN_ALIASES = ['admin@admin.com', 'admin@admin@com', 'admin@admin.fr'];
+/** Identifiants proposés par le navigateur : seulement si la personne l'a demandé (« Enregistrer mes identifiants ») sur cet appareil */
+export const credsSaved = () => LS.get('saveCreds', false) === true;
 export const isAdminUser = () => (S.user?.email || '').toLowerCase() === ADMIN_EMAIL;
 // Règles Firestore : uniquement pour le compte de Khalid (empreinte SHA-256 de son adresse ; l'adresse n'est pas écrite dans le code), dans son vrai cercle
 export const OWNER_H = ['1d79cc4e93bccfa4cfd5f1416defe3fa983650038d5141f094007b9d6de4c8df'];
@@ -212,7 +214,8 @@ export async function log(cat, title, { body = '', link = null, icon = null, to 
 // ───── Notifications push gratuites (ntfy.sh) vers les autres membres
 export async function ntfyPublish(topic, { title, message, tags, click, delay, seq, actions, priority }) {
   if (!topic) return;
-  const body = { topic, title: String(title || '').slice(0, 200), message: String(message || ' ').slice(0, 1000), click: click || APP_URL };
+  // icône SJ Family dans la notification (au lieu de celle de ntfy)
+  const body = { topic, title: String(title || '').slice(0, 200), message: String(message || ' ').slice(0, 1000), click: click || APP_URL, icon: APP_URL + 'icon-192.png' };
   if (tags) body.tags = tags; if (delay) body.delay = delay; if (seq) body.sequence_id = seq; if (actions) body.actions = actions; if (priority) body.priority = priority;
   if (S.be?.mode === 'demo') { (S.ntfyLog ||= []).push({ op: 'pub', ...body }); return; }
   try { await fetch('https://ntfy.sh/', { method: 'POST', body: JSON.stringify(body) }); } catch (e) { console.warn('ntfy', e); }

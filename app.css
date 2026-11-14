@@ -491,3 +491,13 @@ code.tok{display:block;background:#0F1B2D;color:#B8E1FF;border-radius:14px;paddi
 .tc-t{font-weight:900;font-size:18px;color:var(--navy);overflow-wrap:anywhere}
 .tc-x{margin-top:6px;color:#33445C;overflow-wrap:anywhere}
 .alert.pend{border:2px solid #E0393E}
+
+/* 6.19 — écran actuel : contour lumineux de son icône (en haut et en bas) */
+.tb.on{background:rgba(255,255,255,.26);box-shadow:0 0 0 2.5px var(--gold),0 0 14px 2px rgba(232,196,106,.75);animation:onglow 2.4s ease-in-out infinite}
+.tab.on .ti{box-shadow:0 0 0 2.5px var(--gold),0 0 12px 1px rgba(201,162,74,.55);animation:onglow 2.4s ease-in-out infinite}
+.tab.fab.on .ti{box-shadow:0 0 0 3px var(--gold),0 0 16px 3px rgba(232,196,106,.8)}
+@keyframes onglow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12)}}
+@media (prefers-reduced-motion:reduce){.tb.on,.tab.on .ti{animation:none}}
+/* crédit en bas du profil et des réglages */
+.credit{text-align:center;margin:18px 0 6px;color:var(--muted);font-size:14px;letter-spacing:.2px}
+.pw-mask{-webkit-text-security:disc;text-security:disc}

@@ -359,6 +359,17 @@ l'adresse doit être confirmée une fois (lien reçu par e-mail). Aucun mot de p
 - **Mode test** : retour à l'accueil du vrai compte seulement quand l'appli a été fermée ; personnages : Khalid TEST (parent A),
   Maman TEST, puis les proches dans l'ordre d'ajout ; « Mon compte » du bandeau : fenêtre en haut, déplaçable, Annuler / Valider.
 
+## 10 quaterdecies. Nouveautés 6.19
+
+- **Notifications push** : bouton « S'abonner dans ntfy » (sujet secret créé et enregistré tout de suite), icône SJ Family dans
+  les notifications ntfy (champ `icon`), 8 sons créés pour l'appli (`sons/*.wav`) : joués dans l'appli à l'arrivée d'une
+  notification, téléchargeables pour l'abonnement ntfy (réglages personnalisés de l'abonnement › son).
+- **Connexion** : aucun identifiant proposé par le navigateur (mot de passe masqué non reconnu comme tel) sauf après
+  « Enregistrer mes identifiants » ; « Ne plus enregistrer mes identifiants » dans le profil.
+- **Navigation** : flèche retour sur tous les écrans sauf l'accueil ; icône de l'écran actuel mise en avant (haut et bas).
+- **Widgets** : toucher une case ouvre bien ce jour (le retour forcé à l'accueil ne s'applique plus aux liens directs).
+- Crédit « SJ FAMILY - Créé par Khalid AJDID » en bas du profil et des réglages ; « cet appareil » au lieu de « ce téléphone ».
+
 ## 11. Nettoyer les comptes de test (console Firebase)
 
 - *Authentication › Users* : menu ⋮ de chaque ligne › **Supprimer le compte**.

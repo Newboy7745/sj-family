@@ -1,21 +1,21 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family v6 — démarrage, authentification, abonnements, rendu
 // ═══════════════════════════════════════════════════════════════
-import * as E from './engine.js?v=6.18';
-import { createBackend } from './backend.js?v=6.18';
-import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, emailHash, OWNER_H, stat, isParent, can, findEvent, canEditEv, memberName, parentLabel, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.18';
-import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo, pkOpen, topConfirm, NO_CHANGE } from './ui.js?v=6.18';
-import * as Home from './views-home.js?v=6.18';
-import * as Agenda from './views-agenda.js?v=6.18';
-import * as Plan from './views-planning.js?v=6.18';
-import * as Exch from './views-exchange.js?v=6.18';
-import * as Fam from './views-family.js?v=6.18';
-import * as Bud from './views-budget.js?v=6.18';
-import * as More from './views-more.js?v=6.18';
-import * as Admin from './views-admin.js?v=6.18';
-import * as Install from './install.js?v=6.18';
-import * as Sac from './views-sac.js?v=6.18';
-import * as Print from './print.js?v=6.18';
+import * as E from './engine.js?v=6.19';
+import { createBackend } from './backend.js?v=6.19';
+import { S, go, parseHash, LS, uid, parents, myName, errMsg, guard, queueFeed, syncFeed, scheduleReminders, queueReminders, queueApprovals, VERSION, APP_URL, ADMIN_EMAIL, ADMIN_ALIASES, isAdminUser, credsSaved, emailHash, OWNER_H, stat, isParent, can, findEvent, canEditEv, memberName, parentLabel, LEGACY_T0, CHILD_DETAIL_KEYS, setFamily, log } from './core.js?v=6.19';
+import { $, esc, toast, readForm, IC, closeSheetsThen, sheetDepth, openSheet, closeSheet, confirmBox, confirmInfo, pkOpen, topConfirm, NO_CHANGE } from './ui.js?v=6.19';
+import * as Home from './views-home.js?v=6.19';
+import * as Agenda from './views-agenda.js?v=6.19';
+import * as Plan from './views-planning.js?v=6.19';
+import * as Exch from './views-exchange.js?v=6.19';
+import * as Fam from './views-family.js?v=6.19';
+import * as Bud from './views-budget.js?v=6.19';
+import * as More from './views-more.js?v=6.19';
+import * as Admin from './views-admin.js?v=6.19';
+import * as Install from './install.js?v=6.19';
+import * as Sac from './views-sac.js?v=6.19';
+import * as Print from './print.js?v=6.19';
 
 const MODS = [Home, Agenda, Plan, Exch, Fam, Bud, More, Admin, Install, Sac, Print];
 const VIEWS = Object.assign({}, ...MODS.map(m => m.views || {}));
@@ -40,7 +40,7 @@ Object.assign(ACTIONS, {
     g.dispatchEvent(new CustomEvent('chipchange', { bubbles: true, detail: { val: '', on: false } }));
   },
   'close-sheet': () => closeSheet(),
-  back() { if (S.nav > 0) { S.nav--; history.back(); } else go(S.backTo || 'home'); },
+  back() { if ((S.hist || []).length > 1) history.back(); else go(S.backTo || 'home'); },
   logout: async () => {
     if (S.acc === 'test') { LS.set('acc', 'main'); location.hash = '#/home'; location.reload(); return; }
     if (!(await confirmBox('Se déconnecter ?', 'Vous devrez saisir à nouveau votre e-mail et votre mot de passe.', 'Se déconnecter', true))) return;
@@ -88,6 +88,7 @@ const NOTIF_CONFIRM = {
 };
 // ───── Toute autre action qui enregistre, supprime ou change quelque chose demande une validation (pas le choix des personnages du mode test)
 const PLAIN_CONFIRM = {
+  'creds-off': ['Ne plus enregistrer vos identifiants ?', 'Ils ne seront plus proposés à la connexion sur cet appareil.'],
   'occ-x-save': a => (a.dataset.t === 'absent' ? ["Noter l'absence ?", 'La séance reste dans l\'agenda, barrée, et compte comme une absence.'] : ['Noter le match ?', 'La séance est annulée et remplacée par le match de foot.']),
   'occ-restore': ['Rétablir la séance ?', "L'absence ou le match est retiré : la séance a lieu normalement."],
   'occ-del-go': a => { const ev = findEvent(a.dataset.id); return a.dataset.m === 'all' ? null : ev && !canEditEv(ev) ? ['Proposer la suppression ?', `${esc(parentLabel(ev.createdBy, ev.createdByName || "L'autre parent"))} doit la valider pour qu'elle soit prise en compte.`] : ['Supprimer ?', a.dataset.m === 'day' ? "Cette séance disparaît de l'agenda et du bilan." : "Les séances cochées disparaissent de l'agenda et du bilan."]; },
@@ -176,7 +177,13 @@ function checkSetupLink() {
   history.replaceState(null, '', location.pathname + location.search + '#/setup'); // efface les informations du lien de l'historique
   return true;
 }
-window.addEventListener('hashchange', () => { checkSetupLink(); S.route = parseHash(); window.scrollTo(0, 0); S.render(); });
+// écrans parcourus : la flèche « retour » ramène à l'écran précédent
+S.hist = [location.hash || '#/home'];
+window.addEventListener('hashchange', () => {
+  const h = location.hash || '#/home', st = S.hist;
+  if (st.length > 1 && st[st.length - 2] === h) st.pop(); else if (st[st.length - 1] !== h) { st.push(h); if (st.length > 60) st.shift(); }
+  checkSetupLink(); S.route = parseHash(); window.scrollTo(0, 0); S.render();
+});
 
 function lighten(hex, k) {
   const n = parseInt(hex.replace('#', ''), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255;
@@ -219,12 +226,14 @@ function shell(withTabs = true) {
 function header({ title = '', back = null, actions = true } = {}) {
   const l = $('.top-l'), t = $('.top-t'), r = $('.top-r');
   S.backTo = back;
-  l.innerHTML = back ? `<button class="tb" data-act="back" aria-label="Retour">${IC.back}</button>` : `<img class="logo-top" src="logo-top.png" alt="SJ Family" data-go="home">`;
+  // flèche « retour » sur tous les écrans sauf l'accueil
+  const showBack = !!back || (actions && S.route?.view && S.route.view !== 'home');
+  l.innerHTML = showBack ? `<button class="tb" data-act="back" aria-label="Retour">${IC.back}</button>` : `<img class="logo-top" src="logo-top.png" alt="SJ Family" data-go="home">`;
   t.textContent = title;
-  $('.top').classList.toggle('sub', !!back);
-  const unread = More.unreadCount ? More.unreadCount() : 0;
-  r.innerHTML = !actions ? '' : `<button class="tb" data-go="notifs" aria-label="Notifications">🔔${unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>
-    <button class="tb" data-go="settings" aria-label="Réglages">⚙️</button><button class="tb" data-go="profile" aria-label="Profil">👤</button>
+  $('.top').classList.toggle('sub', showBack);
+  const unread = More.unreadCount ? More.unreadCount() : 0, v = S.route?.view, on = k => (v === k ? ' on' : '');
+  r.innerHTML = !actions ? '' : `<button class="tb${on('notifs')}" data-go="notifs" aria-label="Notifications">🔔${unread ? `<span class="badge">${unread > 99 ? '99+' : unread}</span>` : ''}</button>
+    <button class="tb${on('settings')}" data-go="settings" aria-label="Réglages">⚙️</button><button class="tb${on('profile')}" data-go="profile" aria-label="Profil">👤</button>
     <button class="tb lo" data-act="logout" aria-label="Se déconnecter">${IC.logout}</button>`;
 }
 function doRender() {
@@ -298,11 +307,18 @@ function renderLoading() { shell(false); header({ actions: false }); $('#view').
 function renderAuth() {
   const mode = S.authMode || 'login';
   const app = $('#app'); app.dataset.shell = 'auth';
-  // autocomplete : « username » = seuls les identifiants déjà enregistrés pour CE site sont proposés ; « off » ailleurs
-  const L = (n, l, t = 'text', ac = 'off', ph = '', val = '') => `<label class="lbl">${l}</label><input class="in" name="${n}" type="${t}" autocomplete="${ac}" autocapitalize="${t === 'email' ? 'off' : 'sentences'}" spellcheck="false" placeholder="${ph}" value="${esc(val)}">`;
+  // Aucune proposition d'identifiants (ni de ce site, ni d'un autre site enregistré par le navigateur), sauf si la personne a
+  // touché « Enregistrer mes identifiants » sur cet appareil : mot de passe masqué sans être reconnu comme tel par le navigateur.
+  const keep = credsSaved() && mode === 'login', mask = typeof CSS !== 'undefined' && CSS.supports?.('-webkit-text-security', 'disc');
+  const L = (n, l, t = 'text', ac = 'off', ph = '', val = '') => {
+    const pw = t === 'password', off = !keep || !/username|current-password/.test(ac);
+    const type = pw && off && mask ? 'text' : t, auto = off ? 'sjf-off' : ac;
+    return `<label class="lbl">${l}</label><input class="in${pw && off && mask ? ' pw-mask' : ''}" name="${n}" type="${type}" autocomplete="${auto}" data-lpignore="true" data-1p-ignore autocapitalize="off" spellcheck="false" placeholder="${ph}" value="${esc(val)}">`;
+  };
   let body;
   if (mode === 'login') body = `<h2>Connexion</h2>${L('email', 'E-mail', 'email', 'username', 'vous@exemple.fr', S.authEmail || '')}${L('pw', 'Mot de passe', 'password', 'current-password')}
     <button class="btn primary block mt2" data-act="auth-login">Se connecter</button>
+    ${credsSaved() ? '' : `<button type="button" class="btn ${S.saveCredsNext ? 'ok' : 'soft'} block mt" data-act="auth-save-creds">${S.saveCredsNext ? '✅ Identifiants enregistrés à la connexion' : '🔑 Enregistrer mes identifiants'}</button>`}
     ${S.adminFail ? `<div class="alert mt"><div class="ai">🛡️</div><div class="small">Compte admin introuvable ou mot de passe incorrect.<br><a href="#" class="lnk" data-act="auth-admin-create">Créer le compte admin</a> · <a href="#" class="lnk" data-act="auth-mode" data-m="reset">Mot de passe oublié</a></div></div>` : ''}
     <div class="sw2"><a href="#" data-act="auth-mode" data-m="reset">Mot de passe oublié ?</a></div>
     <div class="sw2">Pas encore de compte ? <a href="#" data-act="auth-mode" data-m="register">Créer un compte</a></div>`;
@@ -323,13 +339,20 @@ const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 const isAlias = e => ADMIN_ALIASES.includes(String(e || '').trim().toLowerCase());
 const isAdminMail = e => isAlias(e) || String(e || '').trim().toLowerCase() === ADMIN_EMAIL;
 Object.assign(ACTIONS, {
+  'auth-save-creds': () => { const f = $('.auth form') ? readForm($('.auth form')) : {}; if (f.email) S.authEmail = f.email; S.saveCredsNext = !S.saveCredsNext; const pw = f.pw; renderAuth(); if (pw) { const i = $('.auth [name=pw]'); if (i) i.value = pw; } },
   'auth-mode': el => { const f = $('.auth form') ? readForm($('.auth form')) : {}; if (f.email) S.authEmail = f.email; S.authMode = el.dataset.m; S.adminFail = false; renderAuth(); },
   'auth-login': async el => {
     const f = readForm(el.closest('form')), alias = isAlias(f.email);
     const email = alias ? ADMIN_EMAIL : f.email.trim().toLowerCase();
     if (!emailOk(email) || !f.pw) return toast('Saisissez votre e-mail et votre mot de passe.', 'warn');
     el.disabled = true; S.authEmail = f.email; S.adminFail = false;
-    try { await S.be.auth.signIn(email, f.pw); S.authEmail = ''; }
+    try {
+      await S.be.auth.signIn(email, f.pw); S.authEmail = '';
+      if (S.saveCredsNext) {
+        LS.set('saveCreds', true); S.saveCredsNext = false;
+        try { if (window.PasswordCredential) await navigator.credentials.store(new PasswordCredential({ id: email, password: f.pw, name: email })); } catch (x) { /* */ }
+      }
+    }
     catch (e) {
       el.disabled = false;
       if (alias || email === ADMIN_EMAIL) { S.adminFail = true; S.adminPw = f.pw; renderAuth(); }
@@ -434,7 +457,13 @@ function attachFamily(fid) {
     S.render(); queueFeed();
   }, err => { console.warn('famille', err); S.familyGone = true; S.render(); }));
   unFam.push(db.listenDoc(`families/${fid}/members/${me}`, m => { S.meMember = m; S.loaded.me = true; ensureData(); S.render(); }, err => { console.warn('membre', err?.code || err); S.loaded.me = true; ensureData(); }));
-  unFam.push(db.listenCol(`families/${fid}/inbox/${me}/items`, rows => { S.activity = rows; S.loaded.activity = true; S.render(); }, { orderBy: ['at', 'desc'], limit: 300 }, err => console.warn('inbox', err?.code || err)));
+  unFam.push(db.listenCol(`families/${fid}/inbox/${me}/items`, rows => {
+    // nouvelle notification reçue pendant que l'application est ouverte : son choisi
+    const known = S.loaded.activity ? new Set(S.activity.map(a => a.id)) : null;
+    S.activity = rows; S.loaded.activity = true;
+    if (known && document.visibilityState === 'visible' && rows.some(a => !known.has(a.id) && More.isUnread(a))) More.playSound();
+    S.render();
+  }, { orderBy: ['at', 'desc'], limit: 300 }, err => console.warn('inbox', err?.code || err)));
 }
 
 /** Mises à niveau ponctuelles faites par un parent (une fois les données chargées) */
@@ -513,7 +542,8 @@ const FRESH = (() => { try { const f = !sessionStorage.getItem('sjf:alive'); ses
 async function start() {
   const demo = new URLSearchParams(location.search).has('demo') || LS.get('demo', false);
   if (demo) LS.set('demo', true);
-  if (FRESH && !/[?&](k|preset|fam)=|#\/(setup|join)/.test(location.href)) {
+  // liens directs (widgets : un jour de l'agenda, notifications, invitations) : on va directement à la bonne page
+  if (FRESH && !/[?&](k|preset|fam|d)=|#\/(setup|join)/.test(location.href)) {
     // on revient sur l'accueil du vrai compte (le mode test reste disponible dans Réglages)
     if (LS.get('acc', 'main') === 'test') LS.set('acc', 'main');
     S.freshLaunch = true;

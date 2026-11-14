@@ -1,9 +1,9 @@
 // ═══════════════ Accueil ═══════════════
-import * as E from './engine.js?v=6.18';
-import { occs, findEvent, canEditEv, parentLabel, S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.18';
+import * as E from './engine.js?v=6.19';
+import { occs, findEvent, canEditEv, parentLabel, S, engine, parents, pName, pShort, hoTime, hoPlace, pColor, selChildren, selIds, setSel, uid, myName, myCode, isParent, childNames, settings, avatar, needsValidation, countdown, kidAvatar, groupAvatar, can, widgetToken, memberName, noteForMe, canApprove, approvalGroups, subLabel, leftText, isMuted } from './core.js?v=6.19';
 export { countdown };
-import { esc, fmtAgo } from './ui.js?v=6.18';
-import { evText } from './views-agenda.js?v=6.18';
+import { esc, fmtAgo } from './ui.js?v=6.19';
+import { evText } from './views-agenda.js?v=6.19';
 
 export function kidChips() {
   if (S.children.length < 1) return '';

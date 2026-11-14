@@ -1,11 +1,11 @@
 // ═══════════════ Tâches, liaison, documents, répertoire, souvenirs, notifications, réglages, profil, widgets ═══════════════
-import * as E from './engine.js?v=6.18';
-import { randomId } from './backend.js?v=6.18';
-import { isOwnerHere, favPlaces, ALERT_LABELS, alertDefaults, alertText, itemAlerts, queueReminders, isPending, S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.18';
-import { NO_CHANGE, pick, pic, uniquePics, topConfirm, markChanged, esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.18';
-import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.18';
-import { createFamily, procheText } from './views-family.js?v=6.18';
-import { openPrint } from './print.js?v=6.18';
+import * as E from './engine.js?v=6.19';
+import { randomId } from './backend.js?v=6.19';
+import { platform, credsSaved, isOwnerHere, favPlaces, ALERT_LABELS, alertDefaults, alertText, itemAlerts, queueReminders, isPending, S, engine, parents, pName, pShort, hoTime, hoPlace, uid, me, myName, myCode, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, needsValidation, setFamily, selIds, selChildren, setSel, CATS, APP_URL, APK_URL, SCRIPT_URL, FEED_URL, VERSION, syncFeed, ntfyPublish, avatar, LS, can, widgetToken, memberName, otherParentUid, noteForMe, needApproval, canApprove, approvalText, isProche, shownItem, canResend, isMuted, isExpired, grpOf, muteGroup, resendGroup, queueApprovals, approvalGroups, subLabel, leftText, groupItems, errMsg, notifLink } from './core.js?v=6.19';
+import { NO_CHANGE, pick, pic, uniquePics, topConfirm, markChanged, esc, openSheet, closeSheet, readForm, chips, confirmBox, confirmInfo, toast, IC, fmtStamp, fmtAgo, compressImage, fileToDataURL, dataURLtoBlob, copyText, closeSheetsThen, makeThumb, topSheet, compressVideo, blobToBase64, base64ToBlob, VIDEO_MAX } from './ui.js?v=6.19';
+import { kidChips, countdown, pendingItems, pendHtml } from './views-home.js?v=6.19';
+import { createFamily, procheText } from './views-family.js?v=6.19';
+import { openPrint } from './print.js?v=6.19';
 
 const kidChipsForm = (sel = selIds()) => chips('childIds', S.children.map(c => ({ v: c.id, l: `${c.emoji || ''} ${esc(c.prenom)}` })), sel, { multi: true });
 const matchKids = item => { const ids = selIds(); return !item.childIds?.length || item.childIds.some(i => ids.includes(i)); };
@@ -46,6 +46,20 @@ function memDl(url, m, ext) {
   const name = `${(m.title || 'souvenir').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^A-Za-z0-9 _-]/g, '').trim().replace(/\s+/g, '-') || 'souvenir'}-${m.date || ''}.${ext}`;
   return `<a class="btn soft block mt" href="${url}" download="${esc(name)}">${IC.download} Télécharger ${ext === 'mp4' ? 'la vidéo' : 'la photo'}</a>`;
 }
+// ───────────── Sons des notifications (créés pour SJ Family) : joués dans l'application, à télécharger pour ntfy
+export const SOUNDS = [['carillon', 'Carillon', '🔔'], ['goutte', 'Goutte', '💧'], ['clochette', 'Clochette', '🛎️'], ['harpe', 'Harpe', '🎼'], ['marimba', 'Marimba', '🪵'], ['bulle', 'Bulle', '🫧'], ['douce', 'Douceur', '🌙'], ['alerte', 'Alerte', '📣'], ['aucun', 'Aucun son', '🔕']];
+export const mySound = () => LS.get('sound', null) || me()?.sound || 'carillon';
+let sndEl = null;
+export function playSound(k = mySound()) {
+  if (!k || k === 'aucun') return;
+  try { sndEl?.pause(); sndEl = new Audio(`sons/${k}.wav`); sndEl.volume = 1; sndEl.play().catch(() => { }); } catch (e) { /* */ }
+}
+function soundPicker(m) {
+  const cur = mySound();
+  return `<div class="lbl">🔊 Son des notifications</div>${pick('sound', SOUNDS.map(([v, l, i]) => ({ v, l, i })), [cur], { none: false })}
+    <div class="row gap mt"><button type="button" class="btn soft f1" data-act="snd-play">▶︎ Écouter</button><a class="btn soft f1 ${cur === 'aucun' ? 'hide' : ''}" data-snd-dl href="sons/${cur}.wav" download="SJ Family - ${cur}.wav">${IC.download} Télécharger</a></div>
+    <div class="hint">Le son est joué quand l'application est ouverte et que le son de l'appareil est activé. Application fermée : dans ntfy, ouvrez l'abonnement › ⋮ › Paramètres › Notifications, activez les réglages personnalisés et choisissez ce son téléchargé.</div>`;
+}
 // ───────────── Rappels personnalisés : éditeur (combien de temps avant, nombre de rappels, intervalle)
 const AL_BEFORE = [5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 360, 720, 1440, 2880], AL_EVERY = [5, 10, 15, 30, 60, 120, 240, 1440];
 const durL = min => (min >= 1440 && min % 1440 === 0 ? (min === 1440 ? '1 jour' : `${min / 1440} jours`) : min >= 60 ? `${Math.floor(min / 60)} h${min % 60 ? ' ' + min % 60 : ''}` : `${min} min`);
@@ -71,7 +85,7 @@ export function alertsBlock(kind, id) {
     ${chips('alMode', [{ v: 'def', l: 'Mes réglages habituels' }, { v: 'custom', l: '✏️ Personnalisés' }, { v: 'off', l: '🔕 Aucun' }], [cur.mode || 'def'])}
     <div data-part="alc" class="${cur.mode === 'custom' ? '' : 'hide'}">${alertEditor('alD', kind === 'x' ? 'Remise des enfants' : 'Dépose', dr)}${alertEditor('alP', 'Récupération', pk)}</div>
     <div class="hint" data-part="ald">${cur.mode === 'off' ? 'Aucun rappel pour vous.' : `Habituels : ${kind === 'x' ? `remise ${esc(alertText(d.relDrop))} · récupération ${esc(alertText(d.relPick))}` : `dépose ${esc(alertText(d.evDrop))} · récupération ${esc(alertText(d.evPick))}`}${kind === 'x' ? '' : ', si vous déposez ou récupérez ce jour-là'}.`}</div>
-    ${m.ntfyOn ? '' : '<div class="hint warn">⚠️ Activez d\'abord les notifications sur ce téléphone : Réglages › Notifications push.</div>'}</div>`;
+    ${m.ntfyOn ? '' : '<div class="hint warn">⚠️ Activez d\'abord les notifications sur cet appareil : Réglages › Notifications push.</div>'}</div>`;
 }
 export function alertsBlockBind(sh) {
   const upd = () => { const f = readForm(sh); sh.querySelector('[data-part="alc"]')?.classList.toggle('hide', f.alMode !== 'custom'); sh.querySelector('[data-part="ald"]')?.classList.toggle('hide', f.alMode === 'custom'); };
@@ -382,7 +396,7 @@ export const views = {
       <div class="card"><h3>🏖️ Vacances scolaires ${par ? '<a class="act" data-act="set-zone">Modifier</a>' : ''}</h3><div class="prow"><span>Zone</span><b>${st.zone}</b></div>
         <div class="prow"><span>Périodes personnalisées</span><b>${(st.customHolidays || []).length}</b></div></div>
       <div class="card"><h3>📲 Notifications push</h3>
-        <div class="prow"><span>Alertes sur ce téléphone</span><b>${m.ntfyOn ? '✅ Activées' : '⏸️ Désactivées'}</b></div>
+        <div class="prow"><span>Alertes sur cet appareil</span><b>${m.ntfyOn ? '✅ Activées' : '⏸️ Désactivées'}</b></div>
         ${par ? Object.entries(alertDefaults(m)).map(([k, c]) => `<div class="prow"><span>${ALERT_LABELS[k]}</span><b>${esc(alertText(c))}</b></div>`).join('') : ''}
         <button class="btn primary block mt" data-act="push-setup">Configurer</button>
         <div class="hint">Gratuit, sans compte, sur iPhone et Samsung, via l'application « ntfy ». Vous n'êtes jamais notifié de vos propres actions.</div></div>
@@ -395,7 +409,8 @@ export const views = {
       <div class="card"><h3>ℹ️ Application</h3>
         <button class="btn soft block" data-act="app-refresh">${IC.refresh} Mettre à jour / vider le cache</button>
         ${S.be.mode === 'demo' ? `<button class="btn soft block mt" data-act="demo-off">Quitter le mode démo</button>` : ''}
-        <button class="btn soft block mt" style="color:var(--err)" data-act="logout">${IC.logout} Se déconnecter</button></div>`,
+        <button class="btn soft block mt" style="color:var(--err)" data-act="logout">${IC.logout} Se déconnecter</button></div>
+      <p class="credit">SJ FAMILY - Créé par Khalid AJDID</p>`,
     };
   },
   profile() {
@@ -404,7 +419,10 @@ export const views = {
       title: 'Mon profil', back: 'home',
       html: `<div class="card center">${avatar(p.prenom, 'var(--navy2)', 80)}<h2 class="mt">${esc(p.prenom || '')} ${esc(p.nom || '')}</h2><div class="muted">${esc(p.email || S.user?.email || '')}</div><div class="muted">${esc(p.phone || '')}</div>
         <button class="btn primary block mt" data-act="prof-edit">${IC.edit} Modifier mes informations</button></div>
-      <div class="card"><button class="btn soft block" data-act="prof-pw">${IC.lock} Changer de mot de passe</button><button class="btn soft block mt" style="color:var(--err)" data-act="logout">${IC.logout} Se déconnecter</button></div>`,
+      <div class="card"><button class="btn soft block" data-act="prof-pw">${IC.lock} Changer de mot de passe</button>
+        ${credsSaved() ? `<button class="btn soft block mt" data-act="creds-off">🔑 Ne plus enregistrer mes identifiants</button>` : ''}
+        <button class="btn soft block mt" style="color:var(--err)" data-act="logout">${IC.logout} Se déconnecter</button></div>
+      <p class="credit">SJ FAMILY - Créé par Khalid AJDID</p>`,
     };
   },
   widgets() {
@@ -748,18 +766,45 @@ export const actions = {
     if (ok) closeSheet();
   },
   'set-hol-del': async el => { const st = settings(); await guard(() => setFamily({ settings: { ...st, customHolidays: (st.customHolidays || []).filter(h => h.id !== el.dataset.id) } }), 'Période supprimée'); el.closest('.per')?.remove(); },
-  'push-setup': () => {
-    const m = me(), topic = m.ntfyTopic || ('sjf-' + randomId(14).toLowerCase());
+  'push-setup': async () => {
+    const m = me();
+    // sujet secret créé et enregistré tout de suite : l'abonnement dans ntfy marche dès le premier toucher
+    let topic = m.ntfyTopic;
+    if (!topic) { topic = 'sjf-' + randomId(14).toLowerCase(); await updItem('members', uid(), { ntfyTopic: topic }).catch(() => { }); }
+    const ios = platform() === 'ios', link = `ntfy://ntfy.sh/${topic}`;
     const sh = openSheet(`<h3 class="sh-title">📲 Notifications push</h3>
       <div class="steps"><div class="st"><span class="sn">1</span><span class="f1">Installez l'app gratuite <b>ntfy</b> : <a class="lnk" href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" rel="noopener">Samsung / Android</a> · <a class="lnk" href="https://apps.apple.com/app/ntfy/id1625396347" target="_blank" rel="noopener">iPhone</a></span></div>
-      <div class="st"><span class="sn">2</span><span class="f1">Dans ntfy, touchez <b>+</b> et abonnez-vous à ce sujet secret :</span></div></div>
-      <code class="tok">${esc(topic)}</code><button class="btn soft block mt" data-act="w-copy" data-v="${esc(topic)}">${IC.copy} Copier le sujet</button>
-      <label class="row gap mt2"><span class="sw"><input type="checkbox" name="on" ${m.ntfyOn ? 'checked' : ''}><span></span></span><span class="f1"><b>Recevoir les alertes</b> ${isParent() ? '(échanges, dépenses, agenda, liaison… des autres membres)' : '(nouveaux souvenirs, notes qui vous sont adressées)'}</span></label>
+      <div class="st"><span class="sn">2</span><span class="f1">Abonnez-vous à votre sujet secret${ios ? ' : dans ntfy, touchez <b>+</b> et collez le sujet' : ''}.</span></div></div>
+      ${ios ? '' : `<a class="btn primary block" href="${esc(link)}" data-act="push-sub" data-t="${esc(topic)}">📲 S'abonner dans ntfy</a>`}
+      <div class="row gap mt"><code class="tok f1" style="margin:0">${esc(topic)}</code><button class="btn soft sm" data-act="w-copy" data-v="${esc(topic)}">${IC.copy} Copier</button></div>
+      <div class="steps mt"><div class="st"><span class="sn">3</span><span class="f1">Touchez <b>Tester</b> : la notification arrive sur cet appareil, même application fermée.</span></div></div>
+      <label class="row gap mt2"><span class="sw"><input type="checkbox" name="on" ${m.ntfyOn || !m.ntfyTopic ? 'checked' : ''}><span></span></span><span class="f1"><b>Recevoir les alertes</b> ${isParent() ? '(échanges, dépenses, agenda, liaison… des autres membres)' : '(nouveaux souvenirs, notes qui vous sont adressées)'}</span></label>
+      ${soundPicker(m)}
       ${isParent() ? `<div class="lbl">Mes rappels habituels</div>${Object.entries(alertDefaults(m)).map(([k, c]) => alertEditor(k, ALERT_LABELS[k], c)).join('')}
         <div class="hint">Relais : rappel pour vos remises et vos récupérations. Événements : rappel si c'est vous qui déposez ou récupérez (ou si vous avez les enfants ce jour-là). Pour un événement ou un échange précis : bouton « 🔔 Mes rappels ».</div>` : ''}
       <input type="hidden" name="topic" value="${esc(topic)}">
       <div class="sh-actions"><button class="btn soft f1" data-act="push-test" data-t="${esc(topic)}">Tester</button><button class="btn primary f1" data-act="push-save">Enregistrer</button></div>`);
     if (isParent()) alertBind(sh);
+    sh.addEventListener('chipchange', e => {
+      if (!e.target.closest('[data-pk=sound]')) return;
+      const k = readForm(sh).sound, a = sh.querySelector('[data-snd-dl]');
+      if (a) { a.href = `sons/${k}.wav`; a.download = `SJ Family - ${k}.wav`; a.classList.toggle('hide', k === 'aucun'); }
+      playSound(k);
+    });
+  },
+  'snd-play': el => playSound(readForm(el.closest('.sheet')).sound || mySound()),
+  // un toucher : alertes activées et sujet enregistré, puis ntfy s'ouvre sur l'abonnement
+  'push-sub': async el => {
+    const t = el.dataset.t;
+    if (!me().ntfyOn || me().ntfyTopic !== t) await updItem('members', uid(), { ntfyTopic: t, ntfyOn: true }).catch(() => { });
+    queueReminders();
+    location.href = el.getAttribute('href');
+    setTimeout(() => { if (document.visibilityState === 'visible') toast("Si ntfy ne s'ouvre pas, installez-le (étape 1), puis touchez à nouveau « S'abonner ».", 'warn', 5000); }, 2200);
+  },
+  'creds-off': () => {
+    LS.set('saveCreds', false);
+    try { navigator.credentials?.preventSilentAccess?.(); } catch (e) { /* */ }
+    toast('Vos identifiants ne seront plus proposés sur cet appareil.', 'ok', 3500); S.render();
   },
   'rules-copy': async () => {
     let txt = '';
@@ -780,10 +825,11 @@ export const actions = {
     const f = readForm(el.closest('.sheet')), m = me();
     const def = isParent() ? Object.fromEntries(Object.keys(ALERT_LABELS).map(k => [k, readAlert(f, k)])) : null;
     const extra = def ? { alerts: { ...(m.alerts || {}), def }, remind: def.relPick.on ? String(def.relPick.b) : 'off' } : {};
-    await guard(async () => { await updItem('members', uid(), { ntfyTopic: f.topic, ntfyOn: !!f.on, ...extra }); queueReminders(); await log('cercle', `Notifications push ${f.on ? 'activées' : 'désactivées'} sur ce téléphone`, { to: 'self', icon: '📲' }); }, 'Notifications enregistrées');
+    if (f.sound) LS.set('sound', f.sound);
+    await guard(async () => { await updItem('members', uid(), { ntfyTopic: f.topic, ntfyOn: !!f.on, sound: f.sound || 'carillon', ...extra }); queueReminders(); await log('cercle', `Notifications push ${f.on ? 'activées' : 'désactivées'} sur cet appareil`, { to: 'self', icon: '📲' }); }, 'Notifications enregistrées');
     closeSheet();
   },
-  'push-test': async el => { await ntfyPublish(el.dataset.t, { title: '✅ SJ Family', message: 'Les notifications fonctionnent sur ce téléphone.', tags: ['tada'] }); toast('Notification de test envoyée'); },
+  'push-test': async el => { await ntfyPublish(el.dataset.t, { title: '✅ SJ Family', message: 'Les notifications fonctionnent sur cet appareil.', tags: ['tada'] }); toast('Notification de test envoyée'); },
   'app-refresh': async () => {
     try { const rs = await navigator.serviceWorker?.getRegistrations(); for (const r of rs || []) await r.unregister(); const ks = await caches.keys(); for (const k of ks) await caches.delete(k); } catch (e) { /* */ }
     location.reload();

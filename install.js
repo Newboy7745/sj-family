@@ -1,6 +1,6 @@
 // ═══════════════ Installation de l'application (Android / iPhone) ═══════════════
-import { S, platform, isStandalone, stat, LS, SHARE_URL as APP_URL, APK_URL } from './core.js?v=6.18';
-import { openSheet, toast, copyText, IC } from './ui.js?v=6.18';
+import { S, platform, isStandalone, stat, LS, SHARE_URL as APP_URL, APK_URL } from './core.js?v=6.19';
+import { openSheet, toast, copyText, IC } from './ui.js?v=6.19';
 
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredPrompt = e; });
@@ -18,7 +18,7 @@ export function checkStandalone() { if (isStandalone()) countInstall(); }
 const shareIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>`;
 
 export function installButtons({ dark = false } = {}) {
-  if (isStandalone()) return `<div class="center small" style="margin-top:14px;${dark ? 'color:#fff;opacity:.85' : ''}">✅ Application installée sur ce téléphone</div>`;
+  if (isStandalone()) return `<div class="center small" style="margin-top:14px;${dark ? 'color:#fff;opacity:.85' : ''}">✅ Application installée sur cet appareil</div>`;
   const p = platform();
   return `<div class="inst ${dark ? 'dark' : ''}"><div class="inst-t">📲 Télécharger l'application</div>
     <div class="row gap"><button class="btn ${p === 'android' ? 'coral' : 'ghost'} f1" data-act="inst-android">🤖 Android</button>

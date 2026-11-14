@@ -1,11 +1,11 @@
 // ═══════════════ Agenda : calendrier de garde + événements, jour, bilan, vacances, export ═══════════════
-import * as E from './engine.js?v=6.18';
-import { occs, allEvents, findEvent, canEditEv, evProps, parentLabel, memberName, evxMap, me, queueReminders, S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.18';
-import { pick, esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.18';
-import { vacRecap } from './views-sac.js?v=6.18';
-import { kidChips, cellBg } from './views-home.js?v=6.18';
-import { altText, whoPick, whoName, placeSel, placeToggle, placeLabel, dpText, alertsBlock, alertsBlockBind, saveItemAlerts, myAlertsSheet, rememberSugg, yearItems, dayItems, HOL_ITEMS, ALT_WHEN } from './views-more.js?v=6.18';
-import { openPrint } from './print.js?v=6.18';
+import * as E from './engine.js?v=6.19';
+import { occs, allEvents, findEvent, canEditEv, evProps, parentLabel, memberName, evxMap, me, queueReminders, S, engine, parents, pName, pShort, hoTime, hoPlace, selChildren, selIds, uid, myName, isParent, childName, childNames, settings, addItem, updItem, log, guard, fpath, go, LS, can, shownItem } from './core.js?v=6.19';
+import { pick, esc, openSheet, closeSheet, readForm, chips, confirmBox, toast, download, IC, closeSheetsThen, fmtMoney, fmtStamp } from './ui.js?v=6.19';
+import { vacRecap } from './views-sac.js?v=6.19';
+import { kidChips, cellBg } from './views-home.js?v=6.19';
+import { altText, whoPick, whoName, placeSel, placeToggle, placeLabel, dpText, alertsBlock, alertsBlockBind, saveItemAlerts, myAlertsSheet, rememberSugg, yearItems, dayItems, HOL_ITEMS, ALT_WHEN } from './views-more.js?v=6.19';
+import { openPrint } from './print.js?v=6.19';
 
 export const EV_CATS = [
   { v: 'ecole', i: '🏫', l: 'École' }, { v: 'sante', i: '🩺', l: 'Santé' }, { v: 'activite', i: '⚽', l: 'Sport / activité' }, { v: 'cours', i: '📖', l: 'Cours' },

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════════
 //  SJ Family — utilitaires d'interface
 // ═══════════════════════════════════════════════════════════════
-import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.18';
+import { MOIS_C, JOURS_C, pad } from './engine.js?v=6.19';
 
 export const $ = (s, r = document) => r.querySelector(s);
 export const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -264,7 +264,7 @@ export async function compressVideo(file, onProgress = () => { }) {
   const type = window.MediaRecorder ? types.find(t => MediaRecorder.isTypeSupported(t)) : null;
   if (!type || !cv.captureStream) {
     URL.revokeObjectURL(url);
-    if (file.size > VIDEO_MAX) throw new Error('Vidéo trop lourde (15 Mo maximum) et impossible à compresser sur ce téléphone.');
+    if (file.size > VIDEO_MAX) throw new Error('Vidéo trop lourde (15 Mo maximum) et impossible à compresser sur cet appareil.');
     return { blob: file, mime: file.type || 'video/mp4', poster, dur };
   }
   const stream = cv.captureStream(30);
